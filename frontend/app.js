@@ -51,7 +51,9 @@
             lastName: '',
             fatherId: '',
             motherId: '',
+            notes: '',
           },
+          selectedPerson: null,
         };
       },
       async mounted() {
@@ -67,7 +69,7 @@
           if (!payload.motherId) delete payload.motherId; else payload.motherId = parseInt(payload.motherId);
           const person = await createPerson(payload);
           this.people.push(person);
-          this.newPerson = { firstName: '', lastName: '', fatherId: '', motherId: '' };
+          this.newPerson = { firstName: '', lastName: '', fatherId: '', motherId: '', notes: '' };
         },
         async updateParents(person) {
           const updates = {
@@ -76,6 +78,23 @@
           };
           const updated = await updatePerson(person.id, updates);
           Object.assign(person, updated);
+        },
+        selectPerson(person) {
+          this.selectedPerson = { ...person };
+        },
+        async savePerson() {
+          if (!this.selectedPerson) return;
+          const payload = {
+            firstName: this.selectedPerson.firstName,
+            lastName: this.selectedPerson.lastName,
+            fatherId: this.selectedPerson.fatherId || null,
+            motherId: this.selectedPerson.motherId || null,
+            notes: this.selectedPerson.notes || '',
+          };
+          const updated = await updatePerson(this.selectedPerson.id, payload);
+          const idx = this.people.findIndex((p) => p.id === updated.id);
+          if (idx !== -1) Object.assign(this.people[idx], updated);
+          this.selectedPerson = null;
         },
       },
     });

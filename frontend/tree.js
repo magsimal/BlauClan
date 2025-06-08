@@ -61,18 +61,24 @@
             .on('drag', dragged)
             .on('end', dragended)
         )
-        .on('mousedown', startLink);
+        .on('mousedown', startLink)
+        .on('dblclick', (_, d) => app.selectPerson(d));
 
       nodeEnter
-        .append('circle')
-        .attr('r', 20)
-        .attr('fill', '#69b3a2');
+        .append('rect')
+        .attr('width', 100)
+        .attr('height', 40)
+        .attr('x', -50)
+        .attr('y', -20)
+        .attr('rx', 6)
+        .attr('fill', '#fff')
+        .attr('stroke', '#69b3a2');
 
       nodeEnter
         .append('text')
-        .attr('y', 4)
         .attr('text-anchor', 'middle')
-        .text((d) => d.firstName);
+        .attr('y', 5)
+        .text((d) => `${d.firstName} ${d.lastName}`);
 
       node.exit().remove();
 
@@ -170,18 +176,11 @@
       }
     }
 
-    document.getElementById('add-node').addEventListener('click', async () => {
-      const firstName = prompt('First name');
-      if (!firstName) return;
-      const lastName = prompt('Last name') || '';
-      try {
-        const person = await FrontendApp.createPerson({ firstName, lastName });
-        app.people.push(person);
-        update();
-      } catch (e) {
-        alert('Failed to create');
-      }
-    });
+    app.$watch(
+      () => app.people,
+      () => update(),
+      { deep: true }
+    );
 
     update();
 
