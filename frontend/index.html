@@ -9,7 +9,38 @@
 <body>
   <div id="app">
     <h1>BlauClan</h1>
-    <button id="add-node">＋</button>
+    <div id="menu">
+      <h2>Add Person</h2>
+      <form id="addForm" @submit.prevent="addPerson">
+        <input v-model="newPerson.firstName" placeholder="First Name">
+        <input v-model="newPerson.lastName" placeholder="Last Name">
+        <select v-model="newPerson.fatherId">
+          <option value="">Father</option>
+          <option v-for="p in people" :value="p.id">{{ p.firstName }} {{ p.lastName }}</option>
+        </select>
+        <select v-model="newPerson.motherId">
+          <option value="">Mother</option>
+          <option v-for="p in people" :value="p.id">{{ p.firstName }} {{ p.lastName }}</option>
+        </select>
+        <textarea v-model="newPerson.notes" placeholder="Notes"></textarea>
+        <button type="submit">Add</button>
+      </form>
+      <div v-if="selectedPerson" class="edit-section">
+        <h2>Edit Person</h2>
+        <input v-model="selectedPerson.firstName" placeholder="First Name">
+        <input v-model="selectedPerson.lastName" placeholder="Last Name">
+        <select v-model="selectedPerson.fatherId">
+          <option value="">Father</option>
+          <option v-for="p in people" :value="p.id">{{ p.firstName }} {{ p.lastName }}</option>
+        </select>
+        <select v-model="selectedPerson.motherId">
+          <option value="">Mother</option>
+          <option v-for="p in people" :value="p.id">{{ p.firstName }} {{ p.lastName }}</option>
+        </select>
+        <textarea v-model="selectedPerson.notes" placeholder="Notes"></textarea>
+        <button @click="savePerson">Save</button>
+      </div>
+    </div>
     <svg id="graph" width="100%" height="600"></svg>
   </div>
   <script src="app.js"></script>
