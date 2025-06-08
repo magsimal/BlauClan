@@ -21,8 +21,9 @@ docker-compose up --build
 ```
 
 The API will be available through the front-end container under `/api`. By default
-the backend container exposes port `3000`, but you can map this to any host port
-in `docker-compose.yml` (e.g. `3009:3000`). The front-end itself is served on
+the backend listens on port `3009`. You can change this by setting the
+`BACKEND_PORT` environment variable when running `docker-compose`. The value is
+used for both the Node.js server and the Nginx proxy configuration. The front-end itself is served on
 `http://localhost:8080`.
 
 ### Running with Prebuilt Images

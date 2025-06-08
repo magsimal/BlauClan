@@ -15,12 +15,15 @@ services:
       DB_USER: postgres
       DB_PASSWORD: postgres
       DB_HOST: db
+      PORT: ${BACKEND_PORT:-3009}
     ports:
-      - '3000:3000'
+      - '${BACKEND_PORT:-3009}:${BACKEND_PORT:-3009}'
     depends_on:
       - db
   frontend:
     build: ./frontend
+    environment:
+      BACKEND_PORT: ${BACKEND_PORT:-3009}
     ports:
       - '8080:80'
     depends_on:
