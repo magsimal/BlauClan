@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>BlauClan</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+</head>
+<body>
+  <div id="app">
+    <h1>BlauClan</h1>
+    <ul>
+      <li v-for="person in people" :key="person.id">
+        {{ person.firstName }} {{ person.lastName }}
+      </li>
+    </ul>
+  </div>
+  <script>
+    const { createApp } = Vue;
+    createApp({
+      data() {
+        return { people: [] };
+      },
+      mounted() {
+        fetch('/api/people')
+          .then(r => r.json())
+          .then(data => { this.people = data; });
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
