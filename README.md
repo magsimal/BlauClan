@@ -22,6 +22,16 @@ docker-compose up --build
 
 The API will be available on `http://localhost:3000` and the front-end on `http://localhost:8080`.
 
+### Running with Prebuilt Images
+
+After Docker images are published to GitHub Container Registry you can run the stack with:
+
+```bash
+docker-compose -f docker-compose.deploy.yml up -d
+```
+
+Replace `OWNER` in `docker-compose.deploy.yml` with your GitHub username or organisation.
+
 ### API Endpoints
 
 - `GET /api/people`
