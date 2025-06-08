@@ -4,34 +4,19 @@
   <meta charset="UTF-8">
   <title>BlauClan</title>
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
 </head>
 <body>
   <div id="app">
     <h1>BlauClan</h1>
-    <form @submit.prevent="addPerson">
-      <input v-model="newPerson.firstName" placeholder="First Name">
-      <input v-model="newPerson.lastName" placeholder="Last Name">
-      <select v-model="newPerson.fatherId">
-        <option value="">Father</option>
-        <option v-for="p in people" :value="p.id">{{ p.firstName }} {{ p.lastName }}</option>
-      </select>
-      <select v-model="newPerson.motherId">
-        <option value="">Mother</option>
-        <option v-for="p in people" :value="p.id">{{ p.firstName }} {{ p.lastName }}</option>
-      </select>
-      <button type="submit">Add Person</button>
-    </form>
-    <ul>
-      <li v-for="person in people" :key="person.id">
-        {{ person.firstName }} {{ person.lastName }}
-        <span v-if="person.fatherId"> - Father: {{ parentName(person.fatherId) }}</span>
-        <span v-if="person.motherId"> - Mother: {{ parentName(person.motherId) }}</span>
-      </li>
-    </ul>
+    <button id="add-node">＋</button>
+    <svg id="graph" width="100%" height="600"></svg>
   </div>
   <script src="app.js"></script>
+  <script src="tree.js"></script>
   <script>
-    FrontendApp.mountApp();
+    const vm = FrontendApp.mountApp();
+    TreeApp.init(vm);
   </script>
 </body>
 </html>
