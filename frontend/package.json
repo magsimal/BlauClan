@@ -1,0 +1,10 @@
+{
+  "name": "family-tree-frontend",
+  "version": "0.1.0",
+  "scripts": {
+    "test": "node ../backend/node_modules/jest/bin/jest.js"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
+}

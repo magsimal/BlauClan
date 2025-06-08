@@ -8,24 +8,30 @@
 <body>
   <div id="app">
     <h1>BlauClan</h1>
+    <form @submit.prevent="addPerson">
+      <input v-model="newPerson.firstName" placeholder="First Name">
+      <input v-model="newPerson.lastName" placeholder="Last Name">
+      <select v-model="newPerson.fatherId">
+        <option value="">Father</option>
+        <option v-for="p in people" :value="p.id">{{ p.firstName }} {{ p.lastName }}</option>
+      </select>
+      <select v-model="newPerson.motherId">
+        <option value="">Mother</option>
+        <option v-for="p in people" :value="p.id">{{ p.firstName }} {{ p.lastName }}</option>
+      </select>
+      <button type="submit">Add Person</button>
+    </form>
     <ul>
       <li v-for="person in people" :key="person.id">
         {{ person.firstName }} {{ person.lastName }}
+        <span v-if="person.fatherId"> - Father: {{ parentName(person.fatherId) }}</span>
+        <span v-if="person.motherId"> - Mother: {{ parentName(person.motherId) }}</span>
       </li>
     </ul>
   </div>
+  <script src="app.js"></script>
   <script>
-    const { createApp } = Vue;
-    createApp({
-      data() {
-        return { people: [] };
-      },
-      mounted() {
-        fetch('/api/people')
-          .then(r => r.json())
-          .then(data => { this.people = data; });
-      }
-    }).mount('#app');
+    FrontendApp.mountApp();
   </script>
 </body>
 </html>
