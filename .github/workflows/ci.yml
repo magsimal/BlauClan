@@ -36,5 +36,23 @@ jobs:
         run: |
           cd backend
           npm test || true
+      - name: Extract versions
+        id: vars
+        run: |
+          BACKEND_VERSION=$(jq -r .version backend/package.json)
+          echo "BACKEND_VERSION=$BACKEND_VERSION" >> "$GITHUB_OUTPUT"
+          echo "FRONTEND_VERSION=0.1.0" >> "$GITHUB_OUTPUT"
       - name: Build Docker images
-        run: docker compose build
+        run: |
+          docker build -t ghcr.io/${{ github.repository_owner }}/blauclan-backend:${{ steps.vars.outputs.BACKEND_VERSION }} \
+            -t ghcr.io/${{ github.repository_owner }}/blauclan-backend:latest ./backend
+          docker build -t ghcr.io/${{ github.repository_owner }}/blauclan-frontend:${{ steps.vars.outputs.FRONTEND_VERSION }} \
+            -t ghcr.io/${{ github.repository_owner }}/blauclan-frontend:latest ./frontend
+      - name: Push Docker images
+        if: github.event_name == 'push'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker push ghcr.io/${{ github.repository_owner }}/blauclan-backend:${{ steps.vars.outputs.BACKEND_VERSION }}
+          docker push ghcr.io/${{ github.repository_owner }}/blauclan-backend:latest
+          docker push ghcr.io/${{ github.repository_owner }}/blauclan-frontend:${{ steps.vars.outputs.FRONTEND_VERSION }}
+          docker push ghcr.io/${{ github.repository_owner }}/blauclan-frontend:latest
