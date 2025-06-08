@@ -9,7 +9,7 @@ services:
     volumes:
       - db-data:/var/lib/postgresql/data
   backend:
-    image: ghcr.io/OWNER/blauclan-backend:latest
+    image: ghcr.io/magsimal/blauclan-backend:latest
     environment:
       DB_NAME: familytree
       DB_USER: postgres
@@ -21,7 +21,7 @@ services:
     depends_on:
       - db
   frontend:
-    image: ghcr.io/OWNER/blauclan-frontend:latest
+    image: ghcr.io/magsimal/blauclan-frontend:latest
     environment:
       BACKEND_PORT: ${BACKEND_PORT:-3009}
     ports:
