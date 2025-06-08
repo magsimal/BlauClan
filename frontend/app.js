@@ -42,7 +42,7 @@
 
   function mountApp() {
     const { createApp } = Vue;
-    createApp({
+    const app = createApp({
       data() {
         return {
           people: [],
@@ -78,7 +78,9 @@
           Object.assign(person, updated);
         },
       },
-    }).mount('#app');
+    });
+    const vm = app.mount('#app');
+    return vm;
   }
 
   return { fetchPeople, createPerson, updatePerson, parentName, mountApp };
