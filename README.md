@@ -20,7 +20,10 @@ The project is split into two folders:
 docker-compose up --build
 ```
 
-The API will be available on `http://localhost:3000` and the front-end on `http://localhost:8080`.
+The API will be available through the front-end container under `/api`. By default
+the backend container exposes port `3000`, but you can map this to any host port
+in `docker-compose.yml` (e.g. `3009:3000`). The front-end itself is served on
+`http://localhost:8080`.
 
 ### Running with Prebuilt Images
 
