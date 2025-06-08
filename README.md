@@ -32,6 +32,14 @@ docker-compose -f docker-compose.deploy.yml up -d
 
 Replace `OWNER` in `docker-compose.deploy.yml` with your GitHub username or organisation.
 
+### Running Backend Tests
+
+To execute the API test suite, run:
+
+```bash
+cd backend && npm test
+```
+
 ### API Endpoints
 
 - `GET /api/people`
