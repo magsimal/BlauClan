@@ -51,6 +51,10 @@ cd backend && npm test
 - `GET /api/people/:id`
 - `PUT /api/people/:id`
 - `DELETE /api/people/:id`
+- `GET /api/people/:id/spouses`
+- `POST /api/people/:id/spouses`
+- `DELETE /api/people/:id/spouses/:marriageId`
+- `GET /api/tree/:id` – query param `type` can be `ancestors`, `descendants`, or `both`
 - `GET /api/export/json`
 
 This is an early version and subject to change.
