@@ -45,8 +45,12 @@ app.get('/api/export/json', async (_req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-sequelize.sync().then(() => {
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+if (require.main === module) {
+  sequelize.sync().then(() => {
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
   });
-});
+}
+
+module.exports = app;
