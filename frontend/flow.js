@@ -26,6 +26,17 @@
         const showModal = ref(false);
         let unions = {};
 
+        function chooseHandles(a, b) {
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          if (Math.abs(dx) > Math.abs(dy)) {
+            if (dx > 0) return { sourceHandle: 's-right', targetHandle: 't-left' };
+            return { sourceHandle: 's-left', targetHandle: 't-right' };
+          }
+          if (dy > 0) return { sourceHandle: 's-bottom', targetHandle: 't-top' };
+          return { sourceHandle: 's-top', targetHandle: 't-bottom' };
+        }
+
         async function load() {
           const people = await FrontendApp.fetchPeople();
           const idMap = {};
@@ -81,18 +92,6 @@
 
           function unionKey(f, m) {
             return `${f}-${m}`;
-          }
-
-          function chooseHandles(a, b) {
-            const dx = b.x - a.x;
-            const dy = b.y - a.y;
-            if (Math.abs(dx) > Math.abs(dy)) {
-              if (dx > 0) return { sourceHandle: 's-right', targetHandle: 't-left' };
-              else return { sourceHandle: 's-left', targetHandle: 't-right' };
-            } else {
-              if (dy > 0) return { sourceHandle: 's-bottom', targetHandle: 't-top' };
-              else return { sourceHandle: 's-top', targetHandle: 't-bottom' };
-            }
           }
 
           people.forEach((child) => {
@@ -323,15 +322,6 @@
           computeChildren(selected.value.id);
         }
 
-        function avgParentX(p) {
-          const xs = [];
-          const father = nodes.value.find((n) => n.data.id === p.fatherId);
-          const mother = nodes.value.find((n) => n.data.id === p.motherId);
-          if (father) xs.push(father.position.x);
-          if (mother) xs.push(mother.position.x);
-          return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0;
-        }
-
         function refreshUnions() {
           Object.values(unions).forEach((u) => {
             const father = nodes.value.find((n) => n.id === String(u.fatherId));
@@ -434,7 +424,7 @@
            byGen[g].push(n);
          });
 
-         Object.entries(byGen).forEach(([g, list]) => {
+         Object.entries(byGen).forEach(([, list]) => {
            list.sort((a, b) => a.position.x - b.position.x);
            for (let i = 1; i < list.length; i++) {
              const left = list[i - 1];
