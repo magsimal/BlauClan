@@ -117,9 +117,12 @@
                 const id = `u-${key}`;
                 const midX =
                   (positions[child.fatherId].x + positions[child.motherId].x) / 2;
+                const midY =
+                  (positions[child.fatherId].y + positions[child.motherId].y) /
+                  2;
                 const pos = {
                   x: midX,
-                  y: positions[child.fatherId].y,
+                  y: midY,
                 };
                 unions[key] = {
                   id,
@@ -155,15 +158,15 @@
 
             m.children.forEach((cid) => {
               const handles = chooseHandles(positions[m.id], positions[cid]);
-              edges.value.push({
-                id: `${m.id}-${cid}`,
-                source: m.id,
-                target: String(cid),
-                type: 'smoothstep',
-                markerEnd: MarkerType.ArrowClosed,
-                sourceHandle: handles.sourceHandle,
-                targetHandle: handles.targetHandle,
-              });
+                edges.value.push({
+                  id: `${m.id}-${cid}`,
+                  source: m.id,
+                  target: String(cid),
+                  type: 'smoothstep',
+                  markerEnd: MarkerType.ArrowClosed,
+                  sourceHandle: handles.sourceHandle,
+                  targetHandle: handles.targetHandle,
+                });
             });
           });
 
@@ -363,7 +366,7 @@
             if (father && mother && helper) {
               helper.position = {
                 x: (father.position.x + mother.position.x) / 2,
-                y: father.position.y,
+                y: (father.position.y + mother.position.y) / 2,
               };
 
               const spEdge = edges.value.find(
