@@ -248,6 +248,64 @@
           showModal.value = true;
         }
 
+        function addChild() {
+          const base = { ...selected.value };
+          selected.value = {
+            firstName: '',
+            lastName: '',
+            maidenName: '',
+            dateOfBirth: '',
+            dateOfDeath: '',
+            placeOfBirth: '',
+            notes: '',
+            gender: '',
+            fatherId: base.gender === 'female' ? '' : base.id,
+            motherId: base.gender === 'female' ? base.id : '',
+            spouseId: '',
+          };
+          isNew.value = true;
+          editing.value = true;
+        }
+
+        function addSpouse() {
+          const base = { ...selected.value };
+          selected.value = {
+            firstName: '',
+            lastName: '',
+            maidenName: '',
+            dateOfBirth: '',
+            dateOfDeath: '',
+            placeOfBirth: '',
+            notes: '',
+            gender: '',
+            fatherId: '',
+            motherId: '',
+            spouseId: base.id,
+          };
+          isNew.value = true;
+          editing.value = true;
+        }
+
+        function addParent(type) {
+          const childId = selected.value.id;
+          selected.value = {
+            firstName: '',
+            lastName: '',
+            maidenName: '',
+            dateOfBirth: '',
+            dateOfDeath: '',
+            placeOfBirth: '',
+            notes: '',
+            gender: '',
+            fatherId: '',
+            motherId: '',
+            spouseId: '',
+            relation: { type, childId },
+          };
+          isNew.value = true;
+          editing.value = true;
+        }
+
         async function deleteSelected() {
           if (!selected.value) return;
           const id = selected.value.id;
@@ -308,6 +366,14 @@
           if (selected.value.spouseId) {
             await FrontendApp.linkSpouse(p.id, parseInt(selected.value.spouseId));
           }
+          if (selected.value.relation) {
+            const rel = selected.value.relation;
+            if (rel.type === 'father' || rel.type === 'mother') {
+              const update = {};
+              update[rel.type === 'father' ? 'fatherId' : 'motherId'] = p.id;
+              await FrontendApp.updatePerson(rel.childId, update);
+            }
+          }
           await load();
           showModal.value = false;
           isNew.value = false;
@@ -333,6 +399,9 @@
           saveNewPerson,
           cancelModal,
           unlinkChild,
+          addChild,
+          addSpouse,
+          addParent,
           selected,
           showModal,
           children,
@@ -410,6 +479,12 @@
                     <ul>
                       <li v-for="c in children" :key="c.id">{{ c.firstName }} {{ c.lastName }}</li>
                     </ul>
+                  </div>
+                  <div class="mb-2 text-right">
+                    <button class="btn btn-info btn-sm mr-1" @click="addChild">New Child</button>
+                    <button class="btn btn-info btn-sm mr-1" @click="addSpouse">New Spouse</button>
+                    <button class="btn btn-info btn-sm mr-1" @click="addParent('father')">Add Father</button>
+                    <button class="btn btn-info btn-sm" @click="addParent('mother')">Add Mother</button>
                   </div>
                   <div class="text-right mt-3">
                     <button class="btn btn-primary btn-sm mr-2" @click="editing = true">Edit</button>
