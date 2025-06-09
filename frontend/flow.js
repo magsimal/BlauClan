@@ -118,6 +118,7 @@
             <button @click="addPerson">+ Add Person</button>
           </div>
           <VueFlow
+            style="width: 100%; height: 600px"
             v-model:nodes="nodes"
             v-model:edges="edges"
             @node-click="onNodeClick"
