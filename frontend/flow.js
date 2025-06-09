@@ -204,7 +204,10 @@
 
         function clearHighlights() {
           nodes.value.forEach((n) => {
-            if (n.data) n.data.highlight = false;
+            if (n.data) {
+              n.data.highlight = false;
+              n.data.dim = false;
+            }
           });
           edges.value.forEach((e) => {
             e.class = '';
@@ -213,26 +216,63 @@
 
         function highlightBloodline(id) {
           clearHighlights();
-          const visited = new Set();
+          const visitedNodes = new Set();
+          const visitedEdges = new Set();
+
+          function markEdge(edgeId) {
+            const edge = edges.value.find((e) => e.id === edgeId);
+            if (edge) {
+              edge.class = 'highlight-edge';
+              visitedEdges.add(edgeId);
+            }
+          }
+
+          function markChildEdges(child) {
+            if (!child) return;
+            if (child.fatherId && child.motherId) {
+              const uid = `u-${child.fatherId}-${child.motherId}`;
+              markEdge(`${uid}-${child.id}`);
+              markEdge(`spouse-line-${uid}`);
+            } else if (child.fatherId || child.motherId) {
+              markEdge(`p-${child.id}`);
+            }
+          }
 
           function dfs(nodeId) {
-            if (visited.has(nodeId)) return;
-            visited.add(nodeId);
-            const n = nodes.value.find((no) => no.id === String(nodeId));
-            if (n && n.data) n.data.highlight = true;
-            edges.value.forEach((edge) => {
-              if (edge.id.startsWith('spouse-line')) return;
-              if (edge.source === String(nodeId)) {
-                edge.class = 'highlight-edge';
-                dfs(edge.target);
-              } else if (edge.target === String(nodeId)) {
-                edge.class = 'highlight-edge';
-                dfs(edge.source);
+            if (visitedNodes.has(nodeId)) return;
+            visitedNodes.add(nodeId);
+            const node = nodes.value.find((no) => no.id === String(nodeId));
+            if (!node || !node.data) return;
+            node.data.highlight = true;
+
+            // highlight edges from parents to this node and recurse upwards
+            markChildEdges(node.data);
+            if (node.data.fatherId) dfs(node.data.fatherId);
+            if (node.data.motherId) dfs(node.data.motherId);
+
+            // highlight edges to children and recurse downwards
+            nodes.value.forEach((child) => {
+              if (
+                child.data &&
+                (child.data.fatherId === nodeId || child.data.motherId === nodeId)
+              ) {
+                markChildEdges(child.data);
+                dfs(child.data.id);
               }
             });
           }
 
-          dfs(String(id));
+          dfs(parseInt(id));
+
+          // dim non-highlighted nodes and edges
+          nodes.value.forEach((n) => {
+            if (n.data) n.data.dim = !n.data.highlight;
+          });
+          edges.value.forEach((e) => {
+            if (!visitedEdges.has(e.id) && !e.class.includes('highlight-edge')) {
+              e.class = 'dim-edge';
+            }
+          });
         }
 
         function onNodeClick(evt) {
@@ -624,7 +664,7 @@
             :fit-view="true"
           >
             <template #node-person="{ data }">
-              <div class="person-node" :class="{ 'highlight-node': data.highlight }" :style="{ borderColor: data.gender === 'female' ? '#f8c' : (data.gender === 'male' ? '#88f' : '#ccc') }">
+              <div class="person-node" :class="{ 'highlight-node': data.highlight, 'dim-node': data.dim }" :style="{ borderColor: data.gender === 'female' ? '#f8c' : (data.gender === 'male' ? '#88f' : '#ccc') }">
                 <div class="avatar"></div>
                 <div><strong>{{ data.firstName }} {{ data.lastName }}</strong></div>
                 <div>{{ data.dateOfBirth }} - {{ data.dateOfDeath }}</div>
@@ -640,7 +680,7 @@
               </div>
             </template>
             <template #node-helper="{ data }">
-              <div class="helper-node" :class="{ 'highlight-node': data.highlight }">
+              <div class="helper-node" :class="{ 'highlight-node': data.highlight, 'dim-node': data.dim }">
                 <Handle type="source" position="bottom" id="s-bottom" />
               </div>
             </template>
