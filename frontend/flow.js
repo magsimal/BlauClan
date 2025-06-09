@@ -337,6 +337,7 @@
           showModal,
           children,
           isNew,
+          editing,
           optimizeLayout,
         };
       },
