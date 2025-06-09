@@ -54,6 +54,14 @@
     return res.json();
   }
 
+  async function fetchSpouses(personId) {
+    const res = await fetch(`/api/people/${personId}/spouses`);
+    if (!res.ok) {
+      throw new Error('Failed to fetch spouses');
+    }
+    return res.json();
+  }
+
   function parentName(id, people) {
     const p = people.find((x) => x.id === id);
     return p ? `${p.firstName} ${p.lastName}` : '';
@@ -68,12 +76,25 @@
           newPerson: {
             firstName: '',
             lastName: '',
+            dateOfBirth: '',
+            dateOfDeath: '',
+            placeOfBirth: '',
             fatherId: '',
             motherId: '',
             notes: '',
             relation: null,
           },
           selectedPerson: null,
+          spouses: [],
+          showSpouseForm: false,
+          spouseForm: {
+            existingId: '',
+            firstName: '',
+            lastName: '',
+            dateOfBirth: '',
+            dateOfDeath: '',
+            placeOfBirth: '',
+          },
         };
       },
       async mounted() {
@@ -102,6 +123,9 @@
           this.newPerson = {
             firstName: '',
             lastName: '',
+            dateOfBirth: '',
+            dateOfDeath: '',
+            placeOfBirth: '',
             fatherId: '',
             motherId: '',
             notes: '',
@@ -116,8 +140,10 @@
           const updated = await updatePerson(person.id, updates);
           Object.assign(person, updated);
         },
-        selectPerson(person) {
+        async selectPerson(person) {
           this.selectedPerson = { ...person };
+          this.spouses = await fetchSpouses(person.id);
+          this.showSpouseForm = false;
         },
         async deleteSelected() {
           if (!this.selectedPerson) return;
@@ -130,6 +156,9 @@
           this.newPerson = {
             firstName: '',
             lastName: '',
+            dateOfBirth: '',
+            dateOfDeath: '',
+            placeOfBirth: '',
             fatherId: this.selectedPerson.gender === 'female' ? '' : this.selectedPerson.id,
             motherId: this.selectedPerson.gender === 'female' ? this.selectedPerson.id : '',
             notes: '',
@@ -138,20 +167,46 @@
         },
         prepareAddSpouse() {
           if (!this.selectedPerson) return;
-          this.newPerson = {
+          this.showSpouseForm = true;
+          this.spouseForm = {
+            existingId: '',
             firstName: '',
             lastName: '',
-            fatherId: '',
-            motherId: '',
-            notes: '',
-            relation: { type: 'spouse', personId: this.selectedPerson.id },
+            dateOfBirth: '',
+            dateOfDeath: '',
+            placeOfBirth: '',
           };
+        },
+        async confirmAddSpouse() {
+          if (!this.selectedPerson) return;
+          if (this.spouseForm.existingId) {
+            await linkSpouse(this.selectedPerson.id, parseInt(this.spouseForm.existingId));
+          } else {
+            const payload = {
+              firstName: this.spouseForm.firstName,
+              lastName: this.spouseForm.lastName,
+              dateOfBirth: this.spouseForm.dateOfBirth || undefined,
+              dateOfDeath: this.spouseForm.dateOfDeath || undefined,
+              placeOfBirth: this.spouseForm.placeOfBirth || undefined,
+            };
+            const person = await createPerson(payload);
+            this.people.push(person);
+            await linkSpouse(this.selectedPerson.id, person.id);
+          }
+          this.spouses = await fetchSpouses(this.selectedPerson.id);
+          this.showSpouseForm = false;
+        },
+        cancelAddSpouse() {
+          this.showSpouseForm = false;
         },
         prepareAddParent(type) {
           if (!this.selectedPerson) return;
           this.newPerson = {
             firstName: '',
             lastName: '',
+            dateOfBirth: '',
+            dateOfDeath: '',
+            placeOfBirth: '',
             fatherId: '',
             motherId: '',
             notes: '',
@@ -163,6 +218,9 @@
           const payload = {
             firstName: this.selectedPerson.firstName,
             lastName: this.selectedPerson.lastName,
+            dateOfBirth: this.selectedPerson.dateOfBirth || null,
+            dateOfDeath: this.selectedPerson.dateOfDeath || null,
+            placeOfBirth: this.selectedPerson.placeOfBirth || '',
             fatherId: this.selectedPerson.fatherId || null,
             motherId: this.selectedPerson.motherId || null,
             notes: this.selectedPerson.notes || '',
@@ -184,6 +242,7 @@
     updatePerson,
     deletePerson,
     linkSpouse,
+    fetchSpouses,
     parentName,
     mountApp,
   };

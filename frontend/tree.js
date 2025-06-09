@@ -93,9 +93,9 @@
       nodeEnter
         .append('rect')
         .attr('width', 100)
-        .attr('height', 40)
+        .attr('height', 60)
         .attr('x', -50)
-        .attr('y', -20)
+        .attr('y', -30)
         .attr('rx', 6)
         .attr('fill', '#fff')
         .attr('stroke', '#69b3a2');
@@ -103,8 +103,20 @@
       nodeEnter
         .append('text')
         .attr('text-anchor', 'middle')
-        .attr('y', 5)
+        .attr('y', -10)
         .text((d) => `${d.firstName} ${d.lastName}`);
+
+      nodeEnter
+        .append('text')
+        .attr('text-anchor', 'middle')
+        .attr('y', 5)
+        .text((d) => (d.dateOfBirth ? `b. ${d.dateOfBirth}` : ''));
+
+      nodeEnter
+        .append('text')
+        .attr('text-anchor', 'middle')
+        .attr('y', 20)
+        .text((d) => (d.placeOfBirth ? d.placeOfBirth : ''));
 
       node.exit().remove();
       updatePositions();
