@@ -15,8 +15,12 @@
 
     function buildData() {
       nodes = app.people.map((p) => {
-        if (p.x === undefined) p.x = Math.random() * width;
-        if (p.y === undefined) p.y = Math.random() * height;
+        const isNew = p.x === undefined;
+        if (isNew) {
+          p.x = Math.random() * width;
+          p.y = Math.random() * height;
+        }
+        p._new = isNew;
         return p;
       });
       links = [];
@@ -30,16 +34,38 @@
       .forceSimulation()
       .force('link', d3.forceLink().id((d) => d.id).distance(120))
       .force('charge', d3.forceManyBody().strength(-300))
-      .force('center', d3.forceCenter(width / 2, height / 2));
+      .force('center', d3.forceCenter(width / 2, height / 2))
+      .stop();
+
+    function runLayout() {
+      simulation.nodes(nodes);
+      nodes.forEach((n) => {
+        if (!n._new) {
+          n.fx = n.x;
+          n.fy = n.y;
+        } else {
+          n.fx = n.fy = undefined;
+        }
+      });
+      simulation.force('link').links(links);
+      simulation.alpha(1);
+      for (let i = 0; i < 50; i++) simulation.tick();
+      nodes.forEach((n) => {
+        n.fx = n.fy = null;
+        n._new = false;
+      });
+    }
 
     function update() {
       buildData();
+      runLayout();
 
       const link = svg
         .selectAll('line.link')
         .data(links, (d) => d.source + '-' + d.target);
 
-      link.enter()
+      link
+        .enter()
         .append('line')
         .attr('class', 'link')
         .attr('stroke', '#999');
@@ -62,7 +88,7 @@
             .on('end', dragended)
         )
         .on('mousedown', startLink)
-        .on('dblclick', (_, d) => app.selectPerson(d));
+        .on('click', (_, d) => app.selectPerson(d));
 
       nodeEnter
         .append('rect')
@@ -81,13 +107,10 @@
         .text((d) => `${d.firstName} ${d.lastName}`);
 
       node.exit().remove();
-
-      simulation.nodes(nodes).on('tick', ticked);
-      simulation.force('link').links(links);
-      simulation.alpha(1).restart();
+      updatePositions();
     }
 
-    function ticked() {
+    function updatePositions() {
       svg
         .selectAll('line.link')
         .attr('x1', (d) => getNodeById(d.source).x)
@@ -104,22 +127,15 @@
       return nodes.find((n) => n.id === (typeof id === 'object' ? id.id : id));
     }
 
-    function dragstarted(event, d) {
-      if (!event.active) simulation.alphaTarget(0.3).restart();
-      d.fx = d.x;
-      d.fy = d.y;
-    }
+    function dragstarted(_event, _d) {}
 
     function dragged(event, d) {
-      d.fx = event.x;
-      d.fy = event.y;
+      d.x = event.x;
+      d.y = event.y;
+      updatePositions();
     }
 
-    function dragended(event, d) {
-      if (!event.active) simulation.alphaTarget(0);
-      d.fx = null;
-      d.fy = null;
-    }
+    function dragended(_event, _d) {}
 
     let tempLink = null;
     function startLink(event, d) {

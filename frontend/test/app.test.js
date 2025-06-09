@@ -1,4 +1,4 @@
-const { fetchPeople, createPerson } = require('../app');
+const { fetchPeople, createPerson, deletePerson } = require('../app');
 
 describe('frontend helpers', () => {
   beforeEach(() => {
@@ -21,5 +21,11 @@ describe('frontend helpers', () => {
     expect(options.method).toBe('POST');
     expect(JSON.parse(options.body).firstName).toBe('Jane');
     expect(person.id).toBe(2);
+  });
+
+  test('deletePerson deletes data', async () => {
+    global.fetch.mockResolvedValue({ ok: true });
+    await deletePerson(3);
+    expect(global.fetch).toHaveBeenCalledWith('/api/people/3', { method: 'DELETE' });
   });
 });
