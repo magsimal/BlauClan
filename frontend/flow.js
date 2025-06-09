@@ -82,6 +82,18 @@
             return `${f}-${m}`;
           }
 
+          function chooseHandles(a, b) {
+            const dx = b.x - a.x;
+            const dy = b.y - a.y;
+            if (Math.abs(dx) > Math.abs(dy)) {
+              if (dx > 0) return { sourceHandle: 's-right', targetHandle: 't-left' };
+              else return { sourceHandle: 's-left', targetHandle: 't-right' };
+            } else {
+              if (dy > 0) return { sourceHandle: 's-bottom', targetHandle: 't-top' };
+              else return { sourceHandle: 's-top', targetHandle: 't-bottom' };
+            }
+          }
+
           people.forEach((child) => {
             if (child.fatherId && child.motherId) {
               const key = marriageKey(child.fatherId, child.motherId);
@@ -91,7 +103,7 @@
                   (positions[child.fatherId].x + positions[child.motherId].x) / 2;
                 const pos = {
                   x: midX,
-                  y: positions[child.fatherId].y + 20,
+                  y: positions[child.fatherId].y,
                 };
                 marriages[key] = {
                   id,
@@ -100,6 +112,7 @@
                   children: [],
                 };
                 nodes.value.push({ id, type: 'marriage', position: pos, data: {} });
+                positions[id] = pos;
                 edges.value.push({
                   id: `marriage-line-${key}`,
                   source: String(child.fatherId),
@@ -113,12 +126,15 @@
 
           Object.values(marriages).forEach((m) => {
             m.children.forEach((cid) => {
+              const handles = chooseHandles(positions[m.id], positions[cid]);
               edges.value.push({
                 id: `${m.id}-${cid}`,
                 source: m.id,
                 target: String(cid),
                 type: 'smoothstep',
                 markerEnd: MarkerType.ArrowClosed,
+                sourceHandle: handles.sourceHandle,
+                targetHandle: handles.targetHandle,
               });
             });
           });
@@ -126,11 +142,14 @@
           people.forEach((p) => {
             if ((p.fatherId && !p.motherId) || (!p.fatherId && p.motherId)) {
               const parent = p.fatherId || p.motherId;
+              const handles = chooseHandles(positions[parent], positions[p.id]);
               edges.value.push({
                 id: `p-${p.id}`,
                 source: String(parent),
                 target: String(p.id),
                 markerEnd: MarkerType.ArrowClosed,
+                sourceHandle: handles.sourceHandle,
+                targetHandle: handles.targetHandle,
               });
             }
           });
@@ -224,6 +243,31 @@
           computeChildren(selected.value.id);
         }
 
+        function avgParentX(p) {
+          const xs = [];
+          const father = nodes.value.find((n) => n.data.id === p.fatherId);
+          const mother = nodes.value.find((n) => n.data.id === p.motherId);
+          if (father) xs.push(father.position.x);
+          if (mother) xs.push(mother.position.x);
+          return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0;
+        }
+
+        function optimizeLayout() {
+          const layers = {};
+          nodes.value.forEach((n) => {
+            layers[n.data._gen] = layers[n.data._gen] || [];
+            layers[n.data._gen].push(n);
+          });
+          const xSpacing = 180;
+          const ySpacing = 150;
+          Object.keys(layers).forEach((g) => {
+            layers[g].sort((a, b) => avgParentX(a.data) - avgParentX(b.data));
+            layers[g].forEach((n, idx) => {
+              n.position = { x: 100 + idx * xSpacing, y: 100 + g * ySpacing };
+            });
+          });
+        }
+
         async function saveNewPerson() {
          const payload = {
             firstName: selected.value.firstName,
@@ -269,12 +313,14 @@
           showModal,
           children,
           isNew,
+          optimizeLayout,
         };
       },
       template: `
         <div>
           <div id="toolbar">
             <button @click="addPerson">+ Add Person</button>
+            <button @click="optimizeLayout" class="ml-2">Optimize Layout</button>
           </div>
           <VueFlow
             style="width: 100%; height: 600px"
@@ -290,12 +336,20 @@
                 <div><strong>{{ data.firstName }} {{ data.lastName }}</strong></div>
                 <div>{{ data.dateOfBirth }} - {{ data.dateOfDeath }}</div>
                 <button class="add-child" @click.stop="addPerson">+</button>
-                <Handle type="source" position="right" id="child" />
-                <Handle type="target" position="left" id="parent" />
+                <Handle type="source" position="top" id="s-top" />
+                <Handle type="source" position="right" id="s-right" />
+                <Handle type="source" position="bottom" id="s-bottom" />
+                <Handle type="source" position="left" id="s-left" />
+                <Handle type="target" position="top" id="t-top" />
+                <Handle type="target" position="right" id="t-right" />
+                <Handle type="target" position="bottom" id="t-bottom" />
+                <Handle type="target" position="left" id="t-left" />
               </div>
             </template>
             <template #node-marriage>
-              <div class="marriage-node"></div>
+              <div class="marriage-node">
+                <Handle type="source" position="bottom" id="s-bottom" />
+              </div>
             </template>
           </VueFlow>
 
