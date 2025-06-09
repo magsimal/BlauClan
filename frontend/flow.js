@@ -615,7 +615,7 @@
             <button @click="loadLayout" class="ml-2">Reload Layout</button>
           </div>
           <VueFlow
-            style="width: 100%; height: 600px"
+            style="width: 100%; height: 100%"
             v-model:nodes="nodes"
             v-model:edges="edges"
             @node-click="onNodeClick"
