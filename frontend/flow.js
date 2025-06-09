@@ -27,31 +27,97 @@
 
         async function load() {
           const people = await FrontendApp.fetchPeople();
-          nodes.value = people.map((p, idx) => ({
+          const idMap = {};
+          people.forEach((p) => (idMap[p.id] = p));
+
+          // determine generation levels
+          const queue = [];
+          people.forEach((p) => {
+            p._gen = null;
+            if (!p.fatherId && !p.motherId) {
+              p._gen = 0;
+              queue.push(p);
+            }
+          });
+          while (queue.length) {
+            const cur = queue.shift();
+            const g = cur._gen || 0;
+            people.forEach((c) => {
+              if ((c.fatherId === cur.id || c.motherId === cur.id) && c._gen === null) {
+                c._gen = g + 1;
+                queue.push(c);
+              }
+            });
+          }
+          people.forEach((p) => {
+            if (p._gen === null) p._gen = 0;
+          });
+
+          const layers = {};
+          people.forEach((p) => {
+            layers[p._gen] = layers[p._gen] || [];
+            layers[p._gen].push(p);
+          });
+
+          const positions = {};
+          const xSpacing = 180;
+          const ySpacing = 150;
+          Object.keys(layers).forEach((g) => {
+            layers[g].forEach((p, idx) => {
+              positions[p.id] = { x: 100 + idx * xSpacing, y: 100 + g * ySpacing };
+            });
+          });
+
+          nodes.value = people.map((p) => ({
             id: String(p.id),
             type: 'person',
-            position: { x: 100 + idx * 150, y: 100 },
+            position: positions[p.id],
             data: { ...p },
           }));
+
+          const marriages = {};
           edges.value = [];
-          people.forEach((p) => {
-            if (p.fatherId) {
+
+          function marriageKey(f, m) {
+            return `${f}-${m}`;
+          }
+
+          people.forEach((child) => {
+            if (child.fatherId && child.motherId) {
+              const key = marriageKey(child.fatherId, child.motherId);
+              if (!marriages[key]) {
+                const id = `m-${key}`;
+                const pos = {
+                  x: (positions[child.fatherId].x + positions[child.motherId].x) / 2,
+                  y: positions[child.fatherId].y + ySpacing / 2,
+                };
+                marriages[key] = { id, children: [] };
+                nodes.value.push({ id, type: 'marriage', position: pos, data: {} });
+                edges.value.push({ id: `${id}-f`, source: String(child.fatherId), target: id });
+                edges.value.push({ id: `${id}-m`, source: String(child.motherId), target: id });
+              }
+              marriages[key].children.push(child.id);
+            }
+          });
+
+          Object.values(marriages).forEach((m) => {
+            m.children.forEach((cid) => {
               edges.value.push({
-                id: `f-${p.id}`,
-                source: String(p.fatherId),
-                target: String(p.id),
-                sourceHandle: 'child',
-                targetHandle: 'parent',
+                id: `${m.id}-${cid}`,
+                source: m.id,
+                target: String(cid),
                 markerEnd: MarkerType.ArrowClosed,
               });
-            }
-            if (p.motherId) {
+            });
+          });
+
+          people.forEach((p) => {
+            if ((p.fatherId && !p.motherId) || (!p.fatherId && p.motherId)) {
+              const parent = p.fatherId || p.motherId;
               edges.value.push({
-                id: `m-${p.id}`,
-                source: String(p.motherId),
+                id: `p-${p.id}`,
+                source: String(parent),
                 target: String(p.id),
-                sourceHandle: 'child',
-                targetHandle: 'parent',
                 markerEnd: MarkerType.ArrowClosed,
               });
             }
@@ -175,6 +241,9 @@
                 <Handle type="source" position="right" id="child" />
                 <Handle type="target" position="left" id="parent" />
               </div>
+            </template>
+            <template #node-marriage>
+              <div class="marriage-node"></div>
             </template>
           </VueFlow>
 
