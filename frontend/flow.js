@@ -87,22 +87,23 @@
               const key = marriageKey(child.fatherId, child.motherId);
               if (!marriages[key]) {
                 const id = `m-${key}`;
+                const midX =
+                  (positions[child.fatherId].x + positions[child.motherId].x) / 2;
                 const pos = {
-                  x: (positions[child.fatherId].x + positions[child.motherId].x) / 2,
-                  y: positions[child.fatherId].y + ySpacing / 2,
+                  x: midX,
+                  y: positions[child.fatherId].y + 20,
                 };
-                marriages[key] = { id, children: [] };
+                marriages[key] = {
+                  id,
+                  fatherId: child.fatherId,
+                  motherId: child.motherId,
+                  children: [],
+                };
                 nodes.value.push({ id, type: 'marriage', position: pos, data: {} });
                 edges.value.push({
-                  id: `${id}-f`,
+                  id: `marriage-line-${key}`,
                   source: String(child.fatherId),
-                  target: id,
-                  type: 'straight',
-                });
-                edges.value.push({
-                  id: `${id}-m`,
-                  source: String(child.motherId),
-                  target: id,
+                  target: String(child.motherId),
                   type: 'straight',
                 });
               }
@@ -116,6 +117,7 @@
                 id: `${m.id}-${cid}`,
                 source: m.id,
                 target: String(cid),
+                type: 'smoothstep',
                 markerEnd: MarkerType.ArrowClosed,
               });
             });
