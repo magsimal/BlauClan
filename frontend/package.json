@@ -2,9 +2,11 @@
   "name": "family-tree-frontend",
   "version": "0.1.0",
   "scripts": {
-    "test": "node ../backend/node_modules/jest/bin/jest.js"
+    "test": "node ../backend/node_modules/jest/bin/jest.js",
+    "lint": "eslint app.js flow.js test/**/*.js"
   },
   "devDependencies": {
+    "eslint": "^8.57.0",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
     "jsdom": "^26.1.0"

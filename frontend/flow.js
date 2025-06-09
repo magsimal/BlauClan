@@ -14,7 +14,7 @@
   }
 
   function mount() {
-    const { createApp, ref, reactive, onMounted, watch } = Vue;
+    const { createApp, ref, onMounted, watch } = Vue;
     const { VueFlow, MarkerType, Handle } = window.VueFlow;
 
     const app = createApp({
@@ -187,7 +187,8 @@
           await FrontendApp.deletePerson(id);
           selected.value = null;
           await load();
-          
+        }
+
         async function saveNewPerson() {
           const payload = {
             firstName: selected.value.firstName,
