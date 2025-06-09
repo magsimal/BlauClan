@@ -178,6 +178,14 @@
           showModal.value = true;
         }
 
+        async function deleteSelected() {
+          if (!selected.value) return;
+          const id = selected.value.id;
+          showModal.value = false;
+          await FrontendApp.deletePerson(id);
+          selected.value = null;
+          await load();
+          
         async function saveNewPerson() {
           const payload = {
             firstName: selected.value.firstName,
@@ -212,6 +220,7 @@
           onNodeClick,
           onConnect,
           addPerson,
+          deleteSelected,
           saveNewPerson,
           cancelModal,
           selected,
@@ -271,6 +280,7 @@
                 <option value="">Spouse</option>
                 <option v-for="n in nodes" :key="'s'+n.id" :value="n.data.id">{{ n.data.firstName }} {{ n.data.lastName }}</option>
               </select>
+              <button @click="deleteSelected" class="btn btn-danger btn-sm mr-2">Delete</button>
               <div class="text-right">
                 <button v-if="isNew" class="btn btn-primary mr-2" @click="saveNewPerson">Save</button>
                 <button class="btn btn-secondary" @click="cancelModal">{{ isNew ? 'Cancel' : 'Close' }}</button>
