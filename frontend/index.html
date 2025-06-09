@@ -26,7 +26,9 @@
     <h1>BlauClan</h1>
     <div id="menu">
       <h2>Add Person</h2>
-      <form id="addForm" @submit.prevent="addPerson" class="form-group">
+      <button class="btn btn-primary mb-2" @click="openAddForm" v-if="!showAddForm">Add New Person</button>
+      <form v-if="showAddForm" id="addForm" @submit.prevent="addPerson" class="form-group">
+        <p v-if="relationDescription" class="alert alert-info p-2">{{ relationDescription }}</p>
         <input class="form-control mb-2" v-model="newPerson.firstName" placeholder="First Name">
         <input class="form-control mb-2" v-model="newPerson.lastName" placeholder="Last Name">
         <input class="form-control mb-2" type="date" v-model="newPerson.dateOfBirth" placeholder="DoB">
@@ -41,7 +43,8 @@
           <option v-for="p in people" :value="p.id">{{ p.firstName }} {{ p.lastName }}</option>
         </select>
         <textarea class="form-control mb-2" v-model="newPerson.notes" placeholder="Notes"></textarea>
-        <button class="btn btn-primary" type="submit">Add</button>
+        <button class="btn btn-primary mr-2" type="submit">Add</button>
+        <button class="btn btn-secondary" type="button" @click="cancelAddPerson">Cancel</button>
       </form>
       <div v-if="selectedPerson" class="edit-section">
         <h2>Edit Person</h2>
