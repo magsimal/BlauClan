@@ -1,4 +1,18 @@
-const { fetchPeople, createPerson, deletePerson, linkSpouse, fetchSpouses } = require('../app');
+/** @jest-environment jsdom */
+const path = require('path');
+const fs = require('fs');
+const vm = require('vm');
+const FrontendApp = require('../app');
+const {
+  fetchPeople,
+  createPerson,
+  updatePerson,
+  deletePerson,
+  linkSpouse,
+  fetchSpouses,
+  parentName,
+  mountApp,
+} = FrontendApp;
 
 describe('frontend helpers', () => {
   beforeEach(() => {
@@ -40,5 +54,46 @@ describe('frontend helpers', () => {
     const data = await fetchSpouses(1);
     expect(global.fetch).toHaveBeenCalledWith('/api/people/1/spouses');
     expect(data[0].spouse.id).toBe(2);
+  });
+
+  test('updatePerson sends PUT', async () => {
+    global.fetch.mockResolvedValue({ ok: true, json: () => ({ id: 5, firstName: 'Bob' }) });
+    const result = await updatePerson(5, { firstName: 'Bob' });
+    expect(global.fetch).toHaveBeenCalledWith('/api/people/5', expect.objectContaining({ method: 'PUT' }));
+    expect(result.firstName).toBe('Bob');
+  });
+
+  test('updatePerson throws on failure', async () => {
+    global.fetch.mockResolvedValue({ ok: false });
+    await expect(updatePerson(1, {})).rejects.toThrow('Failed to update person');
+  });
+
+  test('parentName formats correctly', () => {
+    const list = [{ id: 1, firstName: 'A', lastName: 'B' }];
+    expect(parentName(1, list)).toBe('A B');
+    expect(parentName(2, list)).toBe('');
+  });
+
+  test('mountApp loads people', async () => {
+    document.body.innerHTML = '<div id="app"></div>';
+    const sandbox = {
+      window,
+      document,
+      navigator,
+      console,
+      SVGElement: window.SVGElement,
+      Element: window.Element,
+    };
+    vm.createContext(sandbox);
+    vm.runInContext(fs.readFileSync(path.join(__dirname, '../vue.global.js'), 'utf8'), sandbox);
+    global.Vue = sandbox.Vue;
+
+    global.fetch.mockResolvedValue({ json: () => [{ id: 1, firstName: 'X', lastName: 'Y' }] });
+    const vmApp = mountApp();
+    await sandbox.Vue.nextTick();
+    expect(global.fetch).toHaveBeenCalledWith('/api/people');
+    expect(vmApp.people).toHaveLength(1);
+
+    delete global.Vue;
   });
 });
