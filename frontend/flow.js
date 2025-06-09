@@ -124,21 +124,34 @@
           });
         }
 
+        const children = ref([]);
+
+        function computeChildren(pid) {
+          children.value = nodes.value
+            .filter((n) => n.data.fatherId === pid || n.data.motherId === pid)
+            .map((n) => n.data);
+        }
+
         onMounted(load);
 
         function onNodeClick(evt) {
-          selected.value = { ...evt.node.data };
+          selected.value = { ...evt.node.data, spouseId: '' };
+          computeChildren(evt.node.data.id);
           showModal.value = true;
         }
 
         const saveSelected = debounce(async () => {
           if (!selected.value) return;
-          const updated = await FrontendApp.updatePerson(
-            selected.value.id,
-            selected.value
-          );
+          const payload = { ...selected.value };
+          const spouseId = payload.spouseId;
+          delete payload.spouseId;
+          const updated = await FrontendApp.updatePerson(selected.value.id, payload);
           Object.assign(selected.value, updated);
+          if (spouseId) {
+            await FrontendApp.linkSpouse(updated.id, parseInt(spouseId));
+          }
           await load();
+          computeChildren(updated.id);
         }, 200);
 
         watch(
@@ -189,6 +202,15 @@
           await load();
         }
 
+        async function unlinkChild(child) {
+          const updates = {};
+          if (child.fatherId === selected.value.id) updates.fatherId = null;
+          if (child.motherId === selected.value.id) updates.motherId = null;
+          await FrontendApp.updatePerson(child.id, updates);
+          await load();
+          computeChildren(selected.value.id);
+        }
+
         async function saveNewPerson() {
           const payload = {
             firstName: selected.value.firstName,
@@ -228,8 +250,10 @@
           deleteSelected,
           saveNewPerson,
           cancelModal,
+          unlinkChild,
           selected,
           showModal,
+          children,
           isNew,
         };
       },
@@ -274,28 +298,47 @@
               <div class="card-body p-3">
                 <h3 class="card-title" v-if="isNew">Add Person</h3>
                 <h3 class="card-title" v-else>Edit Person</h3>
-                <input class="form-control mb-2" v-model="selected.firstName" placeholder="First Name" />
-                <input class="form-control mb-2" v-model="selected.lastName" placeholder="Last Name" />
-                <input class="form-control mb-2" v-model="selected.dateOfBirth" type="date" />
-                <input class="form-control mb-2" v-model="selected.dateOfDeath" type="date" />
-                <input class="form-control mb-2" v-model="selected.placeOfBirth" placeholder="Place of Birth" />
-                <textarea class="form-control mb-2" v-model="selected.notes" placeholder="Notes"></textarea>
-                <select class="form-control mb-2" v-model="selected.gender">
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                </select>
-                <select class="form-control mb-2" v-model="selected.fatherId">
-                  <option value="">Father</option>
-                  <option v-for="n in nodes" :key="'f'+n.id" :value="n.data.id">{{ n.data.firstName }} {{ n.data.lastName }}</option>
-                </select>
-                <select class="form-control mb-2" v-model="selected.motherId">
-                  <option value="">Mother</option>
-                  <option v-for="n in nodes" :key="'m'+n.id" :value="n.data.id">{{ n.data.firstName }} {{ n.data.lastName }}</option>
-                </select>
-                <select class="form-control mb-2" v-model="selected.spouseId">
-                  <option value="">Spouse</option>
-                  <option v-for="n in nodes" :key="'s'+n.id" :value="n.data.id">{{ n.data.firstName }} {{ n.data.lastName }}</option>
-                </select>
+                  <label>First Name</label>
+                  <input class="form-control mb-2" v-model="selected.firstName" placeholder="First Name" />
+                  <label>Last Name</label>
+                  <input class="form-control mb-2" v-model="selected.lastName" placeholder="Last Name" />
+                  <label>Date of Birth</label>
+                  <input class="form-control mb-2" v-model="selected.dateOfBirth" type="date" />
+                  <label>Date of Death</label>
+                  <input class="form-control mb-2" v-model="selected.dateOfDeath" type="date" />
+                  <label>Place of Birth</label>
+                  <input class="form-control mb-2" v-model="selected.placeOfBirth" placeholder="Place of Birth" />
+                  <label>Notes</label>
+                  <textarea class="form-control mb-2" v-model="selected.notes" placeholder="Notes"></textarea>
+                  <label>Gender</label>
+                  <select class="form-control mb-2" v-model="selected.gender">
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                  </select>
+                  <label>Father</label>
+                  <select class="form-control mb-2" v-model="selected.fatherId">
+                    <option value="">Father</option>
+                    <option v-for="n in nodes" :key="'f'+n.id" :value="n.data.id">{{ n.data.firstName }} {{ n.data.lastName }}</option>
+                  </select>
+                  <label>Mother</label>
+                  <select class="form-control mb-2" v-model="selected.motherId">
+                    <option value="">Mother</option>
+                    <option v-for="n in nodes" :key="'m'+n.id" :value="n.data.id">{{ n.data.firstName }} {{ n.data.lastName }}</option>
+                  </select>
+                  <label>Spouse</label>
+                  <select class="form-control mb-2" v-model="selected.spouseId">
+                    <option value="">Spouse</option>
+                    <option v-for="n in nodes" :key="'s'+n.id" :value="n.data.id">{{ n.data.firstName }} {{ n.data.lastName }}</option>
+                  </select>
+                  <div v-if="children.length" class="mb-2">
+                    <label>Children</label>
+                    <ul>
+                      <li v-for="c in children" :key="c.id">
+                        {{ c.firstName }} {{ c.lastName }}
+                        <button class="btn btn-sm btn-danger ml-1" @click="unlinkChild(c)">x</button>
+                      </li>
+                    </ul>
+                  </div>
                 <div class="text-right mt-3">
                   <button @click="deleteSelected" class="btn btn-danger btn-sm mr-2">Delete</button>
                   <button v-if="isNew" class="btn btn-primary mr-2" @click="saveNewPerson">Save</button>
