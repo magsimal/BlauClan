@@ -122,6 +122,12 @@
           }
           return '';
         },
+        childrenOfSelected() {
+          if (!this.selectedPerson) return [];
+          return this.people.filter(
+            (c) => c.fatherId === this.selectedPerson.id || c.motherId === this.selectedPerson.id
+          );
+        },
       },
       methods: {
         parentName(id) {
@@ -230,6 +236,14 @@
             person.id !== this.selectedPerson.id &&
             !this.spouses.some((s) => s.spouse.id === person.id)
           );
+        },
+        async unlinkChild(child) {
+          const updates = {};
+          if (child.fatherId === this.selectedPerson.id) updates.fatherId = null;
+          if (child.motherId === this.selectedPerson.id) updates.motherId = null;
+          const updated = await updatePerson(child.id, updates);
+          const idx = this.people.findIndex((p) => p.id === updated.id);
+          if (idx !== -1) Object.assign(this.people[idx], updated);
         },
         prepareAddParent(type) {
           if (!this.selectedPerson) return;
