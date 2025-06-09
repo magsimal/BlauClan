@@ -128,6 +128,15 @@
             (c) => c.fatherId === this.selectedPerson.id || c.motherId === this.selectedPerson.id
           );
         },
+        availableParentOptions() {
+          if (!this.selectedPerson) return this.people;
+          const excludeIds = new Set([this.selectedPerson.id]);
+          this.spouses.forEach((s) => {
+            if (s.spouse) excludeIds.add(s.spouse.id);
+          });
+          this.childrenOfSelected.forEach((c) => excludeIds.add(c.id));
+          return this.people.filter((p) => !excludeIds.has(p.id));
+        },
       },
       methods: {
         parentName(id) {
