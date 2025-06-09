@@ -73,6 +73,7 @@
       data() {
         return {
           people: [],
+          showAddForm: false,
           newPerson: {
             firstName: '',
             lastName: '',
@@ -99,6 +100,28 @@
       },
       async mounted() {
         this.people = await fetchPeople();
+      },
+      computed: {
+        relationDescription() {
+          const rel = this.newPerson.relation;
+          if (rel) {
+            if (rel.type === 'spouse') {
+              const sp = this.people.find((p) => p.id === rel.personId);
+              return sp ? `is spouse of ${sp.firstName} ${sp.lastName}` : '';
+            } else if (rel.type === 'father' || rel.type === 'mother') {
+              const child = this.people.find((p) => p.id === rel.childId);
+              const role = rel.type === 'father' ? 'father' : 'mother';
+              return child ? `is ${role} of ${child.firstName} ${child.lastName}` : '';
+            }
+          }
+          const father = this.parentName(this.newPerson.fatherId);
+          const mother = this.parentName(this.newPerson.motherId);
+          if (father || mother) {
+            if (father && mother) return `is child of ${father} and ${mother}`;
+            return `is child of ${father || mother}`;
+          }
+          return '';
+        },
       },
       methods: {
         parentName(id) {
@@ -131,6 +154,7 @@
             notes: '',
             relation: null,
           };
+          this.showAddForm = false;
         },
         async updateParents(person) {
           const updates = {
@@ -164,6 +188,7 @@
             notes: '',
             relation: null,
           };
+          this.showAddForm = true;
         },
         prepareAddSpouse() {
           if (!this.selectedPerson) return;
@@ -218,6 +243,35 @@
             motherId: '',
             notes: '',
             relation: { type, childId: this.selectedPerson.id },
+          };
+          this.showAddForm = true;
+        },
+        openAddForm() {
+          this.newPerson = {
+            firstName: '',
+            lastName: '',
+            dateOfBirth: '',
+            dateOfDeath: '',
+            placeOfBirth: '',
+            fatherId: '',
+            motherId: '',
+            notes: '',
+            relation: null,
+          };
+          this.showAddForm = true;
+        },
+        cancelAddPerson() {
+          this.showAddForm = false;
+          this.newPerson = {
+            firstName: '',
+            lastName: '',
+            dateOfBirth: '',
+            dateOfDeath: '',
+            placeOfBirth: '',
+            fatherId: '',
+            motherId: '',
+            notes: '',
+            relation: null,
           };
         },
         async savePerson() {
