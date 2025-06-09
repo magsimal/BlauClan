@@ -102,12 +102,22 @@
           showModal.value = true;
         }
 
+        async function deleteSelected() {
+          if (!selected.value) return;
+          const id = selected.value.id;
+          showModal.value = false;
+          await FrontendApp.deletePerson(id);
+          selected.value = null;
+          await load();
+        }
+
         return {
           nodes,
           edges,
           onNodeClick,
           onConnect,
           addPerson,
+          deleteSelected,
           selected,
           showModal,
         };
@@ -148,7 +158,8 @@
                 <option value="male">Male</option>
                 <option value="female">Female</option>
               </select>
-              <button @click="showModal=false">Close</button>
+              <button @click="deleteSelected" class="btn btn-danger btn-sm mr-2">Delete</button>
+              <button @click="showModal=false" class="btn btn-secondary btn-sm">Close</button>
             </div>
           </div>
         </div>
