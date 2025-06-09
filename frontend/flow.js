@@ -368,20 +368,102 @@
           });
         }
 
-       function optimizeLayout() {
-         const layers = {};
-         nodes.value.forEach((n) => {
-           layers[n.data._gen] = layers[n.data._gen] || [];
-           layers[n.data._gen].push(n);
-         });
-         const xSpacing = 180;
-         const ySpacing = 150;
-         Object.keys(layers).forEach((g) => {
-           layers[g].sort((a, b) => avgParentX(a.data) - avgParentX(b.data));
-           layers[g].forEach((n, idx) => {
-             n.position = { x: 100 + idx * xSpacing, y: 100 + g * ySpacing };
+       function getChildren(node) {
+         const result = [];
+         if (node.type === 'person') {
+           nodes.value.forEach((n) => {
+             if (
+               n.data.fatherId === node.data.id ||
+               n.data.motherId === node.data.id
+             ) {
+               result.push(n);
+             }
            });
+           Object.values(unions).forEach((u) => {
+             if (u.fatherId === node.data.id || u.motherId === node.data.id) {
+               const helper = nodes.value.find((nd) => nd.id === u.id);
+               if (helper) result.push(helper);
+             }
+           });
+         } else if (node.type === 'helper') {
+           const u = unions[node.id];
+           if (u) {
+             u.children.forEach((cid) => {
+               const child = nodes.value.find((n) => n.id === String(cid));
+               if (child) result.push(child);
+             });
+           }
+         }
+         return result;
+       }
+
+       function shiftSubtree(rootNode, dx) {
+         const visited = new Set();
+         function dfs(n) {
+           if (!n || visited.has(n.id)) return;
+           visited.add(n.id);
+           n.position.x += dx;
+           getChildren(n).forEach(dfs);
+         }
+         dfs(rootNode);
+       }
+
+       function optimizeLayout() {
+         const options = {
+           levelSeparation: 200,
+           minSiblingSeparation: 100,
+           alignFactor: 0.5,
+           centerParents: true,
+           parentAlignFactor: 0.3,
+         };
+
+         const depths = {};
+         nodes.value.forEach((n) => {
+           depths[n.id] = n.data._gen || 0;
          });
+
+         const idealY = {};
+         Object.values(depths).forEach((d) => {
+           idealY[d] = d * options.levelSeparation;
+         });
+
+         const byGen = {};
+         nodes.value.forEach((n) => {
+           const g = depths[n.id];
+           byGen[g] = byGen[g] || [];
+           byGen[g].push(n);
+         });
+
+         Object.entries(byGen).forEach(([g, list]) => {
+           list.sort((a, b) => a.position.x - b.position.x);
+           for (let i = 1; i < list.length; i++) {
+             const left = list[i - 1];
+             const right = list[i];
+             const gap = right.position.x - left.position.x;
+             if (gap < options.minSiblingSeparation) {
+               shiftSubtree(right, options.minSiblingSeparation - gap);
+             }
+           }
+         });
+
+         nodes.value.forEach((n) => {
+           const targetY = idealY[depths[n.id]];
+           n.position.y += (targetY - n.position.y) * options.alignFactor;
+         });
+
+         if (options.centerParents) {
+           nodes.value.forEach((p) => {
+             if (p.type !== 'person') return;
+             const kids = nodes.value.filter(
+               (c) => c.data.fatherId === p.data.id || c.data.motherId === p.data.id
+             );
+             if (kids.length) {
+               const centerX =
+                 kids.reduce((sum, c) => sum + c.position.x, 0) / kids.length;
+               p.position.x += (centerX - p.position.x) * options.parentAlignFactor;
+             }
+           });
+         }
 
          refreshUnions();
        }
