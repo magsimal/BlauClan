@@ -13,6 +13,8 @@
     };
   }
 
+  let instance;
+
   function mount() {
     const { createApp, ref, onMounted, watch } = Vue;
     const { VueFlow, MarkerType, Handle } = window.VueFlow;
@@ -259,8 +261,8 @@
       },
       template: `
         <div>
-          <div id="toolbar">
-            <button @click="addPerson">+ Add Person</button>
+          <div id="toolbar" class="mb-2">
+            <button class="btn btn-primary btn-sm" @click="addPerson">+ Add Person</button>
           </div>
           <VueFlow
             style="width: 100%; height: 600px"
@@ -275,7 +277,7 @@
                 <div class="avatar"></div>
                 <div><strong>{{ data.firstName }} {{ data.lastName }}</strong></div>
                 <div>{{ data.dateOfBirth }} - {{ data.dateOfDeath }}</div>
-                <button class="add-child" @click.stop="addPerson">+</button>
+                <button class="btn btn-sm btn-primary add-child" @click.stop="addPerson">+</button>
                 <Handle type="source" position="right" id="child" />
                 <Handle type="target" position="left" id="parent" />
               </div>
@@ -285,17 +287,18 @@
             </template>
           </VueFlow>
 
-          <div v-if="showModal" class="modal">
-            <div
-              class="modal-content card shadow border-0"
-              :style="{
-                maxWidth: '500px',
-                borderColor: selected.gender === 'female' ? '#f8c' : '#88f',
-                borderWidth: '2px',
-                borderStyle: 'solid',
-              }"
-            >
-              <div class="card-body p-3">
+          <div v-if="showModal" class="modal d-block" style="background: rgba(0,0,0,0.3)">
+            <div class="modal-dialog modal-dialog-centered">
+              <div
+                class="modal-content card shadow border-0"
+                :style="{
+                  maxWidth: '500px',
+                  borderColor: selected.gender === 'female' ? '#f8c' : '#88f',
+                  borderWidth: '2px',
+                  borderStyle: 'solid',
+                }"
+              >
+                <div class="modal-body p-3">
                 <h3 class="card-title" v-if="isNew">Add Person</h3>
                 <h3 class="card-title" v-else>Edit Person</h3>
                   <label>First Name</label>
@@ -352,8 +355,28 @@
       `,
     });
 
-    return app.mount('#flow-app');
+    instance = app.mount('#flow-app');
+    return instance;
   }
 
-  return { mount };
+  function openAddPerson(data = {}) {
+    if (!instance) return;
+    instance.selected = {
+      firstName: '',
+      lastName: '',
+      dateOfBirth: '',
+      dateOfDeath: '',
+      placeOfBirth: '',
+      notes: '',
+      gender: 'male',
+      fatherId: '',
+      motherId: '',
+      spouseId: '',
+      ...data,
+    };
+    instance.isNew = true;
+    instance.showModal = true;
+  }
+
+  return { mount, openAddPerson };
 });

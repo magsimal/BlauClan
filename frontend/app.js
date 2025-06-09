@@ -73,18 +73,7 @@
       data() {
         return {
           people: [],
-          showAddForm: false,
-          newPerson: {
-            firstName: '',
-            lastName: '',
-            dateOfBirth: '',
-            dateOfDeath: '',
-            placeOfBirth: '',
-            fatherId: '',
-            motherId: '',
-            notes: '',
-            relation: null,
-          },
+          
           selectedPerson: null,
           spouses: [],
           showSpouseForm: false,
@@ -102,26 +91,6 @@
         this.people = await fetchPeople();
       },
       computed: {
-        relationDescription() {
-          const rel = this.newPerson.relation;
-          if (rel) {
-            if (rel.type === 'spouse') {
-              const sp = this.people.find((p) => p.id === rel.personId);
-              return sp ? `is spouse of ${sp.firstName} ${sp.lastName}` : '';
-            } else if (rel.type === 'father' || rel.type === 'mother') {
-              const child = this.people.find((p) => p.id === rel.childId);
-              const role = rel.type === 'father' ? 'father' : 'mother';
-              return child ? `is ${role} of ${child.firstName} ${child.lastName}` : '';
-            }
-          }
-          const father = this.parentName(this.newPerson.fatherId);
-          const mother = this.parentName(this.newPerson.motherId);
-          if (father || mother) {
-            if (father && mother) return `is child of ${father} and ${mother}`;
-            return `is child of ${father || mother}`;
-          }
-          return '';
-        },
         childrenOfSelected() {
           if (!this.selectedPerson) return [];
           return this.people.filter(
@@ -132,35 +101,6 @@
       methods: {
         parentName(id) {
           return parentName(id, this.people);
-        },
-        async addPerson() {
-          const payload = { ...this.newPerson };
-          if (!payload.fatherId) delete payload.fatherId; else payload.fatherId = parseInt(payload.fatherId);
-          if (!payload.motherId) delete payload.motherId; else payload.motherId = parseInt(payload.motherId);
-          const person = await createPerson(payload);
-          if (this.newPerson.relation) {
-            const rel = this.newPerson.relation;
-            if (rel.type === 'spouse') {
-              await linkSpouse(rel.personId, person.id);
-            } else if (rel.type === 'father' || rel.type === 'mother') {
-              const update = {};
-              update[rel.type === 'father' ? 'fatherId' : 'motherId'] = person.id;
-              await updatePerson(rel.childId, update);
-            }
-          }
-          this.people.push(person);
-          this.newPerson = {
-            firstName: '',
-            lastName: '',
-            dateOfBirth: '',
-            dateOfDeath: '',
-            placeOfBirth: '',
-            fatherId: '',
-            motherId: '',
-            notes: '',
-            relation: null,
-          };
-          this.showAddForm = false;
         },
         async updateParents(person) {
           const updates = {
@@ -180,21 +120,6 @@
           await deletePerson(this.selectedPerson.id);
           this.people = this.people.filter((p) => p.id !== this.selectedPerson.id);
           this.selectedPerson = null;
-        },
-        prepareAddChild() {
-          if (!this.selectedPerson) return;
-          this.newPerson = {
-            firstName: '',
-            lastName: '',
-            dateOfBirth: '',
-            dateOfDeath: '',
-            placeOfBirth: '',
-            fatherId: this.selectedPerson.gender === 'female' ? '' : this.selectedPerson.id,
-            motherId: this.selectedPerson.gender === 'female' ? this.selectedPerson.id : '',
-            notes: '',
-            relation: null,
-          };
-          this.showAddForm = true;
         },
         prepareAddSpouse() {
           if (!this.selectedPerson) return;
@@ -244,49 +169,6 @@
           const updated = await updatePerson(child.id, updates);
           const idx = this.people.findIndex((p) => p.id === updated.id);
           if (idx !== -1) Object.assign(this.people[idx], updated);
-        },
-        prepareAddParent(type) {
-          if (!this.selectedPerson) return;
-          this.newPerson = {
-            firstName: '',
-            lastName: '',
-            dateOfBirth: '',
-            dateOfDeath: '',
-            placeOfBirth: '',
-            fatherId: '',
-            motherId: '',
-            notes: '',
-            relation: { type, childId: this.selectedPerson.id },
-          };
-          this.showAddForm = true;
-        },
-        openAddForm() {
-          this.newPerson = {
-            firstName: '',
-            lastName: '',
-            dateOfBirth: '',
-            dateOfDeath: '',
-            placeOfBirth: '',
-            fatherId: '',
-            motherId: '',
-            notes: '',
-            relation: null,
-          };
-          this.showAddForm = true;
-        },
-        cancelAddPerson() {
-          this.showAddForm = false;
-          this.newPerson = {
-            firstName: '',
-            lastName: '',
-            dateOfBirth: '',
-            dateOfDeath: '',
-            placeOfBirth: '',
-            fatherId: '',
-            motherId: '',
-            notes: '',
-            relation: null,
-          };
         },
         async savePerson() {
           if (!this.selectedPerson) return;
