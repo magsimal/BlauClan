@@ -169,6 +169,8 @@
             lastName: '',
             dateOfBirth: '',
             dateOfDeath: '',
+            placeOfBirth: '',
+            notes: '',
             gender: 'male',
             fatherId: '',
             motherId: '',
@@ -184,6 +186,8 @@
             lastName: selected.value.lastName,
             dateOfBirth: selected.value.dateOfBirth || undefined,
             dateOfDeath: selected.value.dateOfDeath || undefined,
+            placeOfBirth: selected.value.placeOfBirth || undefined,
+            notes: selected.value.notes || undefined,
             gender: selected.value.gender,
             fatherId: selected.value.fatherId || undefined,
             motherId: selected.value.motherId || undefined,
@@ -248,32 +252,44 @@
           </VueFlow>
 
           <div v-if="showModal" class="modal">
-            <div class="modal-content" style="max-width:420px;">
-              <h3 v-if="isNew">Add Person</h3>
-              <h3 v-else>Edit Person</h3>
-              <input class="form-control mb-2" v-model="selected.firstName" placeholder="First Name" />
-              <input class="form-control mb-2" v-model="selected.lastName" placeholder="Last Name" />
-              <input class="form-control mb-2" v-model="selected.dateOfBirth" type="date" />
-              <input class="form-control mb-2" v-model="selected.dateOfDeath" type="date" />
-              <select class="form-control mb-2" v-model="selected.gender">
-                <option value="male">Male</option>
-                <option value="female">Female</option>
-              </select>
-              <select class="form-control mb-2" v-model="selected.fatherId">
-                <option value="">Father</option>
-                <option v-for="n in nodes" :key="'f'+n.id" :value="n.data.id">{{ n.data.firstName }} {{ n.data.lastName }}</option>
-              </select>
-              <select class="form-control mb-2" v-model="selected.motherId">
-                <option value="">Mother</option>
-                <option v-for="n in nodes" :key="'m'+n.id" :value="n.data.id">{{ n.data.firstName }} {{ n.data.lastName }}</option>
-              </select>
-              <select class="form-control mb-2" v-model="selected.spouseId">
-                <option value="">Spouse</option>
-                <option v-for="n in nodes" :key="'s'+n.id" :value="n.data.id">{{ n.data.firstName }} {{ n.data.lastName }}</option>
-              </select>
-              <div class="text-right">
-                <button v-if="isNew" class="btn btn-primary mr-2" @click="saveNewPerson">Save</button>
-                <button class="btn btn-secondary" @click="cancelModal">{{ isNew ? 'Cancel' : 'Close' }}</button>
+            <div
+              class="modal-content card shadow border-0"
+              :style="{
+                maxWidth: '500px',
+                borderColor: selected.gender === 'female' ? '#f8c' : '#88f',
+                borderWidth: '2px',
+                borderStyle: 'solid',
+              }"
+            >
+              <div class="card-body p-3">
+                <h3 class="card-title" v-if="isNew">Add Person</h3>
+                <h3 class="card-title" v-else>Edit Person</h3>
+                <input class="form-control mb-2" v-model="selected.firstName" placeholder="First Name" />
+                <input class="form-control mb-2" v-model="selected.lastName" placeholder="Last Name" />
+                <input class="form-control mb-2" v-model="selected.dateOfBirth" type="date" />
+                <input class="form-control mb-2" v-model="selected.dateOfDeath" type="date" />
+                <input class="form-control mb-2" v-model="selected.placeOfBirth" placeholder="Place of Birth" />
+                <textarea class="form-control mb-2" v-model="selected.notes" placeholder="Notes"></textarea>
+                <select class="form-control mb-2" v-model="selected.gender">
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                </select>
+                <select class="form-control mb-2" v-model="selected.fatherId">
+                  <option value="">Father</option>
+                  <option v-for="n in nodes" :key="'f'+n.id" :value="n.data.id">{{ n.data.firstName }} {{ n.data.lastName }}</option>
+                </select>
+                <select class="form-control mb-2" v-model="selected.motherId">
+                  <option value="">Mother</option>
+                  <option v-for="n in nodes" :key="'m'+n.id" :value="n.data.id">{{ n.data.firstName }} {{ n.data.lastName }}</option>
+                </select>
+                <select class="form-control mb-2" v-model="selected.spouseId">
+                  <option value="">Spouse</option>
+                  <option v-for="n in nodes" :key="'s'+n.id" :value="n.data.id">{{ n.data.firstName }} {{ n.data.lastName }}</option>
+                </select>
+                <div class="text-right mt-3">
+                  <button v-if="isNew" class="btn btn-primary mr-2" @click="saveNewPerson">Save</button>
+                  <button class="btn btn-secondary" @click="cancelModal">{{ isNew ? 'Cancel' : 'Close' }}</button>
+                </div>
               </div>
             </div>
           </div>
