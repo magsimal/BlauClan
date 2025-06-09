@@ -15,10 +15,10 @@
 
   function mount() {
     const { createApp, ref, reactive, onMounted, watch } = Vue;
-    const { VueFlow, MarkerType } = window.VueFlow;
+    const { VueFlow, MarkerType, Handle } = window.VueFlow;
 
     const app = createApp({
-      components: { VueFlow },
+      components: { VueFlow, Handle },
       setup() {
         const nodes = ref([]);
         const edges = ref([]);
