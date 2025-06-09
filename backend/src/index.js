@@ -20,20 +20,26 @@ app.post('/api/people', async (req, res) => {
 });
 
 app.get('/api/people/:id', async (req, res) => {
-  const person = await Person.findByPk(req.params.id);
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
+  const person = await Person.findByPk(id);
   if (!person) return res.sendStatus(404);
   res.json(person);
 });
 
 app.put('/api/people/:id', async (req, res) => {
-  const person = await Person.findByPk(req.params.id);
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
+  const person = await Person.findByPk(id);
   if (!person) return res.sendStatus(404);
   await person.update(req.body);
   res.json(person);
 });
 
 app.delete('/api/people/:id', async (req, res) => {
-  const person = await Person.findByPk(req.params.id);
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
+  const person = await Person.findByPk(id);
   if (!person) return res.sendStatus(404);
   await person.destroy();
   res.sendStatus(204);
@@ -41,14 +47,16 @@ app.delete('/api/people/:id', async (req, res) => {
 
 // Spouse management
 app.get('/api/people/:id/spouses', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
   const marriages = await Marriage.findAll({
     where: {
-      [Op.or]: [{ personId: req.params.id }, { spouseId: req.params.id }],
+      [Op.or]: [{ personId: id }, { spouseId: id }],
     },
   });
   const result = [];
   for (const m of marriages) {
-    const spouseId = m.personId == req.params.id ? m.spouseId : m.personId;
+    const spouseId = m.personId == id ? m.spouseId : m.personId;
     const spouse = await Person.findByPk(spouseId);
     if (spouse) {
       result.push({ marriageId: m.id, dateOfMarriage: m.dateOfMarriage, spouse });
@@ -59,9 +67,12 @@ app.get('/api/people/:id/spouses', async (req, res) => {
 
 app.post('/api/people/:id/spouses', async (req, res) => {
   try {
-    const spouseId = req.body.spouseId;
+    const id = parseInt(req.params.id, 10);
+    if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
+    const spouseId = parseInt(req.body.spouseId, 10);
+    if (Number.isNaN(spouseId)) return res.status(400).json({ error: 'Invalid spouseId' });
     const marriage = await Marriage.create({
-      personId: req.params.id,
+      personId: id,
       spouseId,
       dateOfMarriage: req.body.dateOfMarriage,
     });
@@ -72,14 +83,18 @@ app.post('/api/people/:id/spouses', async (req, res) => {
 });
 
 app.delete('/api/people/:id/spouses/:marriageId', async (req, res) => {
-  const marriage = await Marriage.findByPk(req.params.marriageId);
+  const marriageId = parseInt(req.params.marriageId, 10);
+  if (Number.isNaN(marriageId)) return res.status(400).json({ error: 'Invalid marriageId' });
+  const marriage = await Marriage.findByPk(marriageId);
   if (!marriage) return res.sendStatus(404);
   await marriage.destroy();
   res.sendStatus(204);
 });
 
 async function buildAncestors(id) {
-  const person = await Person.findByPk(id);
+  const numericId = parseInt(id, 10);
+  if (Number.isNaN(numericId)) return null;
+  const person = await Person.findByPk(numericId);
   if (!person) return null;
   const node = person.toJSON();
   node.father = null;
@@ -94,7 +109,9 @@ async function buildAncestors(id) {
 }
 
 async function buildDescendants(id) {
-  const person = await Person.findByPk(id);
+  const numericId = parseInt(id, 10);
+  if (Number.isNaN(numericId)) return null;
+  const person = await Person.findByPk(numericId);
   if (!person) return null;
   const node = person.toJSON();
   const marriages = await Marriage.findAll({
@@ -129,8 +146,10 @@ async function buildDescendants(id) {
 }
 
 app.get('/api/tree/:id', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
   const { type = 'both' } = req.query;
-  const person = await Person.findByPk(req.params.id);
+  const person = await Person.findByPk(id);
   if (!person) return res.sendStatus(404);
   const result = { id: person.id };
   if (type === 'ancestors' || type === 'both') {
@@ -145,7 +164,9 @@ app.get('/api/tree/:id', async (req, res) => {
 app.get('/api/export/json', async (req, res) => {
   const { filter } = req.query;
   if (filter) {
-    const tree = await buildDescendants(filter);
+    const id = parseInt(filter, 10);
+    if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid filter' });
+    const tree = await buildDescendants(id);
     res.json(tree);
   } else {
     const people = await Person.findAll();
