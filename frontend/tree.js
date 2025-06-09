@@ -12,16 +12,21 @@
 
     let nodes = [];
     let links = [];
+    const positions = {};
 
     function buildData() {
       nodes = app.people.map((p) => {
-        const isNew = p.x === undefined;
-        if (isNew) {
-          p.x = Math.random() * width;
-          p.y = Math.random() * height;
+        const pos = positions[p.id];
+        const node = {
+          ...p,
+          x: pos ? pos.x : Math.random() * width,
+          y: pos ? pos.y : Math.random() * height,
+        };
+        node._new = !pos;
+        if (!pos) {
+          positions[p.id] = { x: node.x, y: node.y };
         }
-        p._new = isNew;
-        return p;
+        return node;
       });
       links = [];
       app.people.forEach((p) => {
@@ -53,6 +58,7 @@
       nodes.forEach((n) => {
         n.fx = n.fy = null;
         n._new = false;
+        positions[n.id] = { x: n.x, y: n.y };
       });
     }
 
@@ -132,6 +138,7 @@
     function dragged(event, d) {
       d.x = event.x;
       d.y = event.y;
+      positions[d.id] = { x: d.x, y: d.y };
       updatePositions();
     }
 
