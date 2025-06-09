@@ -44,6 +44,18 @@ To execute the API test suite, run:
 cd backend && npm test
 ```
 
+### Loading Sample Data
+
+For quick testing of the frontend you can populate the database with a small set
+of example records:
+
+```bash
+cd backend && npm run seed
+```
+
+This will insert a couple of people and a marriage so that the UI has something
+to display.
+
 ### API Endpoints
 
 - `GET /api/people`
