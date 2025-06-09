@@ -24,6 +24,7 @@
         const edges = ref([]);
         const selected = ref(null);
         const showModal = ref(false);
+        let unions = {};
 
         async function load() {
           const people = await FrontendApp.fetchPeople();
@@ -75,10 +76,10 @@
             data: { ...p },
           }));
 
-          const marriages = {};
+          unions = {};
           edges.value = [];
 
-          function marriageKey(f, m) {
+          function unionKey(f, m) {
             return `${f}-${m}`;
           }
 
@@ -96,53 +97,45 @@
 
           people.forEach((child) => {
             if (child.fatherId && child.motherId) {
-              const key = marriageKey(child.fatherId, child.motherId);
-              if (!marriages[key]) {
-                const id = `m-${key}`;
+              const key = unionKey(child.fatherId, child.motherId);
+              if (!unions[key]) {
+                const id = `u-${key}`;
                 const midX =
                   (positions[child.fatherId].x + positions[child.motherId].x) / 2;
                 const pos = {
                   x: midX,
                   y: positions[child.fatherId].y,
                 };
-                marriages[key] = {
+                unions[key] = {
                   id,
                   fatherId: child.fatherId,
                   motherId: child.motherId,
                   children: [],
                 };
-                nodes.value.push({ id, type: 'marriage', position: pos, data: {} });
+                nodes.value.push({
+                  id,
+                  type: 'helper',
+                  position: pos,
+                  data: { _gen: idMap[child.fatherId]._gen, helper: true },
+                });
                 positions[id] = pos;
               }
-              marriages[key].children.push(child.id);
+              unions[key].children.push(child.id);
             }
           });
 
-          Object.values(marriages).forEach((m) => {
-            const fatherHandles = chooseHandles(
+          Object.values(unions).forEach((m) => {
+            const spHandles = chooseHandles(
               positions[m.fatherId],
-              positions[m.id]
+              positions[m.motherId]
             );
             edges.value.push({
-              id: `marriage-line-f-${m.id}`,
+              id: `spouse-line-${m.id}`,
               source: String(m.fatherId),
-              target: m.id,
+              target: String(m.motherId),
               type: 'straight',
-              sourceHandle: fatherHandles.sourceHandle,
-              targetHandle: fatherHandles.targetHandle,
-            });
-
-            const motherHandles = chooseHandles(
-              positions[m.motherId],
-              positions[m.id]
-            );
-            edges.value.push({
-              id: `marriage-line-m-${m.id}`,
-              source: String(m.motherId),
-              target: m.id,
-              type: 'straight',
-              sourceHandle: motherHandles.sourceHandle,
-              targetHandle: motherHandles.targetHandle,
+              sourceHandle: spHandles.sourceHandle,
+              targetHandle: spHandles.targetHandle,
             });
 
             m.children.forEach((cid) => {
@@ -173,6 +166,8 @@
               });
             }
           });
+
+          refreshUnions();
         }
 
         const children = ref([]);
@@ -214,6 +209,10 @@
           },
           { deep: true }
         );
+
+        function onNodeDragStop() {
+          refreshUnions();
+        }
 
         async function onConnect(params) {
           const parentId = parseInt(params.source);
@@ -275,21 +274,59 @@
           return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0;
         }
 
-        function optimizeLayout() {
-          const layers = {};
-          nodes.value.forEach((n) => {
-            layers[n.data._gen] = layers[n.data._gen] || [];
-            layers[n.data._gen].push(n);
-          });
-          const xSpacing = 180;
-          const ySpacing = 150;
-          Object.keys(layers).forEach((g) => {
-            layers[g].sort((a, b) => avgParentX(a.data) - avgParentX(b.data));
-            layers[g].forEach((n, idx) => {
-              n.position = { x: 100 + idx * xSpacing, y: 100 + g * ySpacing };
-            });
+        function refreshUnions() {
+          Object.values(unions).forEach((u) => {
+            const father = nodes.value.find((n) => n.id === String(u.fatherId));
+            const mother = nodes.value.find((n) => n.id === String(u.motherId));
+            const helper = nodes.value.find((n) => n.id === u.id);
+            if (father && mother && helper) {
+              helper.position = {
+                x: (father.position.x + mother.position.x) / 2,
+                y: father.position.y,
+              };
+
+              const spEdge = edges.value.find(
+                (e) => e.id === `spouse-line-${u.id}`
+              );
+              if (spEdge) {
+                const spHandles = chooseHandles(
+                  father.position,
+                  mother.position
+                );
+                spEdge.sourceHandle = spHandles.sourceHandle;
+                spEdge.targetHandle = spHandles.targetHandle;
+              }
+
+              u.children.forEach((cid) => {
+                const edge = edges.value.find((e) => e.id === `${u.id}-${cid}`);
+                const childNode = nodes.value.find((n) => n.id === String(cid));
+                if (edge && childNode) {
+                  const handles = chooseHandles(helper.position, childNode.position);
+                  edge.sourceHandle = handles.sourceHandle;
+                  edge.targetHandle = handles.targetHandle;
+                }
+              });
+            }
           });
         }
+
+       function optimizeLayout() {
+         const layers = {};
+         nodes.value.forEach((n) => {
+           layers[n.data._gen] = layers[n.data._gen] || [];
+           layers[n.data._gen].push(n);
+         });
+         const xSpacing = 180;
+         const ySpacing = 150;
+         Object.keys(layers).forEach((g) => {
+           layers[g].sort((a, b) => avgParentX(a.data) - avgParentX(b.data));
+           layers[g].forEach((n, idx) => {
+             n.position = { x: 100 + idx * xSpacing, y: 100 + g * ySpacing };
+           });
+         });
+
+         refreshUnions();
+       }
 
         async function saveNewPerson() {
          const payload = {
@@ -338,7 +375,8 @@
           children,
           isNew,
           editing,
-          optimizeLayout,
+         optimizeLayout,
+          onNodeDragStop,
         };
       },
       template: `
@@ -353,6 +391,7 @@
             v-model:edges="edges"
             @node-click="onNodeClick"
             @connect="onConnect"
+            @node-drag-stop="onNodeDragStop"
             :fit-view="true"
           >
             <template #node-person="{ data }">
@@ -371,10 +410,8 @@
                 <Handle type="target" position="left" id="t-left" />
               </div>
             </template>
-            <template #node-marriage>
-              <div class="marriage-node">
-                <Handle type="target" position="left" id="t-left" />
-                <Handle type="target" position="right" id="t-right" />
+            <template #node-helper>
+              <div class="helper-node">
                 <Handle type="source" position="bottom" id="s-bottom" />
               </div>
             </template>
