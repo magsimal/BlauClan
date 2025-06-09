@@ -199,6 +199,13 @@
         cancelAddSpouse() {
           this.showSpouseForm = false;
         },
+        isEligibleSpouse(person) {
+          if (!this.selectedPerson) return false;
+          return (
+            person.id !== this.selectedPerson.id &&
+            !this.spouses.some((s) => s.spouse.id === person.id)
+          );
+        },
         prepareAddParent(type) {
           if (!this.selectedPerson) return;
           this.newPerson = {

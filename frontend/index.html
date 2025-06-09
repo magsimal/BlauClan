@@ -62,7 +62,7 @@
           <h3>Add Spouse</h3>
           <select v-model="spouseForm.existingId">
             <option value="">-- New Person --</option>
-            <option v-for="p in people" :key="p.id" :value="p.id" v-if="p.id!==selectedPerson.id && !spouses.some(s=>s.spouse.id===p.id)">{{ p.firstName }} {{ p.lastName }}</option>
+            <option v-for="p in people" :key="p.id" :value="p.id" v-if="isEligibleSpouse(p)">{{ p.firstName }} {{ p.lastName }}</option>
           </select>
           <div v-if="!spouseForm.existingId">
             <input v-model="spouseForm.firstName" placeholder="First Name">
