@@ -1,6 +1,8 @@
 # BlauClan
 
 A simple genealogy web application. This MVP provides a basic REST API and a minimal front-end powered by Vue.js. The UI styling is based on the [Vue Argon Design System](https://www.creative-tim.com/product/vue-argon-design-system?affiliate_id=116187).
+All UI components should use elements from the Vue Argon Design System to maintain a consistent look across the app.
+
 
 ## Development
 

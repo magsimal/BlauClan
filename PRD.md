@@ -10,6 +10,7 @@ Create a fully featured Family Tree application that allows users to add, edit, 
 	4.	Export in multiple formats (JSON for data, PNG/JPEG/PDF for visual tree, and potentially GEDCOM).
 	5.	Modern reactive UI with autosave.
 	6.	Docker-based deployment with GitHub Actions for CI/CD.
+        7.      Styling follows the Vue Argon Design System.
 
 ⸻
 
