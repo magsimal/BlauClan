@@ -184,7 +184,7 @@
             dateOfDeath: '',
             placeOfBirth: '',
             notes: '',
-            gender: 'male',
+            gender: '',
             fatherId: '',
             motherId: '',
             spouseId: '',
@@ -271,7 +271,7 @@
             :fit-view="true"
           >
             <template #node-person="{ data }">
-              <div class="person-node" :style="{ borderColor: data.gender === 'female' ? '#f8c' : '#88f' }">
+              <div class="person-node" :style="{ borderColor: data.gender === 'female' ? '#f8c' : (data.gender === 'male' ? '#88f' : '#ccc') }">
                 <div class="avatar"></div>
                 <div><strong>{{ data.firstName }} {{ data.lastName }}</strong></div>
                 <div>{{ data.dateOfBirth }} - {{ data.dateOfDeath }}</div>
@@ -290,7 +290,7 @@
               class="modal-content card shadow border-0"
               :style="{
                 maxWidth: '500px',
-                borderColor: selected.gender === 'female' ? '#f8c' : '#88f',
+                borderColor: selected.gender === 'female' ? '#f8c' : (selected.gender === 'male' ? '#88f' : '#ccc'),
                 borderWidth: '2px',
                 borderStyle: 'solid',
               }"
@@ -312,6 +312,7 @@
                   <textarea class="form-control mb-2" v-model="selected.notes" placeholder="Notes"></textarea>
                   <label>Gender</label>
                   <select class="form-control mb-2" v-model="selected.gender">
+                    <option value="">Please select</option>
                     <option value="male">Male</option>
                     <option value="female">Female</option>
                   </select>
