@@ -113,18 +113,38 @@
                 };
                 nodes.value.push({ id, type: 'marriage', position: pos, data: {} });
                 positions[id] = pos;
-                edges.value.push({
-                  id: `marriage-line-${key}`,
-                  source: String(child.fatherId),
-                  target: String(child.motherId),
-                  type: 'straight',
-                });
               }
               marriages[key].children.push(child.id);
             }
           });
 
           Object.values(marriages).forEach((m) => {
+            const fatherHandles = chooseHandles(
+              positions[m.fatherId],
+              positions[m.id]
+            );
+            edges.value.push({
+              id: `marriage-line-f-${m.id}`,
+              source: String(m.fatherId),
+              target: m.id,
+              type: 'straight',
+              sourceHandle: fatherHandles.sourceHandle,
+              targetHandle: fatherHandles.targetHandle,
+            });
+
+            const motherHandles = chooseHandles(
+              positions[m.motherId],
+              positions[m.id]
+            );
+            edges.value.push({
+              id: `marriage-line-m-${m.id}`,
+              source: String(m.motherId),
+              target: m.id,
+              type: 'straight',
+              sourceHandle: motherHandles.sourceHandle,
+              targetHandle: motherHandles.targetHandle,
+            });
+
             m.children.forEach((cid) => {
               const handles = chooseHandles(positions[m.id], positions[cid]);
               edges.value.push({
@@ -348,6 +368,8 @@
             </template>
             <template #node-marriage>
               <div class="marriage-node">
+                <Handle type="target" position="left" id="t-left" />
+                <Handle type="target" position="right" id="t-right" />
                 <Handle type="source" position="bottom" id="s-bottom" />
               </div>
             </template>
