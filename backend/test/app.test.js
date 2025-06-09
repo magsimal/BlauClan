@@ -31,4 +31,14 @@ describe('People API', () => {
     expect(treeRes.statusCode).toBe(200);
     expect(treeRes.body.descendants.spouseRelationships[0].children.length).toBe(1);
   });
+
+  test('layout save and load', async () => {
+    const layoutData = { nodes: [{ id: 1, x: 100, y: 100 }] };
+    const saveRes = await request(app).post('/api/layout').send(layoutData);
+    expect(saveRes.statusCode).toBe(201);
+
+    const getRes = await request(app).get('/api/layout');
+    expect(getRes.statusCode).toBe(200);
+    expect(getRes.body.nodes[0].x).toBe(100);
+  });
 });

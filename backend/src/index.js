@@ -1,5 +1,5 @@
 const express = require('express');
-const { sequelize, Person, Marriage } = require('./models');
+const { sequelize, Person, Marriage, Layout } = require('./models');
 const { Op } = require('sequelize');
 
 const app = express();
@@ -172,6 +172,22 @@ app.get('/api/export/json', async (req, res) => {
     const people = await Person.findAll();
     res.json(people);
   }
+});
+
+// Layout endpoints
+app.post('/api/layout', async (req, res) => {
+  try {
+    const layout = await Layout.create({ data: req.body });
+    res.status(201).json(layout);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/layout', async (_req, res) => {
+  const layout = await Layout.findOne({ order: [['createdAt', 'DESC']] });
+  if (!layout) return res.json(null);
+  res.json(layout.data);
 });
 
 const PORT = process.env.PORT || 3009;
