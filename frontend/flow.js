@@ -78,7 +78,7 @@
         watch(
           () => selected.value,
           () => {
-            if (showModal.value) saveSelected();
+            if (showModal.value && !isNew.value) saveSelected();
           },
           { deep: true }
         );
@@ -95,11 +95,49 @@
           await load();
         }
 
-        async function addPerson() {
-          const p = await FrontendApp.createPerson({ firstName: 'New', lastName: 'Person' });
-          await load();
-          selected.value = { ...p };
+        const isNew = ref(false);
+
+        function addPerson() {
+          selected.value = {
+            firstName: '',
+            lastName: '',
+            dateOfBirth: '',
+            dateOfDeath: '',
+            gender: 'male',
+            fatherId: '',
+            motherId: '',
+            spouseId: '',
+          };
+          isNew.value = true;
           showModal.value = true;
+        }
+
+        async function saveNewPerson() {
+          const payload = {
+            firstName: selected.value.firstName,
+            lastName: selected.value.lastName,
+            dateOfBirth: selected.value.dateOfBirth || undefined,
+            dateOfDeath: selected.value.dateOfDeath || undefined,
+            gender: selected.value.gender,
+            fatherId: selected.value.fatherId || undefined,
+            motherId: selected.value.motherId || undefined,
+          };
+          const p = await FrontendApp.createPerson(payload);
+          if (selected.value.spouseId) {
+            await FrontendApp.linkSpouse(p.id, parseInt(selected.value.spouseId));
+          }
+          await load();
+          showModal.value = false;
+          isNew.value = false;
+          selected.value = null;
+        }
+
+        function cancelModal() {
+          showModal.value = false;
+          if (isNew.value) {
+            selected.value = null;
+            isNew.value = false;
+          }
         }
 
         return {
@@ -108,8 +146,11 @@
           onNodeClick,
           onConnect,
           addPerson,
+          saveNewPerson,
+          cancelModal,
           selected,
           showModal,
+          isNew,
         };
       },
       template: `
@@ -138,17 +179,33 @@
           </VueFlow>
 
           <div v-if="showModal" class="modal">
-            <div class="modal-content">
-              <h3>Edit Person</h3>
-              <input v-model="selected.firstName" placeholder="First Name" />
-              <input v-model="selected.lastName" placeholder="Last Name" />
-              <input v-model="selected.dateOfBirth" type="date" />
-              <input v-model="selected.dateOfDeath" type="date" />
-              <select v-model="selected.gender">
+            <div class="modal-content" style="max-width:420px;">
+              <h3 v-if="isNew">Add Person</h3>
+              <h3 v-else>Edit Person</h3>
+              <input class="form-control mb-2" v-model="selected.firstName" placeholder="First Name" />
+              <input class="form-control mb-2" v-model="selected.lastName" placeholder="Last Name" />
+              <input class="form-control mb-2" v-model="selected.dateOfBirth" type="date" />
+              <input class="form-control mb-2" v-model="selected.dateOfDeath" type="date" />
+              <select class="form-control mb-2" v-model="selected.gender">
                 <option value="male">Male</option>
                 <option value="female">Female</option>
               </select>
-              <button @click="showModal=false">Close</button>
+              <select class="form-control mb-2" v-model="selected.fatherId">
+                <option value="">Father</option>
+                <option v-for="n in nodes" :key="'f'+n.id" :value="n.data.id">{{ n.data.firstName }} {{ n.data.lastName }}</option>
+              </select>
+              <select class="form-control mb-2" v-model="selected.motherId">
+                <option value="">Mother</option>
+                <option v-for="n in nodes" :key="'m'+n.id" :value="n.data.id">{{ n.data.firstName }} {{ n.data.lastName }}</option>
+              </select>
+              <select class="form-control mb-2" v-model="selected.spouseId">
+                <option value="">Spouse</option>
+                <option v-for="n in nodes" :key="'s'+n.id" :value="n.data.id">{{ n.data.firstName }} {{ n.data.lastName }}</option>
+              </select>
+              <div class="text-right">
+                <button v-if="isNew" class="btn btn-primary mr-2" @click="saveNewPerson">Save</button>
+                <button class="btn btn-secondary" @click="cancelModal">{{ isNew ? 'Cancel' : 'Close' }}</button>
+              </div>
             </div>
           </div>
         </div>
