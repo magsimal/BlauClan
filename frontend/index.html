@@ -82,12 +82,12 @@
         <label>Father</label>
         <select class="form-control mb-2" v-model="selectedPerson.fatherId">
           <option value="">Father</option>
-          <option v-for="p in people" :value="p.id">{{ p.firstName }} {{ p.lastName }}</option>
+          <option v-for="p in availableParentOptions" :value="p.id">{{ p.firstName }} {{ p.lastName }}</option>
         </select>
         <label>Mother</label>
         <select class="form-control mb-2" v-model="selectedPerson.motherId">
           <option value="">Mother</option>
-          <option v-for="p in people" :value="p.id">{{ p.firstName }} {{ p.lastName }}</option>
+          <option v-for="p in availableParentOptions" :value="p.id">{{ p.firstName }} {{ p.lastName }}</option>
         </select>
         <label>Notes</label>
         <textarea class="form-control mb-2" v-model="selectedPerson.notes" placeholder="Notes"></textarea>
