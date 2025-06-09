@@ -1,4 +1,4 @@
-version: '3'
+version: '3.8'
 services:
   db:
     image: postgres:13-alpine
@@ -8,6 +8,11 @@ services:
       POSTGRES_PASSWORD: postgres
     volumes:
       - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
   backend:
     build: ./backend
@@ -20,7 +25,8 @@ services:
     ports:
       - '${BACKEND_PORT:-3009}:${BACKEND_PORT:-3009}'
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     restart: unless-stopped
   frontend:
     build: ./frontend
