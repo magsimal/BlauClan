@@ -184,10 +184,12 @@
         }
 
         onMounted(load);
+        const editing = ref(false);
 
         function onNodeClick(evt) {
           selected.value = { ...evt.node.data, spouseId: '' };
           computeChildren(evt.node.data.id);
+          editing.value = false;
           showModal.value = true;
         }
 
@@ -208,7 +210,7 @@
         watch(
           () => selected.value,
           () => {
-            if (showModal.value && !isNew.value) saveSelected();
+            if (editing.value && showModal.value && !isNew.value) saveSelected();
           },
           { deep: true }
         );
@@ -242,6 +244,7 @@
             spouseId: '',
           };
           isNew.value = true;
+          editing.value = true;
           showModal.value = true;
         }
 
@@ -311,13 +314,14 @@
           selected.value = null;
         }
 
-        function cancelModal() {
-          showModal.value = false;
-          if (isNew.value) {
-            selected.value = null;
-            isNew.value = false;
-          }
-        }
+       function cancelModal() {
+         showModal.value = false;
+         if (isNew.value) {
+           selected.value = null;
+           isNew.value = false;
+         }
+          editing.value = false;
+       }
 
         return {
           nodes,
@@ -333,6 +337,7 @@
           showModal,
           children,
           isNew,
+          editing,
           optimizeLayout,
         };
       },
@@ -386,8 +391,34 @@
               }"
             >
               <div class="card-body p-3">
-                <h3 class="card-title" v-if="isNew">Add Person</h3>
-                <h3 class="card-title" v-else>Edit Person</h3>
+                <template v-if="!editing && !isNew">
+                  <div class="text-center mb-2">
+                    <img src="https://via.placeholder.com/80" class="avatar-placeholder" />
+                  </div>
+                  <h3 class="card-title text-center">{{ selected.firstName }} {{ selected.lastName }}</h3>
+                  <p v-if="selected.maidenName"><strong>Maiden Name:</strong> {{ selected.maidenName }}</p>
+                  <p v-if="selected.dateOfBirth || selected.dateOfDeath">
+                    <strong>Life:</strong>
+                    <span v-if="selected.dateOfBirth">{{ selected.dateOfBirth }}</span>
+                    <span v-if="selected.dateOfBirth || selected.dateOfDeath"> - </span>
+                    <span v-if="selected.dateOfDeath">{{ selected.dateOfDeath }}</span>
+                  </p>
+                  <p v-if="selected.placeOfBirth"><strong>Place of Birth:</strong> {{ selected.placeOfBirth }}</p>
+                  <p v-if="selected.notes"><strong>Notes:</strong> {{ selected.notes }}</p>
+                  <div v-if="children.length" class="mb-2">
+                    <strong>Children:</strong>
+                    <ul>
+                      <li v-for="c in children" :key="c.id">{{ c.firstName }} {{ c.lastName }}</li>
+                    </ul>
+                  </div>
+                  <div class="text-right mt-3">
+                    <button class="btn btn-primary btn-sm mr-2" @click="editing = true">Edit</button>
+                    <button class="btn btn-secondary btn-sm" @click="cancelModal">Close</button>
+                  </div>
+                </template>
+                <template v-else>
+                  <h3 class="card-title" v-if="isNew">Add Person</h3>
+                  <h3 class="card-title" v-else>Edit Person</h3>
                   <label>First Name</label>
                   <input class="form-control mb-2" v-model="selected.firstName" placeholder="First Name" />
                   <label>Last Name</label>
@@ -432,11 +463,13 @@
                       </li>
                     </ul>
                   </div>
-                <div class="text-right mt-3">
-                  <button @click="deleteSelected" class="btn btn-danger btn-sm mr-2">Delete</button>
-                  <button v-if="isNew" class="btn btn-primary mr-2" @click="saveNewPerson">Save</button>
-                  <button class="btn btn-secondary" @click="cancelModal">{{ isNew ? 'Cancel' : 'Close' }}</button>
-                </div>
+                  <div class="text-right mt-3">
+                    <button v-if="!isNew" @click="deleteSelected" class="btn btn-danger btn-sm mr-2">Delete</button>
+                    <button v-if="isNew" class="btn btn-primary mr-2" @click="saveNewPerson">Save</button>
+                    <button v-else class="btn btn-primary mr-2" @click="editing = false">Done</button>
+                    <button class="btn btn-secondary" @click="cancelModal">{{ isNew ? 'Cancel' : 'Close' }}</button>
+                  </div>
+                </template>
 
               </div>
             </div>
