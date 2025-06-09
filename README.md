@@ -7,7 +7,7 @@ A simple genealogy web application. This MVP provides a basic REST API and a min
 The project is split into two folders:
 
 - `backend/` – Express API using Sequelize
-- `frontend/` – Vue client served via Nginx
+- `frontend/` – Vue client served via Nginx with a Vue Flow canvas for the family tree
 
 ### Prerequisites
 
