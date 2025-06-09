@@ -93,8 +93,18 @@
                 };
                 marriages[key] = { id, children: [] };
                 nodes.value.push({ id, type: 'marriage', position: pos, data: {} });
-                edges.value.push({ id: `${id}-f`, source: String(child.fatherId), target: id });
-                edges.value.push({ id: `${id}-m`, source: String(child.motherId), target: id });
+                edges.value.push({
+                  id: `${id}-f`,
+                  source: String(child.fatherId),
+                  target: id,
+                  type: 'straight',
+                });
+                edges.value.push({
+                  id: `${id}-m`,
+                  source: String(child.motherId),
+                  target: id,
+                  type: 'straight',
+                });
               }
               marriages[key].children.push(child.id);
             }
