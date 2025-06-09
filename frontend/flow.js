@@ -200,11 +200,59 @@
         onMounted(load);
         const editing = ref(false);
 
+        let clickTimer = null;
+
+        function clearHighlights() {
+          nodes.value.forEach((n) => {
+            if (n.data) n.data.highlight = false;
+          });
+          edges.value.forEach((e) => {
+            e.class = '';
+          });
+        }
+
+        function highlightBloodline(id) {
+          clearHighlights();
+          const visited = new Set();
+
+          function dfs(nodeId) {
+            if (visited.has(nodeId)) return;
+            visited.add(nodeId);
+            const n = nodes.value.find((no) => no.id === String(nodeId));
+            if (n && n.data) n.data.highlight = true;
+            edges.value.forEach((edge) => {
+              if (edge.id.startsWith('spouse-line')) return;
+              if (edge.source === String(nodeId)) {
+                edge.class = 'highlight-edge';
+                dfs(edge.target);
+              } else if (edge.target === String(nodeId)) {
+                edge.class = 'highlight-edge';
+                dfs(edge.source);
+              }
+            });
+          }
+
+          dfs(String(id));
+        }
+
         function onNodeClick(evt) {
-          selected.value = { ...evt.node.data, spouseId: '' };
-          computeChildren(evt.node.data.id);
-          editing.value = false;
-          showModal.value = true;
+          if (clickTimer) {
+            clearTimeout(clickTimer);
+            clickTimer = null;
+            selected.value = { ...evt.node.data, spouseId: '' };
+            computeChildren(evt.node.data.id);
+            editing.value = false;
+            showModal.value = true;
+          } else {
+            selected.value = { ...evt.node.data, spouseId: '' };
+            computeChildren(evt.node.data.id);
+            editing.value = false;
+            showModal.value = false;
+            highlightBloodline(evt.node.data.id);
+            clickTimer = setTimeout(() => {
+              clickTimer = null;
+            }, 250);
+          }
         }
 
         const saveSelected = debounce(async () => {
@@ -576,7 +624,7 @@
             :fit-view="true"
           >
             <template #node-person="{ data }">
-              <div class="person-node" :style="{ borderColor: data.gender === 'female' ? '#f8c' : (data.gender === 'male' ? '#88f' : '#ccc') }">
+              <div class="person-node" :class="{ 'highlight-node': data.highlight }" :style="{ borderColor: data.gender === 'female' ? '#f8c' : (data.gender === 'male' ? '#88f' : '#ccc') }">
                 <div class="avatar"></div>
                 <div><strong>{{ data.firstName }} {{ data.lastName }}</strong></div>
                 <div>{{ data.dateOfBirth }} - {{ data.dateOfDeath }}</div>
@@ -591,8 +639,8 @@
                 <Handle type="target" position="left" id="t-left" />
               </div>
             </template>
-            <template #node-helper>
-              <div class="helper-node">
+            <template #node-helper="{ data }">
+              <div class="helper-node" :class="{ 'highlight-node': data.highlight }">
                 <Handle type="source" position="bottom" id="s-bottom" />
               </div>
             </template>
