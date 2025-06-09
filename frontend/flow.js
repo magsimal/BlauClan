@@ -26,6 +26,14 @@
         const showModal = ref(false);
         let unions = {};
 
+        function avatarSrc(gender, size) {
+          const g = (gender || '').toString().toLowerCase();
+          let text = '?';
+          if (g === 'female' || g === 'f') text = 'F';
+          else if (g === 'male' || g === 'm') text = 'M';
+          return `https://via.placeholder.com/${size}?text=${text}`;
+        }
+
         function chooseHandles(a, b) {
           const dx = b.x - a.x;
           const dy = b.y - a.y;
@@ -598,8 +606,9 @@
           selected,
           showModal,
           children,
-          isNew,
-          editing,
+         isNew,
+         editing,
+         avatarSrc,
          optimizeLayout,
          saveLayout,
          loadLayout,
@@ -625,7 +634,7 @@
           >
             <template #node-person="{ data }">
               <div class="person-node" :class="{ 'highlight-node': data.highlight }" :style="{ borderColor: data.gender === 'female' ? '#f8c' : (data.gender === 'male' ? '#88f' : '#ccc') }">
-                <div class="avatar"></div>
+                <img :src="avatarSrc(data.gender, 40)" class="avatar" />
                 <div><strong>{{ data.firstName }} {{ data.lastName }}</strong></div>
                 <div>{{ data.dateOfBirth }} - {{ data.dateOfDeath }}</div>
                 <button class="add-child" @click.stop="addPerson">+</button>
@@ -659,7 +668,7 @@
               <div class="card-body p-3">
                 <template v-if="!editing && !isNew">
                   <div class="text-center mb-2">
-                    <img src="https://via.placeholder.com/80" class="avatar-placeholder" />
+                    <img :src="avatarSrc(selected.gender, 80)" class="avatar-placeholder" />
                   </div>
                   <h3 class="card-title text-center">{{ selected.firstName }} {{ selected.lastName }}</h3>
                   <p v-if="selected.maidenName"><strong>Maiden Name:</strong> {{ selected.maidenName }}</p>
