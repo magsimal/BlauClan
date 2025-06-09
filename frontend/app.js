@@ -35,6 +35,25 @@
     return res.json();
   }
 
+  async function deletePerson(id) {
+    const res = await fetch(`/api/people/${id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      throw new Error('Failed to delete person');
+    }
+  }
+
+  async function linkSpouse(personId, spouseId) {
+    const res = await fetch(`/api/people/${personId}/spouses`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ spouseId }),
+    });
+    if (!res.ok) {
+      throw new Error('Failed to link spouse');
+    }
+    return res.json();
+  }
+
   function parentName(id, people) {
     const p = people.find((x) => x.id === id);
     return p ? `${p.firstName} ${p.lastName}` : '';
@@ -52,6 +71,7 @@
             fatherId: '',
             motherId: '',
             notes: '',
+            relation: null,
           },
           selectedPerson: null,
         };
@@ -68,8 +88,25 @@
           if (!payload.fatherId) delete payload.fatherId; else payload.fatherId = parseInt(payload.fatherId);
           if (!payload.motherId) delete payload.motherId; else payload.motherId = parseInt(payload.motherId);
           const person = await createPerson(payload);
+          if (this.newPerson.relation) {
+            const rel = this.newPerson.relation;
+            if (rel.type === 'spouse') {
+              await linkSpouse(rel.personId, person.id);
+            } else if (rel.type === 'father' || rel.type === 'mother') {
+              const update = {};
+              update[rel.type === 'father' ? 'fatherId' : 'motherId'] = person.id;
+              await updatePerson(rel.childId, update);
+            }
+          }
           this.people.push(person);
-          this.newPerson = { firstName: '', lastName: '', fatherId: '', motherId: '', notes: '' };
+          this.newPerson = {
+            firstName: '',
+            lastName: '',
+            fatherId: '',
+            motherId: '',
+            notes: '',
+            relation: null,
+          };
         },
         async updateParents(person) {
           const updates = {
@@ -81,6 +118,45 @@
         },
         selectPerson(person) {
           this.selectedPerson = { ...person };
+        },
+        async deleteSelected() {
+          if (!this.selectedPerson) return;
+          await deletePerson(this.selectedPerson.id);
+          this.people = this.people.filter((p) => p.id !== this.selectedPerson.id);
+          this.selectedPerson = null;
+        },
+        prepareAddChild() {
+          if (!this.selectedPerson) return;
+          this.newPerson = {
+            firstName: '',
+            lastName: '',
+            fatherId: this.selectedPerson.gender === 'female' ? '' : this.selectedPerson.id,
+            motherId: this.selectedPerson.gender === 'female' ? this.selectedPerson.id : '',
+            notes: '',
+            relation: null,
+          };
+        },
+        prepareAddSpouse() {
+          if (!this.selectedPerson) return;
+          this.newPerson = {
+            firstName: '',
+            lastName: '',
+            fatherId: '',
+            motherId: '',
+            notes: '',
+            relation: { type: 'spouse', personId: this.selectedPerson.id },
+          };
+        },
+        prepareAddParent(type) {
+          if (!this.selectedPerson) return;
+          this.newPerson = {
+            firstName: '',
+            lastName: '',
+            fatherId: '',
+            motherId: '',
+            notes: '',
+            relation: { type, childId: this.selectedPerson.id },
+          };
         },
         async savePerson() {
           if (!this.selectedPerson) return;
@@ -102,5 +178,13 @@
     return vm;
   }
 
-  return { fetchPeople, createPerson, updatePerson, parentName, mountApp };
+  return {
+    fetchPeople,
+    createPerson,
+    updatePerson,
+    deletePerson,
+    linkSpouse,
+    parentName,
+    mountApp,
+  };
 });
