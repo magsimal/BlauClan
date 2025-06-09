@@ -37,6 +37,22 @@
           return { sourceHandle: 's-top', targetHandle: 't-bottom' };
         }
 
+        async function applySavedLayout() {
+          const res = await fetch('/api/layout');
+          if (!res.ok) return;
+          const layout = await res.json();
+          if (!layout) return;
+          const map = {};
+          layout.nodes.forEach((n) => {
+            map[n.id] = n;
+          });
+          nodes.value.forEach((n) => {
+            if (map[n.id]) {
+              n.position = { x: map[n.id].x, y: map[n.id].y };
+            }
+          });
+        }
+
         async function load() {
           const people = await FrontendApp.fetchPeople();
           const idMap = {};
@@ -166,6 +182,7 @@
             }
           });
 
+          await applySavedLayout();
           refreshUnions();
         }
 
@@ -210,6 +227,22 @@
         );
 
         function onNodeDragStop() {
+          refreshUnions();
+        }
+
+        async function saveLayout() {
+          const payload = {
+            nodes: nodes.value.map((n) => ({ id: n.id, x: n.position.x, y: n.position.y })),
+          };
+          await fetch('/api/layout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+        }
+
+        async function loadLayout() {
+          await applySavedLayout();
           refreshUnions();
         }
 
@@ -517,6 +550,8 @@
           isNew,
           editing,
          optimizeLayout,
+         saveLayout,
+         loadLayout,
           onNodeDragStop,
         };
       },
@@ -525,6 +560,8 @@
           <div id="toolbar">
             <button @click="addPerson">+ Add Person</button>
             <button @click="optimizeLayout" class="ml-2">Optimize Layout</button>
+            <button @click="saveLayout" class="ml-2">Save Layout</button>
+            <button @click="loadLayout" class="ml-2">Reload Layout</button>
           </div>
           <VueFlow
             style="width: 100%; height: 600px"
