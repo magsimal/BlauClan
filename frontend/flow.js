@@ -27,31 +27,97 @@
 
         async function load() {
           const people = await FrontendApp.fetchPeople();
-          nodes.value = people.map((p, idx) => ({
+          const idMap = {};
+          people.forEach((p) => (idMap[p.id] = p));
+
+          // determine generation levels
+          const queue = [];
+          people.forEach((p) => {
+            p._gen = null;
+            if (!p.fatherId && !p.motherId) {
+              p._gen = 0;
+              queue.push(p);
+            }
+          });
+          while (queue.length) {
+            const cur = queue.shift();
+            const g = cur._gen || 0;
+            people.forEach((c) => {
+              if ((c.fatherId === cur.id || c.motherId === cur.id) && c._gen === null) {
+                c._gen = g + 1;
+                queue.push(c);
+              }
+            });
+          }
+          people.forEach((p) => {
+            if (p._gen === null) p._gen = 0;
+          });
+
+          const layers = {};
+          people.forEach((p) => {
+            layers[p._gen] = layers[p._gen] || [];
+            layers[p._gen].push(p);
+          });
+
+          const positions = {};
+          const xSpacing = 180;
+          const ySpacing = 150;
+          Object.keys(layers).forEach((g) => {
+            layers[g].forEach((p, idx) => {
+              positions[p.id] = { x: 100 + idx * xSpacing, y: 100 + g * ySpacing };
+            });
+          });
+
+          nodes.value = people.map((p) => ({
             id: String(p.id),
             type: 'person',
-            position: { x: 100 + idx * 150, y: 100 },
+            position: positions[p.id],
             data: { ...p },
           }));
+
+          const marriages = {};
           edges.value = [];
-          people.forEach((p) => {
-            if (p.fatherId) {
+
+          function marriageKey(f, m) {
+            return `${f}-${m}`;
+          }
+
+          people.forEach((child) => {
+            if (child.fatherId && child.motherId) {
+              const key = marriageKey(child.fatherId, child.motherId);
+              if (!marriages[key]) {
+                const id = `m-${key}`;
+                const pos = {
+                  x: (positions[child.fatherId].x + positions[child.motherId].x) / 2,
+                  y: positions[child.fatherId].y + ySpacing / 2,
+                };
+                marriages[key] = { id, children: [] };
+                nodes.value.push({ id, type: 'marriage', position: pos, data: {} });
+                edges.value.push({ id: `${id}-f`, source: String(child.fatherId), target: id });
+                edges.value.push({ id: `${id}-m`, source: String(child.motherId), target: id });
+              }
+              marriages[key].children.push(child.id);
+            }
+          });
+
+          Object.values(marriages).forEach((m) => {
+            m.children.forEach((cid) => {
               edges.value.push({
-                id: `f-${p.id}`,
-                source: String(p.fatherId),
-                target: String(p.id),
-                sourceHandle: 'child',
-                targetHandle: 'parent',
+                id: `${m.id}-${cid}`,
+                source: m.id,
+                target: String(cid),
                 markerEnd: MarkerType.ArrowClosed,
               });
-            }
-            if (p.motherId) {
+            });
+          });
+
+          people.forEach((p) => {
+            if ((p.fatherId && !p.motherId) || (!p.fatherId && p.motherId)) {
+              const parent = p.fatherId || p.motherId;
               edges.value.push({
-                id: `m-${p.id}`,
-                source: String(p.motherId),
+                id: `p-${p.id}`,
+                source: String(parent),
                 target: String(p.id),
-                sourceHandle: 'child',
-                targetHandle: 'parent',
                 markerEnd: MarkerType.ArrowClosed,
               });
             }
@@ -78,7 +144,7 @@
         watch(
           () => selected.value,
           () => {
-            if (showModal.value) saveSelected();
+            if (showModal.value && !isNew.value) saveSelected();
           },
           { deep: true }
         );
@@ -95,10 +161,20 @@
           await load();
         }
 
-        async function addPerson() {
-          const p = await FrontendApp.createPerson({ firstName: 'New', lastName: 'Person' });
-          await load();
-          selected.value = { ...p };
+        const isNew = ref(false);
+
+        function addPerson() {
+          selected.value = {
+            firstName: '',
+            lastName: '',
+            dateOfBirth: '',
+            dateOfDeath: '',
+            gender: 'male',
+            fatherId: '',
+            motherId: '',
+            spouseId: '',
+          };
+          isNew.value = true;
           showModal.value = true;
         }
 
@@ -109,6 +185,33 @@
           await FrontendApp.deletePerson(id);
           selected.value = null;
           await load();
+          
+        async function saveNewPerson() {
+          const payload = {
+            firstName: selected.value.firstName,
+            lastName: selected.value.lastName,
+            dateOfBirth: selected.value.dateOfBirth || undefined,
+            dateOfDeath: selected.value.dateOfDeath || undefined,
+            gender: selected.value.gender,
+            fatherId: selected.value.fatherId || undefined,
+            motherId: selected.value.motherId || undefined,
+          };
+          const p = await FrontendApp.createPerson(payload);
+          if (selected.value.spouseId) {
+            await FrontendApp.linkSpouse(p.id, parseInt(selected.value.spouseId));
+          }
+          await load();
+          showModal.value = false;
+          isNew.value = false;
+          selected.value = null;
+        }
+
+        function cancelModal() {
+          showModal.value = false;
+          if (isNew.value) {
+            selected.value = null;
+            isNew.value = false;
+          }
         }
 
         return {
@@ -118,8 +221,11 @@
           onConnect,
           addPerson,
           deleteSelected,
+          saveNewPerson,
+          cancelModal,
           selected,
           showModal,
+          isNew,
         };
       },
       template: `
@@ -145,21 +251,40 @@
                 <Handle type="target" position="left" id="parent" />
               </div>
             </template>
+            <template #node-marriage>
+              <div class="marriage-node"></div>
+            </template>
           </VueFlow>
 
           <div v-if="showModal" class="modal">
-            <div class="modal-content">
-              <h3>Edit Person</h3>
-              <input v-model="selected.firstName" placeholder="First Name" />
-              <input v-model="selected.lastName" placeholder="Last Name" />
-              <input v-model="selected.dateOfBirth" type="date" />
-              <input v-model="selected.dateOfDeath" type="date" />
-              <select v-model="selected.gender">
+            <div class="modal-content" style="max-width:420px;">
+              <h3 v-if="isNew">Add Person</h3>
+              <h3 v-else>Edit Person</h3>
+              <input class="form-control mb-2" v-model="selected.firstName" placeholder="First Name" />
+              <input class="form-control mb-2" v-model="selected.lastName" placeholder="Last Name" />
+              <input class="form-control mb-2" v-model="selected.dateOfBirth" type="date" />
+              <input class="form-control mb-2" v-model="selected.dateOfDeath" type="date" />
+              <select class="form-control mb-2" v-model="selected.gender">
                 <option value="male">Male</option>
                 <option value="female">Female</option>
               </select>
+              <select class="form-control mb-2" v-model="selected.fatherId">
+                <option value="">Father</option>
+                <option v-for="n in nodes" :key="'f'+n.id" :value="n.data.id">{{ n.data.firstName }} {{ n.data.lastName }}</option>
+              </select>
+              <select class="form-control mb-2" v-model="selected.motherId">
+                <option value="">Mother</option>
+                <option v-for="n in nodes" :key="'m'+n.id" :value="n.data.id">{{ n.data.firstName }} {{ n.data.lastName }}</option>
+              </select>
+              <select class="form-control mb-2" v-model="selected.spouseId">
+                <option value="">Spouse</option>
+                <option v-for="n in nodes" :key="'s'+n.id" :value="n.data.id">{{ n.data.firstName }} {{ n.data.lastName }}</option>
+              </select>
               <button @click="deleteSelected" class="btn btn-danger btn-sm mr-2">Delete</button>
-              <button @click="showModal=false" class="btn btn-secondary btn-sm">Close</button>
+              <div class="text-right">
+                <button v-if="isNew" class="btn btn-primary mr-2" @click="saveNewPerson">Save</button>
+                <button class="btn btn-secondary" @click="cancelModal">{{ isNew ? 'Cancel' : 'Close' }}</button>
+              </div>
             </div>
           </div>
         </div>

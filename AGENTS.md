@@ -34,6 +34,7 @@ We want to create a Family Tree web application using Node.js (Express) for the 
 2. Frontend
 	•	Framework: Vue.js
 	•	Visualization: D3.js for rendering the family tree
+        •       Styling: follow the Vue Argon Design System.
 	•	Templates:
 	•	Modern: Card-based design with avatars (placeholder or user-supplied), color-coded by gender
 	•	Classic: Minimal black-and-white layout with text-based boxes
