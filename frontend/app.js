@@ -77,6 +77,7 @@
           newPerson: {
             firstName: '',
             lastName: '',
+            maidenName: '',
             dateOfBirth: '',
             dateOfDeath: '',
             placeOfBirth: '',
@@ -92,6 +93,7 @@
             existingId: '',
             firstName: '',
             lastName: '',
+            maidenName: '',
             dateOfBirth: '',
             dateOfDeath: '',
             placeOfBirth: '',
@@ -149,9 +151,10 @@
             }
           }
           this.people.push(person);
-          this.newPerson = {
+         this.newPerson = {
             firstName: '',
             lastName: '',
+            maidenName: '',
             dateOfBirth: '',
             dateOfDeath: '',
             placeOfBirth: '',
@@ -183,9 +186,10 @@
         },
         prepareAddChild() {
           if (!this.selectedPerson) return;
-          this.newPerson = {
+         this.newPerson = {
             firstName: '',
             lastName: '',
+            maidenName: '',
             dateOfBirth: '',
             dateOfDeath: '',
             placeOfBirth: '',
@@ -196,13 +200,14 @@
           };
           this.showAddForm = true;
         },
-        prepareAddSpouse() {
+       prepareAddSpouse() {
           if (!this.selectedPerson) return;
           this.showSpouseForm = true;
           this.spouseForm = {
             existingId: '',
             firstName: '',
             lastName: '',
+            maidenName: '',
             dateOfBirth: '',
             dateOfDeath: '',
             placeOfBirth: '',
@@ -210,12 +215,13 @@
         },
         async confirmAddSpouse() {
           if (!this.selectedPerson) return;
-          if (this.spouseForm.existingId) {
+         if (this.spouseForm.existingId) {
             await linkSpouse(this.selectedPerson.id, parseInt(this.spouseForm.existingId));
           } else {
             const payload = {
               firstName: this.spouseForm.firstName,
               lastName: this.spouseForm.lastName,
+              maidenName: this.spouseForm.maidenName || undefined,
               dateOfBirth: this.spouseForm.dateOfBirth || undefined,
               dateOfDeath: this.spouseForm.dateOfDeath || undefined,
               placeOfBirth: this.spouseForm.placeOfBirth || undefined,
@@ -245,11 +251,12 @@
           const idx = this.people.findIndex((p) => p.id === updated.id);
           if (idx !== -1) Object.assign(this.people[idx], updated);
         },
-        prepareAddParent(type) {
+       prepareAddParent(type) {
           if (!this.selectedPerson) return;
           this.newPerson = {
             firstName: '',
             lastName: '',
+            maidenName: '',
             dateOfBirth: '',
             dateOfDeath: '',
             placeOfBirth: '',
@@ -260,10 +267,11 @@
           };
           this.showAddForm = true;
         },
-        openAddForm() {
+       openAddForm() {
           this.newPerson = {
             firstName: '',
             lastName: '',
+            maidenName: '',
             dateOfBirth: '',
             dateOfDeath: '',
             placeOfBirth: '',
@@ -274,11 +282,12 @@
           };
           this.showAddForm = true;
         },
-        cancelAddPerson() {
+       cancelAddPerson() {
           this.showAddForm = false;
           this.newPerson = {
             firstName: '',
             lastName: '',
+            maidenName: '',
             dateOfBirth: '',
             dateOfDeath: '',
             placeOfBirth: '',
@@ -288,11 +297,12 @@
             relation: null,
           };
         },
-        async savePerson() {
+       async savePerson() {
           if (!this.selectedPerson) return;
           const payload = {
             firstName: this.selectedPerson.firstName,
             lastName: this.selectedPerson.lastName,
+            maidenName: this.selectedPerson.maidenName || '',
             dateOfBirth: this.selectedPerson.dateOfBirth || null,
             dateOfDeath: this.selectedPerson.dateOfDeath || null,
             placeOfBirth: this.selectedPerson.placeOfBirth || '',

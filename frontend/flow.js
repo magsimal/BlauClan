@@ -186,10 +186,11 @@
 
         const isNew = ref(false);
 
-        function addPerson() {
+       function addPerson() {
           selected.value = {
             firstName: '',
             lastName: '',
+            maidenName: '',
             dateOfBirth: '',
             dateOfDeath: '',
             placeOfBirth: '',
@@ -222,9 +223,10 @@
         }
 
         async function saveNewPerson() {
-          const payload = {
+         const payload = {
             firstName: selected.value.firstName,
             lastName: selected.value.lastName,
+            maidenName: selected.value.maidenName || undefined,
             dateOfBirth: selected.value.dateOfBirth || undefined,
             dateOfDeath: selected.value.dateOfDeath || undefined,
             placeOfBirth: selected.value.placeOfBirth || undefined,
@@ -312,6 +314,8 @@
                   <input class="form-control mb-2" v-model="selected.firstName" placeholder="First Name" />
                   <label>Last Name</label>
                   <input class="form-control mb-2" v-model="selected.lastName" placeholder="Last Name" />
+                  <label>Maiden Name</label>
+                  <input class="form-control mb-2" v-model="selected.maidenName" placeholder="Maiden Name" />
                   <label>Date of Birth</label>
                   <input class="form-control mb-2" v-model="selected.dateOfBirth" type="date" />
                   <label>Date of Death</label>
