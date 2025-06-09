@@ -124,3 +124,12 @@ docker-compose up
 ⸻
 
 Use these final requirements to implement the Family Tree application from scratch. Adhere to best practices in coding style, performance, and maintainability while ensuring a user-friendly experience on both desktop and mobile browsers.
+
+⸻
+
+# Codex Instructions
+        •       Always run linting and tests for both backend and frontend when modifying any files except documentation.
+        •       Commands:
+        •       `cd backend && npm run lint && npm test`
+        •       `cd frontend && npm run lint && npm test`
+        •       Skip these checks if the commit only changes documentation files (`*.md`).
