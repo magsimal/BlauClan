@@ -1,4 +1,4 @@
-const { fetchPeople, createPerson, deletePerson } = require('../app');
+const { fetchPeople, createPerson, deletePerson, linkSpouse, fetchSpouses } = require('../app');
 
 describe('frontend helpers', () => {
   beforeEach(() => {
@@ -27,5 +27,18 @@ describe('frontend helpers', () => {
     global.fetch.mockResolvedValue({ ok: true });
     await deletePerson(3);
     expect(global.fetch).toHaveBeenCalledWith('/api/people/3', { method: 'DELETE' });
+  });
+
+  test('linkSpouse posts relationship', async () => {
+    global.fetch.mockResolvedValue({ ok: true, json: () => ({ id: 1 }) });
+    await linkSpouse(1, 2);
+    expect(global.fetch).toHaveBeenCalledWith('/api/people/1/spouses', expect.objectContaining({ method: 'POST' }));
+  });
+
+  test('fetchSpouses gets list', async () => {
+    global.fetch.mockResolvedValue({ ok: true, json: () => [{ spouse: { id: 2 } }] });
+    const data = await fetchSpouses(1);
+    expect(global.fetch).toHaveBeenCalledWith('/api/people/1/spouses');
+    expect(data[0].spouse.id).toBe(2);
   });
 });
