@@ -664,7 +664,7 @@
         };
       },
       template: `
-        <div>
+        <div style="width: 100%; height: 100%">
           <div id="toolbar">
             <button @click="addPerson">+ Add Person</button>
             <button @click="optimizeLayout" class="ml-2">Optimize Layout</button>
