@@ -364,13 +364,45 @@
         }
 
         function downloadSvg() {
-          const flowEl = document.getElementById('flow-app');
-          const vueFlow = flowEl?.querySelector('.vue-flow');
-          if (!vueFlow) return;
-          const { width, height } = vueFlow.getBoundingClientRect();
-          const serializer = new XMLSerializer();
-          const content = serializer.serializeToString(vueFlow);
-          const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><foreignObject width="100%" height="100%">${content}</foreignObject></svg>`;
+          const nodeWidth = 120;
+          const nodeHeight = 60;
+          const map = {};
+          nodes.value.forEach((n) => {
+            map[n.id] = n;
+          });
+
+          const allX = nodes.value.map((n) => n.position.x);
+          const allY = nodes.value.map((n) => n.position.y);
+          const width = Math.max(...allX) + nodeWidth + 20;
+          const height = Math.max(...allY) + nodeHeight + 20;
+
+          const lines = edges.value
+            .map((e) => {
+              const s = map[e.source];
+              const t = map[e.target];
+              if (!s || !t) return '';
+              const x1 = s.position.x + nodeWidth / 2;
+              const y1 = s.position.y + nodeHeight / 2;
+              const x2 = t.position.x + nodeWidth / 2;
+              const y2 = t.position.y + nodeHeight / 2;
+              return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="black" />`;
+            })
+            .join('');
+
+          const boxes = nodes.value
+            .map((n) => {
+              const { firstName = '', lastName = '' } = n.data || {};
+              const x = n.position.x;
+              const y = n.position.y;
+              const text = `${firstName} ${lastName}`.trim();
+              return (
+                `<rect x="${x}" y="${y}" width="${nodeWidth}" height="${nodeHeight}" fill="white" stroke="black" />` +
+                `<text x="${x + nodeWidth / 2}" y="${y + nodeHeight / 2}" text-anchor="middle" dominant-baseline="central" font-size="12" fill="black">${text}</text>`
+              );
+            })
+            .join('');
+
+          const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" style="font-family: sans-serif">${lines}${boxes}</svg>`;
           const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
           const url = URL.createObjectURL(blob);
           const link = document.createElement('a');
