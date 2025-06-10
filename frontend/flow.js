@@ -25,6 +25,10 @@
         const { fitView } = useZoomPanHelper();
         const selected = ref(null);
         const showModal = ref(false);
+        const contextMenuVisible = ref(false);
+        const contextX = ref(0);
+        const contextY = ref(0);
+        let longPressTimer = null;
         const UNION_Y_OFFSET = 20;
         let unions = {};
 
@@ -308,12 +312,13 @@
           }
         }
 
-        function onPaneClick() {
-          selected.value = null;
-          showModal.value = false;
-          editing.value = false;
-          clearHighlights();
-        }
+       function onPaneClick() {
+         selected.value = null;
+         showModal.value = false;
+         editing.value = false;
+         clearHighlights();
+         contextMenuVisible.value = false;
+       }
 
         const saveSelected = debounce(async () => {
           if (!selected.value) return;
@@ -651,7 +656,44 @@
            selected.value = null;
            isNew.value = false;
          }
-          editing.value = false;
+         editing.value = false;
+       }
+
+       function openContextMenu(ev) {
+         const point = ev.touches ? ev.touches[0] : ev;
+         contextX.value = point.clientX;
+         contextY.value = point.clientY;
+         contextMenuVisible.value = true;
+       }
+
+       function handleContextMenu(ev) {
+         ev.preventDefault();
+         openContextMenu(ev);
+       }
+
+       function handleTouchStart(ev) {
+         longPressTimer = setTimeout(() => {
+           openContextMenu(ev);
+         }, 500);
+       }
+
+       function handleTouchEnd() {
+         clearTimeout(longPressTimer);
+       }
+
+       function menuAdd() {
+         contextMenuVisible.value = false;
+         addPerson();
+       }
+
+       function menuClean() {
+         contextMenuVisible.value = false;
+         optimizeLayout();
+       }
+
+       function menuFit() {
+         contextMenuVisible.value = false;
+         fitView();
        }
 
         return {
@@ -680,10 +722,19 @@
         fitView,
         downloadSvg,
         onNodeDragStop,
-       };
+        handleContextMenu,
+        handleTouchStart,
+        handleTouchEnd,
+        contextMenuVisible,
+        contextX,
+        contextY,
+        menuAdd,
+        menuClean,
+        menuFit,
+      };
       },
       template: `
-        <div style="width: 100%; height: 100%">
+        <div style="width: 100%; height: 100%" @click="contextMenuVisible = false">
           <div id="toolbar">
             <button class="icon-button" @click="addPerson" title="Add Person">
               <svg viewBox="0 0 24 24"><path d="M5.25 6.375a4.125 4.125 0 1 1 8.25 0 4.125 4.125 0 0 1-8.25 0ZM2.25 19.125a7.125 7.125 0 0 1 14.25 0v.003l-.001.119a.75.75 0 0 1-.363.63 13.067 13.067 0 0 1-6.761 1.873c-2.472 0-4.786-.684-6.76-1.873a.75.75 0 0 1-.364-.63l-.001-.122ZM18.75 7.5a.75.75 0 0 0-1.5 0v2.25H15a.75.75 0 0 0 0 1.5h2.25v2.25a.75.75 0 0 0 1.5 0v-2.25H21a.75.75 0 0 0 0-1.5h-2.25V7.5Z"/></svg>
@@ -712,6 +763,10 @@
             @pane-click="onPaneClick"
             @connect="onConnect"
             @node-drag-stop="onNodeDragStop"
+            @contextmenu.prevent="handleContextMenu"
+            @touchstart="handleTouchStart"
+            @touchend="handleTouchEnd"
+            @touchcancel="handleTouchEnd"
             :fit-view-on-init="true"
           >
             <template #node-person="{ data }">
@@ -740,6 +795,16 @@
               </div>
             </template>
           </VueFlow>
+
+          <ul
+            v-if="contextMenuVisible"
+            class="context-menu"
+            :style="{ left: contextX + 'px', top: contextY + 'px' }"
+          >
+            <li @click="menuAdd">Add New</li>
+            <li @click="menuClean">Clean Up</li>
+            <li @click="menuFit">Zoom to Fit</li>
+          </ul>
 
           <div v-if="showModal" class="modal">
             <div
