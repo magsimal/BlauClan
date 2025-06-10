@@ -5,6 +5,7 @@
     global.FlowApp = factory();
   }
 })(this, function () {
+  /* global html2canvas */
   function debounce(fn, delay) {
     let t;
     return function (...args) {
@@ -455,53 +456,17 @@
           refreshUnions();
         }
 
-        function downloadSvg() {
-          const nodeWidth = 120;
-          const nodeHeight = 60;
-          const map = {};
-          nodes.value.forEach((n) => {
-            map[n.id] = n;
-          });
-
-          const allX = nodes.value.map((n) => n.position.x);
-          const allY = nodes.value.map((n) => n.position.y);
-          const width = Math.max(...allX) + nodeWidth + 20;
-          const height = Math.max(...allY) + nodeHeight + 20;
-
-          const lines = edges.value
-            .map((e) => {
-              const s = map[e.source];
-              const t = map[e.target];
-              if (!s || !t) return '';
-              const x1 = s.position.x + nodeWidth / 2;
-              const y1 = s.position.y + nodeHeight / 2;
-              const x2 = t.position.x + nodeWidth / 2;
-              const y2 = t.position.y + nodeHeight / 2;
-              return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="black" />`;
-            })
-            .join('');
-
-          const boxes = nodes.value
-            .map((n) => {
-              const { firstName = '', lastName = '' } = n.data || {};
-              const x = n.position.x;
-              const y = n.position.y;
-              const text = `${firstName} ${lastName}`.trim();
-              return (
-                `<rect x="${x}" y="${y}" width="${nodeWidth}" height="${nodeHeight}" fill="white" stroke="black" />` +
-                `<text x="${x + nodeWidth / 2}" y="${y + nodeHeight / 2}" text-anchor="middle" dominant-baseline="central" font-size="12" fill="black">${text}</text>`
-              );
-            })
-            .join('');
-
-          const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" style="font-family: sans-serif">${lines}${boxes}</svg>`;
-          const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
-          const url = URL.createObjectURL(blob);
+        async function downloadPng() {
+          fitView();
+          await nextTick();
+          const container = document.getElementById('flow-app');
+          if (!container || typeof html2canvas === 'undefined') return;
+          const canvas = await html2canvas(container);
+          const url = canvas.toDataURL('image/png');
           const link = document.createElement('a');
           link.href = url;
-          link.download = 'family-tree.svg';
+          link.download = 'family-tree.png';
           link.click();
-          URL.revokeObjectURL(url);
         }
 
         async function onConnect(params) {
@@ -893,7 +858,7 @@
         saveLayout,
         loadLayout,
         fitView,
-        downloadSvg,
+        downloadPng,
         onNodeDragStop,
         handleContextMenu,
         handleTouchStart,
@@ -924,7 +889,7 @@
             <button class="icon-button" @click="fitView" title="Fit to Screen">
               <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M15 3.75a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0V5.56l-3.97 3.97a.75.75 0 1 1-1.06-1.06l3.97-3.97h-2.69a.75.75 0 0 1-.75-.75Zm-12 0A.75.75 0 0 1 3.75 3h4.5a.75.75 0 0 1 0 1.5H5.56l3.97 3.97a.75.75 0 0 1-1.06 1.06L4.5 5.56v2.69a.75.75 0 0 1-1.5 0v-4.5Zm11.47 11.78a.75.75 0 1 1 1.06-1.06l3.97 3.97v-2.69a.75.75 0 0 1 1.5 0v4.5a.75.75 0 0 1-.75.75h-4.5a.75.75 0 0 1 0-1.5h2.69l-3.97-3.97Zm-4.94-1.06a.75.75 0 0 1 0 1.06L5.56 19.5h2.69a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1-.75-.75v-4.5a.75.75 0 0 1 1.5 0v2.69l3.97-3.97a.75.75 0 0 1 1.06 0Z" clip-rule="evenodd"/></svg>
             </button>
-            <button class="icon-button" @click="downloadSvg" title="Download SVG">
+            <button class="icon-button" @click="downloadPng" title="Download PNG">
               <svg viewBox="0 0 24 24"><path d="M12 16.5v-9m0 9 3-3m-3 3-3-3M4.5 19.5h15" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
           </div>
