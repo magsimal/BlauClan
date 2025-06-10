@@ -62,6 +62,15 @@
     return res.json();
   }
 
+  async function deleteSpouse(personId, marriageId) {
+    const res = await fetch(`/api/people/${personId}/spouses/${marriageId}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      throw new Error('Failed to unlink spouse');
+    }
+  }
+
   function parentName(id, people) {
     const p = people.find((x) => x.id === id);
     return p ? `${p.firstName} ${p.lastName}` : '';
@@ -158,6 +167,7 @@
     deletePerson,
     linkSpouse,
     fetchSpouses,
+    deleteSpouse,
     parentName,
     mountApp,
   };

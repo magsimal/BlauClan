@@ -14,7 +14,7 @@
   }
 
   function mount() {
-    const { createApp, ref, onMounted, watch, nextTick } = Vue;
+    const { createApp, ref, onMounted, onBeforeUnmount, watch, nextTick } = Vue;
     const { VueFlow, MarkerType, Handle, useZoomPanHelper } = window.VueFlow;
 
     const app = createApp({
@@ -22,6 +22,7 @@
       setup() {
         const nodes = ref([]);
         const edges = ref([]);
+        const selectedEdge = ref(null);
         const { fitView } = useZoomPanHelper();
         const selected = ref(null);
         const showModal = ref(false);
@@ -31,6 +32,20 @@
         let longPressTimer = null;
         const UNION_Y_OFFSET = 20;
         let unions = {};
+
+        function addClass(edge, cls) {
+          const parts = (edge.class || '').split(' ').filter(Boolean);
+          if (!parts.includes(cls)) parts.push(cls);
+          edge.class = parts.join(' ');
+        }
+
+        function removeClass(edge, cls) {
+          if (!edge.class) return;
+          edge.class = edge.class
+            .split(' ')
+            .filter((c) => c !== cls)
+            .join(' ');
+        }
 
         function avatarSrc(gender, size) {
           void size; // size parameter kept for compatibility
@@ -109,6 +124,7 @@
 
           unions = {};
           edges.value = [];
+          selectedEdge.value = null;
 
           function unionKey(f, m) {
             return `${f}-${m}`;
@@ -204,9 +220,78 @@
             .map((n) => n.data);
         }
 
+        function handleKeydown(ev) {
+          if (ev.key !== 'Delete' || !selectedEdge.value) return;
+          ev.preventDefault();
+          removeSelectedEdge();
+        }
+
+        async function removeSelectedEdge() {
+          const edge = selectedEdge.value;
+          if (!edge) return;
+          selectedEdge.value = null;
+          edges.value.forEach((e) => removeClass(e, 'selected-edge'));
+
+          if (edge.id.startsWith('spouse-line')) {
+            const fatherId = parseInt(edge.source, 10);
+            const motherId = parseInt(edge.target, 10);
+            const list = await FrontendApp.fetchSpouses(fatherId);
+            const rel = list.find((s) => s.spouse.id === motherId);
+            if (rel) {
+              await FrontendApp.deleteSpouse(fatherId, rel.marriageId);
+            }
+            await load();
+            return;
+          }
+
+          let parentId;
+          let childId;
+          if (edge.targetHandle === 't-top') {
+            parentId = parseInt(edge.source, 10);
+            childId = parseInt(edge.target, 10);
+          } else if (edge.sourceHandle === 't-top') {
+            parentId = parseInt(edge.target, 10);
+            childId = parseInt(edge.source, 10);
+          } else if (edge.sourceHandle === 's-bottom') {
+            parentId = parseInt(edge.source, 10);
+            childId = parseInt(edge.target, 10);
+          } else if (edge.targetHandle === 's-bottom' || edge.targetHandle === 't-bottom') {
+            parentId = parseInt(edge.target, 10);
+            childId = parseInt(edge.source, 10);
+          } else if (edge.source.startsWith('u-') || edge.target.startsWith('u-')) {
+            const cid = edge.source.startsWith('u-') ? parseInt(edge.target, 10) : parseInt(edge.source, 10);
+            await FrontendApp.updatePerson(cid, { fatherId: null, motherId: null });
+            await load();
+            return;
+          } else {
+            return;
+          }
+
+          const childNode = nodes.value.find((n) => n.id === String(childId));
+          if (!childNode) return;
+          const parentNode = nodes.value.find((n) => n.id === String(parentId));
+          const updates = {};
+          const gender = (parentNode?.data.gender || '').toLowerCase();
+          if (gender === 'female' && childNode.data.motherId === parentId) updates.motherId = null;
+          else if (gender === 'male' && childNode.data.fatherId === parentId) updates.fatherId = null;
+          else {
+            if (childNode.data.fatherId === parentId) updates.fatherId = null;
+            if (childNode.data.motherId === parentId) updates.motherId = null;
+          }
+          if (Object.keys(updates).length) {
+            await FrontendApp.updatePerson(childId, updates);
+            await load();
+          }
+        }
+
         onMounted(async () => {
           await load();
           fitView();
+          window.addEventListener('keydown', handleKeydown);
+        });
+
+        onBeforeUnmount(() => {
+          window.removeEventListener('keydown', handleKeydown);
         });
         const editing = ref(false);
 
@@ -279,16 +364,17 @@
           highlightDescendants(id);
 
           edges.value.forEach((edge) => {
+            const sel = edge === selectedEdge.value;
             if (edge.id.startsWith('spouse-line')) {
-              edge.class = 'faded-edge';
+              edge.class = sel ? 'selected-edge' : 'faded-edge';
               return;
             }
             const src = map[edge.source];
             const tgt = map[edge.target];
             if (src?.data.highlight && tgt?.data.highlight) {
-              edge.class = 'highlight-edge';
+              edge.class = sel ? 'selected-edge' : 'highlight-edge';
             } else {
-              edge.class = 'faded-edge';
+              edge.class = sel ? 'selected-edge' : 'faded-edge';
             }
           });
         }
@@ -320,6 +406,12 @@
          clearHighlights();
          contextMenuVisible.value = false;
        }
+
+        function onEdgeClick(evt) {
+          selectedEdge.value = evt.edge;
+          edges.value.forEach((e) => removeClass(e, 'selected-edge'));
+          addClass(evt.edge, 'selected-edge');
+        }
 
         const saveSelected = debounce(async () => {
           if (!selected.value) return;
@@ -413,14 +505,48 @@
         }
 
         async function onConnect(params) {
-          const parentId = parseInt(params.source);
-          const childId = parseInt(params.target);
-          const child = nodes.value.find((n) => n.id === params.target).data;
+          const sH = params.sourceHandle || '';
+          const tH = params.targetHandle || '';
+          const src = nodes.value.find((n) => n.id === params.source);
+          const tgt = nodes.value.find((n) => n.id === params.target);
+          if (!src || !tgt) return;
+
+          if (
+            (sH.includes('left') || sH.includes('right')) &&
+            (tH.includes('left') || tH.includes('right'))
+          ) {
+            await FrontendApp.linkSpouse(parseInt(params.source), parseInt(params.target));
+            await load();
+            return;
+          }
+
+          let parentNode;
+          let childNode;
+          if (tH.includes('top')) {
+            parentNode = src;
+            childNode = tgt;
+          } else if (sH.includes('top')) {
+            parentNode = tgt;
+            childNode = src;
+          } else if (sH.includes('bottom')) {
+            parentNode = src;
+            childNode = tgt;
+          } else if (tH.includes('bottom')) {
+            parentNode = tgt;
+            childNode = src;
+          } else {
+            return;
+          }
+
           const updates = {};
-          if (!child.fatherId) updates.fatherId = parentId;
-          else if (!child.motherId) updates.motherId = parentId;
+          const gender = (parentNode.data.gender || '').toLowerCase();
+          if (gender === 'female') updates.motherId = parentNode.data.id;
+          else if (gender === 'male') updates.fatherId = parentNode.data.id;
+          else if (!childNode.data.fatherId) updates.fatherId = parentNode.data.id;
+          else if (!childNode.data.motherId) updates.motherId = parentNode.data.id;
           else return;
-          await FrontendApp.updatePerson(childId, updates);
+
+          await FrontendApp.updatePerson(childNode.data.id, updates);
           await load();
         }
 
@@ -747,6 +873,7 @@
           edges,
          onNodeClick,
          onPaneClick,
+         onEdgeClick,
          onConnect,
           addPerson,
           deleteSelected,
@@ -809,6 +936,7 @@
             @pane-click="onPaneClick"
             @connect="onConnect"
             @node-drag-stop="onNodeDragStop"
+            @edge-click="onEdgeClick"
             @contextmenu.prevent="handleContextMenu"
             @touchstart="handleTouchStart"
             @touchend="handleTouchEnd"

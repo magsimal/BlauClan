@@ -10,6 +10,7 @@ const {
   deletePerson,
   linkSpouse,
   fetchSpouses,
+  deleteSpouse,
   parentName,
   mountApp,
 } = FrontendApp;
@@ -54,6 +55,12 @@ describe('frontend helpers', () => {
     const data = await fetchSpouses(1);
     expect(global.fetch).toHaveBeenCalledWith('/api/people/1/spouses');
     expect(data[0].spouse.id).toBe(2);
+  });
+
+  test('deleteSpouse sends DELETE', async () => {
+    global.fetch.mockResolvedValue({ ok: true });
+    await deleteSpouse(1, 10);
+    expect(global.fetch).toHaveBeenCalledWith('/api/people/1/spouses/10', { method: 'DELETE' });
   });
 
   test('updatePerson sends PUT', async () => {
