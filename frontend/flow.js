@@ -171,7 +171,7 @@
                   id: `${m.id}-${cid}`,
                   source: m.id,
                   target: String(cid),
-                  type: 'smoothstep',
+                  type: 'default',
                   markerEnd: MarkerType.ArrowClosed,
                   sourceHandle: handles.sourceHandle,
                   targetHandle: handles.targetHandle,
