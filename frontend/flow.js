@@ -357,6 +357,23 @@
           refreshUnions();
         }
 
+        function downloadSvg() {
+          const flowEl = document.getElementById('flow-app');
+          const vueFlow = flowEl?.querySelector('.vue-flow');
+          if (!vueFlow) return;
+          const { width, height } = vueFlow.getBoundingClientRect();
+          const serializer = new XMLSerializer();
+          const content = serializer.serializeToString(vueFlow);
+          const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><foreignObject width="100%" height="100%">${content}</foreignObject></svg>`;
+          const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = 'family-tree.svg';
+          link.click();
+          URL.revokeObjectURL(url);
+        }
+
         async function onConnect(params) {
           const parentId = parseInt(params.source);
           const childId = parseInt(params.target);
@@ -659,10 +676,11 @@
          avatarSrc,
          optimizeLayout,
         saveLayout,
-         loadLayout,
-         fitView,
-         onNodeDragStop,
-        };
+        loadLayout,
+        fitView,
+        downloadSvg,
+        onNodeDragStop,
+       };
       },
       template: `
         <div style="width: 100%; height: 100%">
@@ -681,6 +699,9 @@
             </button>
             <button class="icon-button" @click="fitView" title="Fit to Screen">
               <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M15 3.75a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0V5.56l-3.97 3.97a.75.75 0 1 1-1.06-1.06l3.97-3.97h-2.69a.75.75 0 0 1-.75-.75Zm-12 0A.75.75 0 0 1 3.75 3h4.5a.75.75 0 0 1 0 1.5H5.56l3.97 3.97a.75.75 0 0 1-1.06 1.06L4.5 5.56v2.69a.75.75 0 0 1-1.5 0v-4.5Zm11.47 11.78a.75.75 0 1 1 1.06-1.06l3.97 3.97v-2.69a.75.75 0 0 1 1.5 0v4.5a.75.75 0 0 1-.75.75h-4.5a.75.75 0 0 1 0-1.5h2.69l-3.97-3.97Zm-4.94-1.06a.75.75 0 0 1 0 1.06L5.56 19.5h2.69a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1-.75-.75v-4.5a.75.75 0 0 1 1.5 0v2.69l3.97-3.97a.75.75 0 0 1 1.06 0Z" clip-rule="evenodd"/></svg>
+            </button>
+            <button class="icon-button" @click="downloadSvg" title="Download SVG">
+              <svg viewBox="0 0 24 24"><path d="M12 16.5v-9m0 9 3-3m-3 3-3-3M4.5 19.5h15" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
           </div>
           <VueFlow
