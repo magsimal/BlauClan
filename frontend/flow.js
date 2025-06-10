@@ -221,26 +221,74 @@
 
         function highlightBloodline(id) {
           clearHighlights();
-          const visited = new Set();
 
-          function dfs(nodeId) {
-            if (visited.has(nodeId)) return;
-            visited.add(nodeId);
-            const n = nodes.value.find((no) => no.id === String(nodeId));
-            if (n && n.data) n.data.highlight = true;
-            edges.value.forEach((edge) => {
-              if (edge.id.startsWith('spouse-line')) return;
-              if (edge.source === String(nodeId)) {
-                edge.class = 'highlight-edge';
-                dfs(edge.target);
-              } else if (edge.target === String(nodeId)) {
-                edge.class = 'highlight-edge';
-                dfs(edge.source);
+          const map = {};
+          nodes.value.forEach((n) => {
+            map[n.id] = n;
+          });
+
+          const visitedUp = new Set();
+          const visitedDown = new Set();
+
+          function unionId(f, m) {
+            return `u-${f}-${m}`;
+          }
+
+          function markNode(nId) {
+            const node = map[String(nId)];
+            if (node && node.data) node.data.highlight = true;
+          }
+
+          function highlightAncestors(pid) {
+            if (!pid || visitedUp.has(pid)) return;
+            visitedUp.add(pid);
+            const node = map[String(pid)];
+            if (!node) return;
+            markNode(pid);
+            if (node.data.fatherId && node.data.motherId) {
+              const uId = unionId(node.data.fatherId, node.data.motherId);
+              markNode(uId);
+            }
+            highlightAncestors(node.data.fatherId);
+            highlightAncestors(node.data.motherId);
+          }
+
+          function highlightDescendants(pid) {
+            if (!pid || visitedDown.has(pid)) return;
+            visitedDown.add(pid);
+            const node = map[String(pid)];
+            if (!node) return;
+            markNode(pid);
+            nodes.value.forEach((child) => {
+              if (
+                child.data.fatherId === pid ||
+                child.data.motherId === pid
+              ) {
+                if (child.data.fatherId && child.data.motherId) {
+                  const uId = unionId(child.data.fatherId, child.data.motherId);
+                  markNode(uId);
+                }
+                highlightDescendants(parseInt(child.id));
               }
             });
           }
 
-          dfs(String(id));
+          highlightAncestors(id);
+          highlightDescendants(id);
+
+          edges.value.forEach((edge) => {
+            if (edge.id.startsWith('spouse-line')) {
+              edge.class = 'faded-edge';
+              return;
+            }
+            const src = map[edge.source];
+            const tgt = map[edge.target];
+            if (src?.data.highlight && tgt?.data.highlight) {
+              edge.class = 'highlight-edge';
+            } else {
+              edge.class = 'faded-edge';
+            }
+          });
         }
 
         function onNodeClick(evt) {
@@ -633,7 +681,7 @@
             :fit-view="true"
           >
             <template #node-person="{ data }">
-              <div class="person-node" :class="{ 'highlight-node': data.highlight }" :style="{ borderColor: data.gender === 'female' ? '#f8c' : (data.gender === 'male' ? '#88f' : '#ccc') }">
+              <div class="person-node" :class="{ 'highlight-node': data.highlight, 'faded-node': !data.highlight }" :style="{ borderColor: data.gender === 'female' ? '#f8c' : (data.gender === 'male' ? '#88f' : '#ccc') }">
                 <img :src="avatarSrc(data.gender, 40)" class="avatar" />
                 <div><strong>{{ data.firstName }} {{ data.lastName }}</strong></div>
                 <div>{{ data.dateOfBirth }} - {{ data.dateOfDeath }}</div>
@@ -649,7 +697,7 @@
               </div>
             </template>
             <template #node-helper="{ data }">
-              <div class="helper-node" :class="{ 'highlight-node': data.highlight }">
+              <div class="helper-node" :class="{ 'highlight-node': data.highlight, 'faded-node': !data.highlight }">
                 <Handle type="source" position="bottom" id="s-bottom" />
               </div>
             </template>
