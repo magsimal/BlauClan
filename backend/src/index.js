@@ -10,9 +10,18 @@ app.get('/api/people', async (_req, res) => {
   res.json(people);
 });
 
+function normalizeParentIds(data) {
+  const updates = { ...data };
+  ['fatherId', 'motherId'].forEach((field) => {
+    if (updates[field] === '') updates[field] = null;
+  });
+  return updates;
+}
+
 app.post('/api/people', async (req, res) => {
   try {
-    const person = await Person.create(req.body);
+    const payload = normalizeParentIds(req.body);
+    const person = await Person.create(payload);
     res.status(201).json(person);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -32,7 +41,8 @@ app.put('/api/people/:id', async (req, res) => {
   if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
   const person = await Person.findByPk(id);
   if (!person) return res.sendStatus(404);
-  await person.update(req.body);
+  const updates = normalizeParentIds(req.body);
+  await person.update(updates);
   res.json(person);
 });
 

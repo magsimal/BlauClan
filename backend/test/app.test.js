@@ -41,4 +41,21 @@ describe('People API', () => {
     expect(getRes.statusCode).toBe(200);
     expect(getRes.body.nodes[0].x).toBe(100);
   });
+
+  test('handles empty parent IDs as null', async () => {
+    await request(app).post('/api/people').send({
+      firstName: 'Parent',
+      lastName: 'One',
+    });
+    const createRes = await request(app)
+      .post('/api/people')
+      .send({ firstName: 'Child', lastName: 'One', fatherId: 1 });
+    expect(createRes.statusCode).toBe(201);
+
+    const updateRes = await request(app)
+      .put(`/api/people/${createRes.body.id}`)
+      .send({ fatherId: '' });
+    expect(updateRes.statusCode).toBe(200);
+    expect(updateRes.body.fatherId).toBeNull();
+  });
 });
