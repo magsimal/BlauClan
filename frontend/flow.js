@@ -199,7 +199,10 @@
             .map((n) => n.data);
         }
 
-        onMounted(load);
+        onMounted(async () => {
+          await load();
+          fitView();
+        });
         const editing = ref(false);
 
         let clickTimer = null;
@@ -688,7 +691,7 @@
             @pane-click="onPaneClick"
             @connect="onConnect"
             @node-drag-stop="onNodeDragStop"
-            :fit-view="true"
+            :fit-view-on-init="true"
           >
             <template #node-person="{ data }">
               <div class="person-node" :class="{ 'highlight-node': data.highlight, 'faded-node': selected && !data.highlight }" :style="{ borderColor: data.gender === 'female' ? '#f8c' : (data.gender === 'male' ? '#88f' : '#ccc') }">
