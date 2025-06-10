@@ -36,17 +36,6 @@
           return 'https://placehold.net/avatar.png';
         }
 
-        function chooseHandles(a, b) {
-          const dx = b.x - a.x;
-          const dy = b.y - a.y;
-          if (Math.abs(dx) > Math.abs(dy)) {
-            if (dx > 0) return { sourceHandle: 's-right', targetHandle: 't-left' };
-            return { sourceHandle: 's-left', targetHandle: 't-right' };
-          }
-          if (dy > 0) return { sourceHandle: 's-bottom', targetHandle: 't-top' };
-          return { sourceHandle: 's-top', targetHandle: 't-bottom' };
-        }
-
         async function applySavedLayout() {
           const res = await fetch('/api/layout');
           if (!res.ok) return;
@@ -153,29 +142,24 @@
           });
 
           Object.values(unions).forEach((m) => {
-            const spHandles = chooseHandles(
-              positions[m.fatherId],
-              positions[m.motherId]
-            );
             edges.value.push({
               id: `spouse-line-${m.id}`,
               source: String(m.fatherId),
               target: String(m.motherId),
               type: 'straight',
-              sourceHandle: spHandles.sourceHandle,
-              targetHandle: spHandles.targetHandle,
+              sourceHandle: 's-right',
+              targetHandle: 't-left',
             });
 
             m.children.forEach((cid) => {
-              const handles = chooseHandles(positions[m.id], positions[cid]);
                 edges.value.push({
                   id: `${m.id}-${cid}`,
                   source: m.id,
                   target: String(cid),
                   type: 'default',
                   markerEnd: MarkerType.ArrowClosed,
-                  sourceHandle: handles.sourceHandle,
-                  targetHandle: handles.targetHandle,
+                  sourceHandle: 's-bottom',
+                  targetHandle: 't-top',
                 });
             });
           });
@@ -183,14 +167,13 @@
           people.forEach((p) => {
             if ((p.fatherId && !p.motherId) || (!p.fatherId && p.motherId)) {
               const parent = p.fatherId || p.motherId;
-              const handles = chooseHandles(positions[parent], positions[p.id]);
               edges.value.push({
                 id: `p-${p.id}`,
                 source: String(parent),
                 target: String(p.id),
                 markerEnd: MarkerType.ArrowClosed,
-                sourceHandle: handles.sourceHandle,
-                targetHandle: handles.targetHandle,
+                sourceHandle: 's-bottom',
+                targetHandle: 't-top',
               });
             }
           });
@@ -493,21 +476,16 @@
                 (e) => e.id === `spouse-line-${u.id}`
               );
               if (spEdge) {
-                const spHandles = chooseHandles(
-                  father.position,
-                  mother.position
-                );
-                spEdge.sourceHandle = spHandles.sourceHandle;
-                spEdge.targetHandle = spHandles.targetHandle;
+                spEdge.sourceHandle = 's-right';
+                spEdge.targetHandle = 't-left';
               }
 
               u.children.forEach((cid) => {
                 const edge = edges.value.find((e) => e.id === `${u.id}-${cid}`);
                 const childNode = nodes.value.find((n) => n.id === String(cid));
                 if (edge && childNode) {
-                  const handles = chooseHandles(helper.position, childNode.position);
-                  edge.sourceHandle = handles.sourceHandle;
-                  edge.targetHandle = handles.targetHandle;
+                  edge.sourceHandle = 's-bottom';
+                  edge.targetHandle = 't-top';
                 }
               });
             }
