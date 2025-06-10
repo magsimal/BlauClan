@@ -15,14 +15,14 @@
 
   function mount() {
     const { createApp, ref, onMounted, watch } = Vue;
-    const { VueFlow, MarkerType, Handle } = window.VueFlow;
+    const { VueFlow, MarkerType, Handle, useZoomPanHelper } = window.VueFlow;
 
     const app = createApp({
       components: { VueFlow, Handle },
       setup() {
         const nodes = ref([]);
         const edges = ref([]);
-        const { fitView } = VueFlow.useZoomPanHelper();
+        const { fitView } = useZoomPanHelper();
         const selected = ref(null);
         const showModal = ref(false);
         let unions = {};
