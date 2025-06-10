@@ -692,10 +692,14 @@
           >
             <template #node-person="{ data }">
               <div class="person-node" :class="{ 'highlight-node': data.highlight, 'faded-node': selected && !data.highlight }" :style="{ borderColor: data.gender === 'female' ? '#f8c' : (data.gender === 'male' ? '#88f' : '#ccc') }">
-                <img :src="avatarSrc(data.gender, 40)" class="avatar" />
-                <div><strong>{{ data.firstName }} {{ data.lastName }}</strong></div>
-                <div>{{ data.dateOfBirth }} - {{ data.dateOfDeath }}</div>
-                <button class="add-child" @click.stop="addPerson">+</button>
+                <div class="header">
+                  <img :src="avatarSrc(data.gender, 40)" class="avatar" />
+                  <div class="name-container">
+                    <span :style="{ fontSize: data.firstName && data.firstName.length > 12 ? '0.7rem' : '0.8rem', fontWeight: 'bold' }">{{ data.firstName }}</span>
+                    <span :style="{ fontSize: data.lastName && data.lastName.length > 12 ? '0.7rem' : '0.8rem', fontWeight: 'bold' }">{{ data.lastName }}</span>
+                  </div>
+                </div>
+                <div class="small">{{ data.dateOfBirth }}<span v-if="data.dateOfBirth || data.dateOfDeath"> - </span>{{ data.dateOfDeath }}</div>
                 <Handle type="source" position="top" id="s-top" />
                 <Handle type="source" position="right" id="s-right" />
                 <Handle type="source" position="bottom" id="s-bottom" />
@@ -725,10 +729,13 @@
             >
               <div class="card-body p-3">
                 <template v-if="!editing && !isNew">
-                  <div class="text-center mb-2">
-                    <img :src="avatarSrc(selected.gender, 80)" class="avatar-placeholder" />
+                  <div class="d-flex align-items-center mb-3">
+                    <img :src="avatarSrc(selected.gender, 80)" class="avatar-placeholder mr-3" />
+                    <div class="name-container">
+                      <div class="h4 mb-0" :style="{ fontSize: selected.firstName && selected.firstName.length > 15 ? '1rem' : '1.25rem' }">{{ selected.firstName }}</div>
+                      <div class="h4 mb-0" :style="{ fontSize: selected.lastName && selected.lastName.length > 15 ? '1rem' : '1.25rem' }">{{ selected.lastName }}</div>
+                    </div>
                   </div>
-                  <h3 class="card-title text-center">{{ selected.firstName }} {{ selected.lastName }}</h3>
                   <p v-if="selected.maidenName"><strong>Maiden Name:</strong> {{ selected.maidenName }}</p>
                   <p v-if="selected.dateOfBirth || selected.dateOfDeath">
                     <strong>Life:</strong>
