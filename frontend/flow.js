@@ -459,14 +459,21 @@
         async function downloadPng() {
           fitView();
           await nextTick();
-          const container = document.getElementById('flow-app');
+          const container = document.querySelector('#flow-app .vue-flow');
           if (!container || typeof html2canvas === 'undefined') return;
-          const canvas = await html2canvas(container);
+
+          const toolbar = document.getElementById('toolbar');
+          const originalDisplay = toolbar ? toolbar.style.display : '';
+          if (toolbar) toolbar.style.display = 'none';
+
+          const canvas = await html2canvas(container, { useCORS: true });
           const url = canvas.toDataURL('image/png');
           const link = document.createElement('a');
           link.href = url;
           link.download = 'family-tree.png';
           link.click();
+
+          if (toolbar) toolbar.style.display = originalDisplay;
         }
 
         async function onConnect(params) {
