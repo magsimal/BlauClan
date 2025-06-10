@@ -1013,6 +1013,16 @@
                   </div>
                   <div class="form-row">
                     <div class="col d-flex align-items-center mb-2">
+                      <label class="mr-2 mb-0" style="width: 90px;">Gender</label>
+                      <select class="form-control flex-fill" v-model="selected.gender" title="Gender">
+                        <option value="">Please select</option>
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="form-row">
+                    <div class="col d-flex align-items-center mb-2">
                       <label class="mr-2 mb-0" style="width: 90px;">Date of Birth</label>
                       <input class="form-control flex-fill" v-model="selected.dateOfBirth" type="date" title="Birth date" />
                     </div>
@@ -1030,14 +1040,6 @@
                     <div class="d-flex align-items-center mb-2">
                       <label class="mr-2 mb-0" style="width: 90px;">Date of Death</label>
                       <input class="form-control flex-fill" v-model="selected.dateOfDeath" type="date" title="Death date" />
-                    </div>
-                    <div class="d-flex align-items-center mb-2">
-                      <label class="mr-2 mb-0" style="width: 90px;">Gender</label>
-                      <select class="form-control flex-fill" v-model="selected.gender" title="Gender">
-                        <option value="">Please select</option>
-                        <option value="male">Male</option>
-                        <option value="female">Female</option>
-                      </select>
                     </div>
                     <div class="d-flex align-items-center mb-2">
                       <label class="mr-2 mb-0" style="width: 90px;">Father</label>
