@@ -1006,12 +1006,6 @@
                       <li v-for="c in children" :key="c.id">{{ c.firstName }} {{ c.lastName }}</li>
                     </ul>
                   </div>
-                  <div class="mb-2 text-right">
-                    <button class="btn btn-info btn-sm mr-1" @click="addChild">New Child</button>
-                    <button class="btn btn-info btn-sm mr-1" @click="addSpouse">New Spouse</button>
-                    <button class="btn btn-info btn-sm mr-1" @click="addParent('father')">Add Father</button>
-                    <button class="btn btn-info btn-sm" @click="addParent('mother')">Add Mother</button>
-                  </div>
                   <div class="text-right mt-3">
                     <button class="btn btn-primary btn-sm mr-2" @click="editing = true">Edit</button>
                     <button class="btn btn-secondary btn-sm" @click="cancelModal">Close</button>
