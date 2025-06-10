@@ -193,6 +193,13 @@
             }
           });
 
+          // remove Vue internal refs that cause warnings when passed as props
+          edges.value = edges.value.map((edge) => {
+            const { ref: _unused, ...rest } = edge;
+            void _unused; // avoid eslint no-unused-vars warning
+            return rest;
+          });
+
           await applySavedLayout();
           refreshUnions();
         }
