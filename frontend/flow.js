@@ -704,105 +704,91 @@
           });
         }
 
-       function getChildren(node) {
-         const result = [];
-         if (node.type === 'person') {
-           nodes.value.forEach((n) => {
-             if (
-               n.data.fatherId === node.data.id ||
-               n.data.motherId === node.data.id
-             ) {
-               result.push(n);
-             }
-           });
-           Object.values(unions).forEach((u) => {
-             if (u.fatherId === node.data.id || u.motherId === node.data.id) {
-               const helper = nodes.value.find((nd) => nd.id === u.id);
-               if (helper) result.push(helper);
-             }
-           });
-         } else if (node.type === 'helper') {
-           const u = unions[node.id];
-           if (u) {
-             u.children.forEach((cid) => {
-               const child = nodes.value.find((n) => n.id === String(cid));
-               if (child) result.push(child);
-             });
-           }
-         }
-         return result;
-       }
 
-       function shiftSubtree(rootNode, dx) {
-         const visited = new Set();
-         function dfs(n) {
-           if (!n || visited.has(n.id)) return;
-           visited.add(n.id);
-           n.position.x += dx;
-           getChildren(n).forEach(dfs);
-         }
-         dfs(rootNode);
-       }
 
-       function optimizeLayout() {
-         const options = {
-           levelSeparation: 200,
-           minSiblingSeparation: 100,
-           alignFactor: 0.5,
-           centerParents: true,
-           parentAlignFactor: 0.3,
-         };
+      function optimizeLayout() {
+        const levelGap = 150;
+        const minGap = 120;
+        const startX = 100;
 
-         const depths = {};
-         nodes.value.forEach((n) => {
-           depths[n.id] = n.data._gen || 0;
-         });
+        function parentX(node) {
+          let sum = 0;
+          let count = 0;
+          if (node.type === 'person') {
+            const f = nodes.value.find((n) => n.data.id === node.data.fatherId);
+            const m = nodes.value.find((n) => n.data.id === node.data.motherId);
+            if (f) {
+              sum += f.position.x;
+              count += 1;
+            }
+            if (m) {
+              sum += m.position.x;
+              count += 1;
+            }
+          } else if (node.type === 'helper') {
+            const u = unions[node.id];
+            if (u) {
+              const f = nodes.value.find((n) => n.id === String(u.fatherId));
+              const m = nodes.value.find((n) => n.id === String(u.motherId));
+              if (f) {
+                sum += f.position.x;
+                count += 1;
+              }
+              if (m) {
+                sum += m.position.x;
+                count += 1;
+              }
+            }
+          }
+          return count ? sum / count : null;
+        }
 
-         const idealY = {};
-         Object.values(depths).forEach((d) => {
-           idealY[d] = d * options.levelSeparation;
-         });
+        const byGen = {};
+        nodes.value.forEach((n) => {
+          const g = n.data._gen || 0;
+          byGen[g] = byGen[g] || [];
+          byGen[g].push(n);
+        });
 
-         const byGen = {};
-         nodes.value.forEach((n) => {
-           const g = depths[n.id];
-           byGen[g] = byGen[g] || [];
-           byGen[g].push(n);
-         });
+        const gens = Object.keys(byGen)
+          .map((g) => parseInt(g, 10))
+          .sort((a, b) => a - b);
 
-         Object.entries(byGen).forEach(([, list]) => {
-           list.sort((a, b) => a.position.x - b.position.x);
-           for (let i = 1; i < list.length; i++) {
-             const left = list[i - 1];
-             const right = list[i];
-             const gap = right.position.x - left.position.x;
-             if (gap < options.minSiblingSeparation) {
-               shiftSubtree(right, options.minSiblingSeparation - gap);
-             }
-           }
-         });
+        gens.forEach((g) => {
+          const list = byGen[g];
 
-         nodes.value.forEach((n) => {
-           const targetY = idealY[depths[n.id]];
-           n.position.y += (targetY - n.position.y) * options.alignFactor;
-         });
+          list.forEach((n) => {
+            n._parentX = parentX(n);
+          });
 
-         if (options.centerParents) {
-           nodes.value.forEach((p) => {
-             if (p.type !== 'person') return;
-             const kids = nodes.value.filter(
-               (c) => c.data.fatherId === p.data.id || c.data.motherId === p.data.id
-             );
-             if (kids.length) {
-               const centerX =
-                 kids.reduce((sum, c) => sum + c.position.x, 0) / kids.length;
-               p.position.x += (centerX - p.position.x) * options.parentAlignFactor;
-             }
-           });
-         }
+          list.sort((a, b) => {
+            const ax = a._parentX;
+            const bx = b._parentX;
+            if (ax !== null && bx !== null) return ax - bx;
+            if (ax !== null) return -1;
+            if (bx !== null) return 1;
+            return a.position.x - b.position.x;
+          });
 
-         refreshUnions();
-       }
+          let x = startX;
+          list.forEach((n) => {
+            if (n._parentX !== null && n._parentX > x) {
+              x = n._parentX;
+            }
+            n.position.x = x;
+            x += minGap;
+          });
+        });
+
+        gens.forEach((g) => {
+          const y = startX + g * levelGap;
+          byGen[g].forEach((n) => {
+            n.position.y = y + (n.type === 'helper' ? UNION_Y_OFFSET : 0);
+          });
+        });
+
+        refreshUnions();
+      }
 
         async function saveNewPerson() {
          const payload = {
