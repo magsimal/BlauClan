@@ -60,52 +60,6 @@
   <div id="app">
     <h1>BlauClan</h1>
     <div id="menu">
-      <h2>Add Person</h2>
-      <button class="btn btn-primary mb-2" @click="openAddForm" v-if="!showAddForm">Add New Person</button>
-      <form v-if="showAddForm" id="addForm" @submit.prevent="addPerson" class="form-group">
-        <p v-if="relationDescription" class="alert alert-info p-2">{{ relationDescription }}</p>
-        <div class="form-row">
-          <div class="col">
-            <label>First Name</label>
-            <input class="form-control mb-2" v-model="newPerson.firstName" placeholder="First Name">
-          </div>
-          <div class="col">
-            <label>Last Name</label>
-            <input class="form-control mb-2" v-model="newPerson.lastName" placeholder="Last Name">
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="col">
-            <label>Date of Birth</label>
-            <input class="form-control mb-2" type="date" v-model="newPerson.dateOfBirth" placeholder="DoB">
-          </div>
-          <div class="col">
-            <label>Place of Birth</label>
-            <input class="form-control mb-2" v-model="newPerson.placeOfBirth" placeholder="Place of Birth">
-          </div>
-        </div>
-        <button class="btn btn-link p-0 mb-2" type="button" data-toggle="collapse" data-target="#addDetails">More Details</button>
-        <div id="addDetails" class="collapse">
-          <label>Maiden Name</label>
-          <input class="form-control mb-2" v-model="newPerson.maidenName" placeholder="Maiden Name">
-          <label>Date of Death</label>
-          <input class="form-control mb-2" type="date" v-model="newPerson.dateOfDeath" placeholder="DoD">
-          <label>Father</label>
-          <select class="form-control mb-2" v-model="newPerson.fatherId">
-            <option value="">Father</option>
-            <option v-for="p in people" :value="p.id">{{ p.firstName }} {{ p.lastName }}</option>
-          </select>
-          <label>Mother</label>
-          <select class="form-control mb-2" v-model="newPerson.motherId">
-            <option value="">Mother</option>
-            <option v-for="p in people" :value="p.id">{{ p.firstName }} {{ p.lastName }}</option>
-          </select>
-          <label>Notes</label>
-          <textarea class="form-control mb-2" v-model="newPerson.notes" placeholder="Notes"></textarea>
-        </div>
-        <button class="btn btn-primary mr-2" type="submit">Add</button>
-        <button class="btn btn-secondary" type="button" @click="cancelAddPerson">Cancel</button>
-      </form>
       <div v-if="selectedPerson" class="edit-section">
         <h2>Edit Person</h2>
         <div class="form-row">
@@ -163,37 +117,6 @@
               <button class="btn btn-sm btn-danger ml-1" @click="unlinkChild(c)">x</button>
             </li>
           </ul>
-        </div>
-        <div v-if="showSpouseForm" class="card">
-          <h3>Add Spouse</h3>
-          <label>Existing Person</label>
-          <select class="form-control mb-2" v-model="spouseForm.existingId">
-            <option value="">-- New Person --</option>
-            <option v-for="p in people" :key="p.id" :value="p.id" v-if="isEligibleSpouse(p)">{{ p.firstName }} {{ p.lastName }}</option>
-          </select>
-          <div v-if="!spouseForm.existingId">
-            <label>First Name</label>
-            <input class="form-control mb-2" v-model="spouseForm.firstName" placeholder="First Name">
-            <label>Last Name</label>
-            <input class="form-control mb-2" v-model="spouseForm.lastName" placeholder="Last Name">
-            <label>Maiden Name</label>
-            <input class="form-control mb-2" v-model="spouseForm.maidenName" placeholder="Maiden Name">
-            <label>Date of Birth</label>
-            <input class="form-control mb-2" type="date" v-model="spouseForm.dateOfBirth" placeholder="DoB">
-            <label>Date of Death</label>
-            <input class="form-control mb-2" type="date" v-model="spouseForm.dateOfDeath" placeholder="DoD">
-            <label>Place of Birth</label>
-            <input class="form-control mb-2" v-model="spouseForm.placeOfBirth" placeholder="Place of Birth">
-          </div>
-          <button class="btn btn-primary mr-2" @click="confirmAddSpouse">Add</button>
-          <button class="btn btn-secondary" @click="cancelAddSpouse">Cancel</button>
-        </div>
-        <div class="card">
-          <h3>Add Relations</h3>
-          <button class="btn btn-info btn-sm mr-1" @click="prepareAddChild">New Child</button>
-          <button class="btn btn-info btn-sm mr-1" @click="prepareAddSpouse">New Spouse</button>
-          <button class="btn btn-info btn-sm mr-1" @click="prepareAddParent('father')">Add Father</button>
-          <button class="btn btn-info btn-sm" @click="prepareAddParent('mother')">Add Mother</button>
         </div>
       </div>
     </div>
