@@ -14,7 +14,7 @@
   }
 
   function mount() {
-    const { createApp, ref, onMounted, watch } = Vue;
+    const { createApp, ref, onMounted, watch, nextTick } = Vue;
     const { VueFlow, MarkerType, Handle, useZoomPanHelper } = window.VueFlow;
 
     const app = createApp({
@@ -192,6 +192,7 @@
           });
 
           await applySavedLayout();
+          await nextTick();
           refreshUnions();
         }
 
@@ -494,8 +495,9 @@
             const mother = nodes.value.find((n) => n.id === String(u.motherId));
             const helper = nodes.value.find((n) => n.id === u.id);
             if (father && mother && helper) {
+              const fatherWidth = father.dimensions?.width || 0;
               helper.position = {
-                x: (father.position.x + mother.position.x) / 2,
+                x: (father.position.x + fatherWidth + mother.position.x) / 2,
                 y: (father.position.y + mother.position.y) / 2 + UNION_Y_OFFSET,
               };
 
