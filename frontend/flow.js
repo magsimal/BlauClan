@@ -467,7 +467,61 @@
           if (toolbar) toolbar.style.display = 'none';
 
           const canvas = await html2canvas(container, { useCORS: true });
-          const url = canvas.toDataURL('image/png');
+
+          const rect = container.getBoundingClientRect();
+          const elements = container.querySelectorAll(
+            '.vue-flow__node, .vue-flow__edge-path'
+          );
+
+          let minX = Infinity;
+          let minY = Infinity;
+          let maxX = -Infinity;
+          let maxY = -Infinity;
+
+          elements.forEach((el) => {
+            const r = el.getBoundingClientRect();
+            const left = r.left - rect.left;
+            const top = r.top - rect.top;
+            const right = r.right - rect.left;
+            const bottom = r.bottom - rect.top;
+
+            if (left < minX) minX = left;
+            if (top < minY) minY = top;
+            if (right > maxX) maxX = right;
+            if (bottom > maxY) maxY = bottom;
+          });
+
+          let url;
+          if (
+            !elements.length ||
+            !isFinite(minX) ||
+            !isFinite(minY) ||
+            !isFinite(maxX) ||
+            !isFinite(maxY)
+          ) {
+            // fallback to the full canvas if no nodes/edges are found
+            url = canvas.toDataURL('image/png');
+          } else {
+            const margin = 20;
+            minX = Math.max(minX - margin, 0);
+            minY = Math.max(minY - margin, 0);
+            maxX = Math.min(maxX + margin, canvas.width);
+            maxY = Math.min(maxY + margin, canvas.height);
+
+            const width = maxX - minX;
+            const height = maxY - minY;
+
+            if (width > 0 && height > 0) {
+              const croppedCanvas = document.createElement('canvas');
+              croppedCanvas.width = width;
+              croppedCanvas.height = height;
+              const ctx = croppedCanvas.getContext('2d');
+              ctx.drawImage(canvas, minX, minY, width, height, 0, 0, width, height);
+              url = croppedCanvas.toDataURL('image/png');
+            } else {
+              url = canvas.toDataURL('image/png');
+            }
+          }
           const link = document.createElement('a');
           link.href = url;
           link.download = 'family-tree.png';
