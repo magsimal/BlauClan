@@ -496,9 +496,21 @@
             const helper = nodes.value.find((n) => n.id === u.id);
             if (father && mother && helper) {
               const fatherWidth = father.dimensions?.width || 0;
+              const motherWidth = mother.dimensions?.width || 0;
+              const fatherHeight = father.dimensions?.height || 0;
+              const motherHeight = mother.dimensions?.height || 0;
               helper.position = {
-                x: (father.position.x + fatherWidth + mother.position.x) / 2,
-                y: (father.position.y + mother.position.y) / 2 + UNION_Y_OFFSET,
+                x:
+                  (father.position.x + fatherWidth / 2 +
+                    mother.position.x +
+                    motherWidth / 2) /
+                  2,
+                y:
+                  (father.position.y + fatherHeight / 2 +
+                    mother.position.y +
+                    motherHeight / 2) /
+                    2 +
+                  UNION_Y_OFFSET,
               };
 
               const spEdge = edges.value.find(
