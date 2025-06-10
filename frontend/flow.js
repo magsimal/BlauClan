@@ -25,6 +25,7 @@
         const { fitView } = useZoomPanHelper();
         const selected = ref(null);
         const showModal = ref(false);
+        const UNION_Y_OFFSET = 20;
         let unions = {};
 
         function avatarSrc(gender, size) {
@@ -118,7 +119,8 @@
                   (positions[child.fatherId].x + positions[child.motherId].x) / 2;
                 const midY =
                   (positions[child.fatherId].y + positions[child.motherId].y) /
-                  2;
+                    2 +
+                  UNION_Y_OFFSET;
                 const pos = {
                   x: midX,
                   y: midY,
@@ -469,7 +471,7 @@
             if (father && mother && helper) {
               helper.position = {
                 x: (father.position.x + mother.position.x) / 2,
-                y: (father.position.y + mother.position.y) / 2,
+                y: (father.position.y + mother.position.y) / 2 + UNION_Y_OFFSET,
               };
 
               const spEdge = edges.value.find(
