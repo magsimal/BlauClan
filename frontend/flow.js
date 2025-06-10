@@ -319,6 +319,13 @@
           }
         }
 
+        function onPaneClick() {
+          selected.value = null;
+          showModal.value = false;
+          editing.value = false;
+          clearHighlights();
+        }
+
         const saveSelected = debounce(async () => {
           if (!selected.value) return;
           const payload = { ...selected.value };
@@ -649,8 +656,9 @@
         return {
           nodes,
           edges,
-          onNodeClick,
-          onConnect,
+         onNodeClick,
+         onPaneClick,
+         onConnect,
           addPerson,
           deleteSelected,
           saveNewPerson,
@@ -684,6 +692,7 @@
             v-model:nodes="nodes"
             v-model:edges="edges"
             @node-click="onNodeClick"
+            @pane-click="onPaneClick"
             @connect="onConnect"
             @node-drag-stop="onNodeDragStop"
             :fit-view="true"
