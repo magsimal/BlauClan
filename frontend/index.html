@@ -156,18 +156,22 @@
       justify-content: center;
       width: 40px;
       height: 36px;
-      background-color: #00B8D9;
       border-radius: 4px;
       cursor: pointer;
-      transition: background-color 0.2s ease;
-      border: none;
+      transition: background-color 0.2s ease, border-color 0.2s ease;
+      border: 2px solid;
       padding: 0;
     }
-    .icon-button:hover {
-      background-color: #00A1BD;
+    body.bright-theme .icon-button {
+      background-color: #ffffff;
+      border-color: #555555;
     }
-    .icon-button:active {
-      background-color: #008EA8;
+    body.dark-theme .icon-button {
+      background-color: transparent;
+      border-color: #cccccc;
+    }
+    .icon-button:hover {
+      border-color: #00B8D9;
     }
     .icon-button svg {
       width: 16px;
