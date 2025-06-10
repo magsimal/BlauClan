@@ -24,8 +24,15 @@
       float: left;
       width: calc(100% - 260px);
       touch-action: none;
+    }
+    body.dark-theme #flow-app {
       background-color: #1e1e1e;
       background-image: radial-gradient(#2f2f2f 1px, transparent 1px);
+      background-size: 30px 30px;
+    }
+    body.bright-theme #flow-app {
+      background-color: #FAFBFC;
+      background-image: radial-gradient(#E8E8E8 1px, transparent 1px);
       background-size: 30px 30px;
     }
     @media (max-width: 768px) {
@@ -37,12 +44,20 @@
       }
     }
     .person-node {
-      background: #333;
-      border: 2px solid #555;
       padding: 6px;
       border-radius: 8px;
       box-shadow: 0 1px 3px rgba(0,0,0,0.4);
       transition: border-color 0.2s;
+    }
+    body.dark-theme .person-node {
+      background: #333;
+      border: 2px solid #555;
+      color: #eee;
+    }
+    body.bright-theme .person-node {
+      background: #fff;
+      border: 2px solid #ddd;
+      color: #333;
     }
     .person-node:hover {
       border-color: #888;
@@ -53,9 +68,15 @@
     .vue-flow__handle {
       width: 10px;
       height: 10px;
+      border-radius: 50%;
+    }
+    body.dark-theme .vue-flow__handle {
       background: #444;
       border: 2px solid #666;
-      border-radius: 50%;
+    }
+    body.bright-theme .vue-flow__handle {
+      background: #ddd;
+      border: 2px solid #bbb;
     }
     .vue-flow__handle:hover {
       background: #00B8D9;
@@ -100,9 +121,13 @@
     }
   </style>
 </head>
-<body>
+<body class="bright-theme">
   <div id="app">
     <h1>BlauClan</h1>
+    <label class="custom-control custom-switch ml-2">
+      <input type="checkbox" class="custom-control-input" id="themeToggle">
+      <span class="custom-control-label">Dark Mode</span>
+    </label>
     <div id="menu">
       <div v-if="selectedPerson" class="edit-section">
         <h2>Edit Person</h2>
@@ -171,6 +196,11 @@
   <script src="flow.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
+      const toggle = document.getElementById('themeToggle');
+      toggle.addEventListener('change', () => {
+        document.body.classList.toggle('dark-theme', toggle.checked);
+        document.body.classList.toggle('bright-theme', !toggle.checked);
+      });
       FrontendApp.mountApp();
       FlowApp.mount();
     });
