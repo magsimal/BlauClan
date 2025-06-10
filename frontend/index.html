@@ -155,6 +155,14 @@
       height: 16px;
       fill: #ffffff;
     }
+    #top-bar {
+      position: relative;
+    }
+    #themeToggleContainer {
+      position: absolute;
+      top: 0.25rem;
+      right: 0.5rem;
+    }
   </style>
 </head>
 <body class="bright-theme">
@@ -162,10 +170,10 @@
     <header id="top-bar" class="py-2 px-3">
       <div class="d-flex justify-content-between align-items-center">
         <h1 class="h4 mb-0">BlauClan</h1>
-        <label class="custom-control custom-switch mb-0">
+        <div id="themeToggleContainer" class="custom-control custom-switch mb-0">
           <input type="checkbox" class="custom-control-input" id="themeToggle">
-          <span class="custom-control-label">Dark Mode</span>
-        </label>
+          <span id="themeIcon" class="custom-control-label">&#9728;</span>
+        </div>
       </div>
     </header>
     <div id="main-content">
@@ -242,10 +250,14 @@
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       const toggle = document.getElementById('themeToggle');
-      toggle.addEventListener('change', () => {
+      const icon = document.getElementById('themeIcon');
+      function updateTheme() {
         document.body.classList.toggle('dark-theme', toggle.checked);
         document.body.classList.toggle('bright-theme', !toggle.checked);
-      });
+        icon.textContent = toggle.checked ? '\u263D' : '\u2600';
+      }
+      toggle.addEventListener('change', updateTheme);
+      updateTheme();
       FrontendApp.mountApp();
       FlowApp.mount();
     });
