@@ -55,6 +55,8 @@
       border-radius: 8px;
       box-shadow: 0 1px 3px rgba(0,0,0,0.4);
       transition: border-color 0.2s;
+      display: flex;
+      flex-direction: column;
     }
     body.dark-theme .person-node {
       background: #333;
@@ -119,12 +121,21 @@
       object-fit: cover;
       display: inline-block;
     }
+    .person-node .header {
+      display: flex;
+      align-items: flex-start;
+    }
+    .name-container {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.1;
+    }
     .person-node .avatar {
       width: 40px;
       height: 40px;
       border-radius: 50%;
       object-fit: cover;
-      margin-bottom: 4px;
+      margin-right: 4px;
     }
     #toolbar {
       display: flex;
