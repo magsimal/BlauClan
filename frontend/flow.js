@@ -27,11 +27,12 @@
         let unions = {};
 
         function avatarSrc(gender, size) {
+          void size; // size parameter kept for compatibility
           const g = (gender || '').toString().toLowerCase();
-          let text = '?';
-          if (g === 'female' || g === 'f') text = 'F';
-          else if (g === 'male' || g === 'm') text = 'M';
-          return `https://via.placeholder.com/${size}?text=${text}`;
+          if (g === 'male' || g === 'm') {
+            return 'https://placehold.net/avatar-2.png';
+          }
+          return 'https://placehold.net/avatar.png';
         }
 
         function chooseHandles(a, b) {
