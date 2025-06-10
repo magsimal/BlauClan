@@ -416,19 +416,19 @@
           addClass(evt.edge, 'selected-edge');
         }
 
-        const saveSelected = debounce(async () => {
-          if (!selected.value) return;
-          const payload = { ...selected.value };
-          const spouseId = payload.spouseId;
-          delete payload.spouseId;
-          const updated = await FrontendApp.updatePerson(selected.value.id, payload);
-          Object.assign(selected.value, updated);
-          if (spouseId) {
-            await FrontendApp.linkSpouse(updated.id, parseInt(spouseId));
-          }
-          await load();
-          computeChildren(updated.id);
-        }, 200);
+          const saveSelected = debounce(async () => {
+            if (!selected.value) return;
+            const payload = { ...selected.value };
+            const spouseId = payload.spouseId;
+            delete payload.spouseId;
+            const updated = await FrontendApp.updatePerson(selected.value.id, payload);
+            // Avoid overwriting fields the user may still be typing
+            if (spouseId) {
+              await FrontendApp.linkSpouse(updated.id, parseInt(spouseId));
+            }
+            await load();
+            computeChildren(updated.id);
+          }, 200);
 
         watch(
           () => selected.value,
