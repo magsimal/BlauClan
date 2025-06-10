@@ -830,7 +830,7 @@
                 borderStyle: 'solid',
               }"
             >
-              <div class="card-body p-3">
+              <div class="card-body p-3" style="max-height: 80vh; overflow-y: auto;">
                 <template v-if="!editing && !isNew">
                   <div class="d-flex align-items-center mb-3">
                     <img :src="avatarSrc(selected.gender, 80)" class="avatar-placeholder mr-3" />
@@ -869,54 +869,68 @@
                   <h3 class="card-title" v-if="isNew">Add Person</h3>
                   <h3 class="card-title" v-else>Edit Person</h3>
                   <div class="form-row">
-                    <div class="col">
-                      <label>First Name</label>
-                      <input class="form-control mb-2" v-model="selected.firstName" placeholder="First Name" />
+                    <div class="col d-flex align-items-center mb-2">
+                      <label class="mr-2 mb-0" style="width: 90px;">First Name</label>
+                      <input class="form-control flex-fill" v-model="selected.firstName" placeholder="Enter first name" title="Given name" />
                     </div>
-                    <div class="col">
-                      <label>Last Name</label>
-                      <input class="form-control mb-2" v-model="selected.lastName" placeholder="Last Name" />
+                    <div class="col d-flex align-items-center mb-2">
+                      <label class="mr-2 mb-0" style="width: 90px;">Last Name</label>
+                      <input class="form-control flex-fill" v-model="selected.lastName" placeholder="Enter last name" title="Family name" />
                     </div>
                   </div>
                   <div class="form-row">
-                    <div class="col">
-                      <label>Date of Birth</label>
-                      <input class="form-control mb-2" v-model="selected.dateOfBirth" type="date" />
+                    <div class="col d-flex align-items-center mb-2">
+                      <label class="mr-2 mb-0" style="width: 90px;">Date of Birth</label>
+                      <input class="form-control flex-fill" v-model="selected.dateOfBirth" type="date" title="Birth date" />
                     </div>
-                    <div class="col">
-                      <label>Place of Birth</label>
-                      <input class="form-control mb-2" v-model="selected.placeOfBirth" placeholder="Place of Birth" />
+                    <div class="col d-flex align-items-center mb-2">
+                      <label class="mr-2 mb-0" style="width: 90px;">Place of Birth</label>
+                      <input class="form-control flex-fill" v-model="selected.placeOfBirth" placeholder="City or town" title="Place of birth" />
                     </div>
                   </div>
                   <button class="btn btn-link p-0 mb-2" type="button" data-toggle="collapse" data-target="#modalDetails">More Details</button>
                   <div id="modalDetails" class="collapse">
-                    <label>Maiden Name</label>
-                    <input class="form-control mb-2" v-model="selected.maidenName" placeholder="Maiden Name" />
-                    <label>Date of Death</label>
-                    <input class="form-control mb-2" v-model="selected.dateOfDeath" type="date" />
-                    <label>Gender</label>
-                    <select class="form-control mb-2" v-model="selected.gender">
-                      <option value="">Please select</option>
-                      <option value="male">Male</option>
-                      <option value="female">Female</option>
-                    </select>
-                    <label>Father</label>
-                    <select class="form-control mb-2" v-model="selected.fatherId">
-                      <option value="">Father</option>
-                      <option v-for="n in nodes" :key="'f'+n.id" :value="n.data.id">{{ n.data.firstName }} {{ n.data.lastName }}</option>
-                    </select>
-                    <label>Mother</label>
-                    <select class="form-control mb-2" v-model="selected.motherId">
-                      <option value="">Mother</option>
-                      <option v-for="n in nodes" :key="'m'+n.id" :value="n.data.id">{{ n.data.firstName }} {{ n.data.lastName }}</option>
-                    </select>
-                    <label>Spouse</label>
-                    <select class="form-control mb-2" v-model="selected.spouseId">
-                      <option value="">Spouse</option>
-                      <option v-for="n in nodes" :key="'s'+n.id" :value="n.data.id">{{ n.data.firstName }} {{ n.data.lastName }}</option>
-                    </select>
-                    <label>Notes</label>
-                    <textarea class="form-control mb-2" v-model="selected.notes" placeholder="Notes"></textarea>
+                    <div class="d-flex align-items-center mb-2">
+                      <label class="mr-2 mb-0" style="width: 90px;">Maiden Name</label>
+                      <input class="form-control flex-fill" v-model="selected.maidenName" placeholder="Birth surname" title="Maiden name" />
+                    </div>
+                    <div class="d-flex align-items-center mb-2">
+                      <label class="mr-2 mb-0" style="width: 90px;">Date of Death</label>
+                      <input class="form-control flex-fill" v-model="selected.dateOfDeath" type="date" title="Death date" />
+                    </div>
+                    <div class="d-flex align-items-center mb-2">
+                      <label class="mr-2 mb-0" style="width: 90px;">Gender</label>
+                      <select class="form-control flex-fill" v-model="selected.gender" title="Gender">
+                        <option value="">Please select</option>
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                      </select>
+                    </div>
+                    <div class="d-flex align-items-center mb-2">
+                      <label class="mr-2 mb-0" style="width: 90px;">Father</label>
+                      <select class="form-control flex-fill" v-model="selected.fatherId" title="Select father">
+                        <option value="">Father</option>
+                        <option v-for="n in nodes" :key="'f'+n.id" :value="n.data.id">{{ n.data.firstName }} {{ n.data.lastName }}</option>
+                      </select>
+                    </div>
+                    <div class="d-flex align-items-center mb-2">
+                      <label class="mr-2 mb-0" style="width: 90px;">Mother</label>
+                      <select class="form-control flex-fill" v-model="selected.motherId" title="Select mother">
+                        <option value="">Mother</option>
+                        <option v-for="n in nodes" :key="'m'+n.id" :value="n.data.id">{{ n.data.firstName }} {{ n.data.lastName }}</option>
+                      </select>
+                    </div>
+                    <div class="d-flex align-items-center mb-2">
+                      <label class="mr-2 mb-0" style="width: 90px;">Spouse</label>
+                      <select class="form-control flex-fill" v-model="selected.spouseId" title="Link spouse">
+                        <option value="">Spouse</option>
+                        <option v-for="n in nodes" :key="'s'+n.id" :value="n.data.id">{{ n.data.firstName }} {{ n.data.lastName }}</option>
+                      </select>
+                    </div>
+                    <div class="d-flex align-items-center mb-2">
+                      <label class="mr-2 mb-0" style="width: 90px;">Notes</label>
+                      <textarea class="form-control flex-fill" v-model="selected.notes" placeholder="Additional info" title="Notes"></textarea>
+                    </div>
                   </div>
                   <div v-if="children.length" class="mb-2">
                     <label>Children</label>
@@ -930,7 +944,6 @@
                   <div class="text-right mt-3">
                     <button v-if="!isNew" @click="deleteSelected" class="btn btn-danger btn-sm mr-2">Delete</button>
                     <button v-if="isNew" class="btn btn-primary mr-2" @click="saveNewPerson">Save</button>
-                    <button v-else class="btn btn-primary mr-2" @click="editing = false">Done</button>
                     <button class="btn btn-secondary" @click="cancelModal">{{ isNew ? 'Cancel' : 'Close' }}</button>
                   </div>
                 </template>
