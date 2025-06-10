@@ -19,10 +19,13 @@
     .edit-section { border: 1px solid #69b3a2; padding: 10px; border-radius: 6px; margin-top: 10px; }
     .card { border: 1px solid #ccc; padding: 8px; margin-top: 8px; border-radius: 6px; }
     #flow-app {
-      border: 1px solid #ccc;
+      border: 1px solid #444;
       float: left;
       width: calc(100% - 260px);
       touch-action: none;
+      background-color: #1e1e1e;
+      background-image: radial-gradient(#2f2f2f 1px, transparent 1px);
+      background-size: 30px 30px;
     }
     @media (max-width: 768px) {
       #flow-app {
@@ -32,7 +35,34 @@
         overflow: hidden;
       }
     }
-    .person-node { background: #fff; border: 2px solid #ccc; padding: 6px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+    .person-node {
+      background: #333;
+      border: 2px solid #555;
+      padding: 6px;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+      transition: border-color 0.2s;
+    }
+    .person-node:hover {
+      border-color: #888;
+    }
+    .person-node.active {
+      box-shadow: 0 0 0 2px #00B8D9;
+    }
+    .vue-flow__handle {
+      width: 10px;
+      height: 10px;
+      background: #444;
+      border: 2px solid #666;
+      border-radius: 50%;
+    }
+    .vue-flow__handle:hover {
+      background: #00B8D9;
+      border-color: #00B8D9;
+    }
+    .vue-flow__edge:hover .vue-flow__edge-path {
+      stroke: #00B8D9;
+    }
     .helper-node { width: 0; height: 0; }
     .highlight-node { border-color: #f00 !important; }
     .highlight-edge .vue-flow__edge-path {
