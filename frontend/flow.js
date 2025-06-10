@@ -421,6 +421,9 @@
             const payload = { ...selected.value };
             const spouseId = payload.spouseId;
             delete payload.spouseId;
+            ['maidenName', 'dateOfBirth', 'dateOfDeath', 'placeOfBirth', 'notes', 'fatherId', 'motherId'].forEach((f) => {
+              if (payload[f] === '') payload[f] = null;
+            });
             const updated = await FrontendApp.updatePerson(selected.value.id, payload);
             // Avoid overwriting fields the user may still be typing
             if (spouseId) {
@@ -791,17 +794,17 @@
       }
 
         async function saveNewPerson() {
-         const payload = {
+          const payload = {
             firstName: selected.value.firstName,
             lastName: selected.value.lastName,
-            maidenName: selected.value.maidenName || undefined,
-            dateOfBirth: selected.value.dateOfBirth || undefined,
-            dateOfDeath: selected.value.dateOfDeath || undefined,
-            placeOfBirth: selected.value.placeOfBirth || undefined,
-            notes: selected.value.notes || undefined,
+            maidenName: selected.value.maidenName || null,
+            dateOfBirth: selected.value.dateOfBirth || null,
+            dateOfDeath: selected.value.dateOfDeath || null,
+            placeOfBirth: selected.value.placeOfBirth || null,
+            notes: selected.value.notes || null,
             gender: selected.value.gender,
-            fatherId: selected.value.fatherId || undefined,
-            motherId: selected.value.motherId || undefined,
+            fatherId: selected.value.fatherId || null,
+            motherId: selected.value.motherId || null,
           };
           const p = await FrontendApp.createPerson(payload);
           if (selected.value.spouseId) {
