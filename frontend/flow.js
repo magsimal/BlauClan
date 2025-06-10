@@ -16,7 +16,7 @@
 
   function mount() {
     const { createApp, ref, onMounted, onBeforeUnmount, watch, nextTick } = Vue;
-    const { VueFlow, MarkerType, Handle, useZoomPanHelper } = window.VueFlow;
+    const { VueFlow, MarkerType, Handle, useZoomPanHelper, useVueFlow } = window.VueFlow;
 
     const app = createApp({
       components: { VueFlow, Handle },
@@ -25,6 +25,7 @@
         const edges = ref([]);
         const selectedEdge = ref(null);
         const { fitView } = useZoomPanHelper();
+        const { screenToFlowCoordinate, dimensions } = useVueFlow();
         const selected = ref(null);
         const showModal = ref(false);
         const contextMenuVisible = ref(false);
@@ -33,6 +34,7 @@
         let longPressTimer = null;
         const UNION_Y_OFFSET = 20;
         let unions = {};
+        let newNodePos = null;
 
         function addClass(edge, cls) {
           const parts = (edge.class || '').split(' ').filter(Boolean);
@@ -524,7 +526,7 @@
 
         const isNew = ref(false);
 
-       function addPerson() {
+       function addPerson(pos) {
           selected.value = {
             firstName: '',
             lastName: '',
@@ -538,6 +540,10 @@
             motherId: '',
             spouseId: '',
           };
+          newNodePos = pos || screenToFlowCoordinate({
+            x: dimensions.value.width / 2,
+            y: dimensions.value.height / 2,
+          });
           isNew.value = true;
           editing.value = true;
           showModal.value = true;
@@ -789,6 +795,15 @@
             }
           }
           await load();
+          if (newNodePos) {
+            const node = nodes.value.find((n) => n.id === String(p.id));
+            if (node) {
+              node.position = { ...newNodePos };
+            }
+            await saveLayout();
+            refreshUnions();
+            newNodePos = null;
+          }
           showModal.value = false;
           isNew.value = false;
           selected.value = null;
@@ -826,8 +841,12 @@
        }
 
        function menuAdd() {
+         const pos = screenToFlowCoordinate({
+           x: contextX.value,
+           y: contextY.value,
+         });
          contextMenuVisible.value = false;
-         addPerson();
+         addPerson(pos);
        }
 
        function menuClean() {
