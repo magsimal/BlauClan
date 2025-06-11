@@ -956,6 +956,9 @@
             @touchcancel="handleTouchEnd"
             :fit-view-on-init="true"
             :min-zoom="0.1"
+            :select-nodes-on-drag="true"
+            selection-key-code="Shift"
+            multi-selection-key-code="Shift"
           >
             <template #node-person="{ data }">
               <div class="person-node" :class="{ 'highlight-node': data.highlight, 'faded-node': selected && !data.highlight }" :style="{ borderColor: data.gender === 'female' ? '#f8c' : (data.gender === 'male' ? '#88f' : '#ccc') }">
