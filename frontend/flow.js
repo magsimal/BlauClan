@@ -546,11 +546,16 @@
 
         function downloadSvg() {
           const treeData = buildHierarchy();
-          ExportSvg.exportFamilyTree({
-            data: treeData,
-            svgEl: null,
-            colors: { male: '#4e79a7', female: '#f28e2b', '?': '#bab0ab' },
-          });
+          const exporter = window.ExportSvg;
+          if (exporter && typeof exporter.exportFamilyTree === 'function') {
+            exporter.exportFamilyTree({
+              data: treeData,
+              svgEl: null,
+              colors: { male: '#4e79a7', female: '#f28e2b', '?': '#bab0ab' },
+            });
+          } else {
+            console.error('ExportSvg utility not loaded');
+          }
         }
 
         async function onConnect(params) {
