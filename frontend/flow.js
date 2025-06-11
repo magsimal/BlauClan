@@ -25,7 +25,7 @@
         const edges = ref([]);
         const selectedEdge = ref(null);
         const { fitView } = useZoomPanHelper();
-        const { screenToFlowCoordinate, dimensions } = useVueFlow();
+        const { screenToFlowCoordinate, dimensions, vueFlowRef } = useVueFlow();
         const selected = ref(null);
         const showModal = ref(false);
         const contextMenuVisible = ref(false);
@@ -564,7 +564,7 @@
 
         const isNew = ref(false);
 
-       function addPerson(pos) {
+        function addPerson(pos) {
           selected.value = {
             firstName: '',
             lastName: '',
@@ -578,10 +578,14 @@
             motherId: '',
             spouseId: '',
           };
-          newNodePos = pos || screenToFlowCoordinate({
-            x: dimensions.value.width / 2,
-            y: dimensions.value.height / 2,
-          });
+          if (!pos) {
+            const rect = vueFlowRef.value && vueFlowRef.value.getBoundingClientRect();
+            pos = screenToFlowCoordinate({
+              x: (rect ? rect.left : 0) + dimensions.value.width / 2,
+              y: (rect ? rect.top : 0) + dimensions.value.height / 2,
+            });
+          }
+          newNodePos = pos;
           isNew.value = true;
           editing.value = true;
           showModal.value = true;
