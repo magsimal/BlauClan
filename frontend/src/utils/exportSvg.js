@@ -55,10 +55,10 @@
         .data(links)
         .join('path')
         .attr('d', linkHorizontal()
-          .x(function (d) { return d.source.x; })
-          .y(function (d) { return d.source.y; })
-          .source(function (d) { return { x: d.source.x, y: d.source.y }; })
-          .target(function (d) { return { x: d.target.x, y: d.target.y }; }));
+          .x(function (d) { return d.x; })
+          .y(function (d) { return d.y; })
+          .source(function (d) { return d.source; })
+          .target(function (d) { return d.target; }));
 
       var nodeG = svg.append('g').attr('stroke', '#333').attr('stroke-width', 1);
       var node = nodeG.selectAll('g')
