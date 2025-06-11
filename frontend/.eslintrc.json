@@ -13,6 +13,7 @@
   "globals": {
     "Vue": "readonly",
     "FrontendApp": "readonly",
-    "VueFlow": "readonly"
+    "VueFlow": "readonly",
+    "ExportSvg": "readonly"
   }
 }
