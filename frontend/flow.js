@@ -5,7 +5,7 @@
     global.FlowApp = factory();
   }
 })(this, function () {
-  /* global html2canvas, d3 */
+  /* global html2canvas, d3, GenerationLayout */
   function debounce(fn, delay) {
     let t;
     return function (...args) {
@@ -757,15 +757,17 @@
             if (n.motherId && map.has(n.motherId)) map.get(n.motherId).children.push(n);
             if (n.fatherId && map.has(n.fatherId)) map.get(n.fatherId).children.push(n);
           });
+
+          const gen = GenerationLayout.assignGenerations(list);
+          const ROW_HEIGHT = 230;
+
           const roots = [];
           map.forEach((n) => {
             const hasParent = list.some((p) => p.id === n.motherId || p.id === n.fatherId);
             if (!hasParent && n.children.length) roots.push(n);
           });
           const fakeRoot = { id: 'root', children: roots };
-          const layout = d3
-            .tree()
-            .nodeSize([200, 230]);
+          const layout = d3.tree().nodeSize([200, 1]);
           layout(d3.hierarchy(fakeRoot));
 
           fakeRoot.children.forEach(walk);
@@ -773,14 +775,15 @@
             const d = map.get(h.data.id);
             if (d) {
               d.x = h.x;
-              d.y = h.y;
             }
             h.children && h.children.forEach(walk);
           }
+
           list.forEach((n) => {
             const p = map.get(n.id);
             n.x = p.x;
-            n.y = p.y;
+            const g = gen.get(n.id) ?? 0;
+            n.y = g * ROW_HEIGHT;
           });
         }
 
