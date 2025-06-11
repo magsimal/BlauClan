@@ -773,9 +773,10 @@
           });
           const fakeRoot = { id: 'root', children: roots };
           const layout = d3.tree().nodeSize([200, 1]);
-          layout(d3.hierarchy(fakeRoot));
+          const rootNode = d3.hierarchy(fakeRoot);
+          layout(rootNode);
 
-          fakeRoot.children.forEach(walk);
+          rootNode.children.forEach(walk);
           function walk(h) {
             const d = map.get(h.data.id);
             if (d) {
