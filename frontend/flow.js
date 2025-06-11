@@ -75,7 +75,13 @@
           });
         }
 
-        async function load() {
+        async function load(preservePositions = false) {
+          const existingPos = {};
+          if (preservePositions) {
+            nodes.value.forEach((n) => {
+              existingPos[n.id] = { ...n.position };
+            });
+          }
           const people = await FrontendApp.fetchPeople();
           const idMap = {};
           people.forEach((p) => (idMap[p.id] = p));
@@ -121,7 +127,7 @@
           nodes.value = people.map((p) => ({
             id: String(p.id),
             type: 'person',
-            position: positions[p.id],
+            position: existingPos[p.id] || positions[p.id],
             data: { ...p },
           }));
 
@@ -157,7 +163,7 @@
                 nodes.value.push({
                   id,
                   type: 'helper',
-                  position: pos,
+                  position: existingPos[id] || pos,
                   data: { _gen: idMap[child.fatherId]._gen, helper: true },
                 });
                 positions[id] = pos;
@@ -243,8 +249,8 @@
             if (rel) {
               await FrontendApp.deleteSpouse(fatherId, rel.marriageId);
             }
-            await load();
-            return;
+              await load(true);
+              return;
           }
 
           let parentId;
@@ -264,8 +270,8 @@
           } else if (edge.source.startsWith('u-') || edge.target.startsWith('u-')) {
             const cid = edge.source.startsWith('u-') ? parseInt(edge.target, 10) : parseInt(edge.source, 10);
             await FrontendApp.updatePerson(cid, { fatherId: null, motherId: null });
-            await load();
-            return;
+              await load(true);
+              return;
           } else {
             return;
           }
@@ -281,10 +287,10 @@
             if (childNode.data.fatherId === parentId) updates.fatherId = null;
             if (childNode.data.motherId === parentId) updates.motherId = null;
           }
-          if (Object.keys(updates).length) {
-            await FrontendApp.updatePerson(childId, updates);
-            await load();
-          }
+            if (Object.keys(updates).length) {
+              await FrontendApp.updatePerson(childId, updates);
+              await load(true);
+            }
         }
 
         onMounted(async () => {
@@ -429,8 +435,8 @@
             if (spouseId) {
               await FrontendApp.linkSpouse(updated.id, parseInt(spouseId));
             }
-            await load();
-            computeChildren(updated.id);
+              await load(true);
+              computeChildren(updated.id);
           }, 200);
 
         watch(
@@ -527,9 +533,12 @@
             (sH.includes('left') || sH.includes('right')) &&
             (tH.includes('left') || tH.includes('right'))
           ) {
-            await FrontendApp.linkSpouse(parseInt(params.source), parseInt(params.target));
-            await load();
-            return;
+              await FrontendApp.linkSpouse(
+                parseInt(params.source),
+                parseInt(params.target)
+              );
+              await load(true);
+              return;
           }
 
           let parentNode;
@@ -559,7 +568,7 @@
           else return;
 
           await FrontendApp.updatePerson(childNode.data.id, updates);
-          await load();
+          await load(true);
         }
 
         const isNew = ref(false);
@@ -651,7 +660,7 @@
           showModal.value = false;
           await FrontendApp.deletePerson(id);
           selected.value = null;
-          await load();
+          await load(true);
         }
 
         async function unlinkChild(child) {
@@ -659,7 +668,7 @@
           if (child.fatherId === selected.value.id) updates.fatherId = null;
           if (child.motherId === selected.value.id) updates.motherId = null;
           await FrontendApp.updatePerson(child.id, updates);
-          await load();
+          await load(true);
           computeChildren(selected.value.id);
         }
 
@@ -818,7 +827,7 @@
               await FrontendApp.updatePerson(rel.childId, update);
             }
           }
-          await load();
+          await load(true);
           if (newNodePos) {
             const node = nodes.value.find((n) => n.id === String(p.id));
             if (node) {
