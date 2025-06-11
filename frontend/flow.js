@@ -726,6 +726,7 @@
         const levelGap = 150;
         const minGap = 120;
         const startX = 100;
+        const startY = 100;
 
         function parentX(node) {
           let sum = 0;
@@ -797,7 +798,7 @@
         });
 
         gens.forEach((g) => {
-          const y = startX + g * levelGap;
+          const y = startY + g * levelGap;
           byGen[g].forEach((n) => {
             n.position.y = y + (n.type === 'helper' ? UNION_Y_OFFSET : 0);
           });
