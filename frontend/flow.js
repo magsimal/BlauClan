@@ -5,7 +5,7 @@
     global.FlowApp = factory();
   }
 })(this, function () {
-  /* global html2canvas */
+  /* global html2canvas, d3 */
   function debounce(fn, delay) {
     let t;
     return function (...args) {
@@ -230,6 +230,11 @@
         }
 
         function handleKeydown(ev) {
+          if (ev.shiftKey && ev.altKey && ev.key.toLowerCase() === 't') {
+            ev.preventDefault();
+            optimizeLayout();
+            return;
+          }
           if (ev.key !== 'Delete' || !selectedEdge.value) return;
           ev.preventDefault();
           removeSelectedEdge();
@@ -720,88 +725,64 @@
           });
         }
 
+        function tidyUp(list) {
+          const map = new Map(list.map((n) => [n.id, { ...n, children: [] }]));
+          map.forEach((n) => {
+            if (n.motherId && map.has(n.motherId)) map.get(n.motherId).children.push(n);
+            if (n.fatherId && map.has(n.fatherId)) map.get(n.fatherId).children.push(n);
+          });
+          const roots = [];
+          map.forEach((n) => {
+            const hasParent = list.some((p) => p.id === n.motherId || p.id === n.fatherId);
+            if (!hasParent && n.children.length) roots.push(n);
+          });
+          const fakeRoot = { id: 'root', children: roots };
+          const layout = d3
+            .tree()
+            .nodeSize([200, 230]);
+          layout(d3.hierarchy(fakeRoot));
+
+          fakeRoot.children.forEach(walk);
+          function walk(h) {
+            const d = map.get(h.data.id);
+            if (d) {
+              d.x = h.x;
+              d.y = h.y;
+            }
+            h.children && h.children.forEach(walk);
+          }
+          list.forEach((n) => {
+            const p = map.get(n.id);
+            n.x = p.x;
+            n.y = p.y;
+          });
+        }
+
 
 
       function optimizeLayout() {
-        const levelGap = 150;
-        const minGap = 120;
-        const startX = 100;
-        const startY = 100;
+        const people = nodes.value
+          .filter((n) => n.type === 'person')
+          .map((n) => ({
+            id: n.data.id,
+            fatherId: n.data.fatherId,
+            motherId: n.data.motherId,
+            x: 0,
+            y: 0,
+          }));
 
-        function parentX(node) {
-          let sum = 0;
-          let count = 0;
-          if (node.type === 'person') {
-            const f = nodes.value.find((n) => n.data.id === node.data.fatherId);
-            const m = nodes.value.find((n) => n.data.id === node.data.motherId);
-            if (f) {
-              sum += f.position.x;
-              count += 1;
-            }
-            if (m) {
-              sum += m.position.x;
-              count += 1;
-            }
-          } else if (node.type === 'helper') {
-            const u = unions[node.id];
-            if (u) {
-              const f = nodes.value.find((n) => n.id === String(u.fatherId));
-              const m = nodes.value.find((n) => n.id === String(u.motherId));
-              if (f) {
-                sum += f.position.x;
-                count += 1;
-              }
-              if (m) {
-                sum += m.position.x;
-                count += 1;
-              }
-            }
-          }
-          return count ? sum / count : null;
-        }
+        tidyUp(people);
 
-        const byGen = {};
+        const posMap = {};
+        people.forEach((p) => {
+          posMap[p.id] = { x: p.x, y: p.y };
+        });
+
         nodes.value.forEach((n) => {
-          const g = n.data._gen || 0;
-          byGen[g] = byGen[g] || [];
-          byGen[g].push(n);
-        });
-
-        const gens = Object.keys(byGen)
-          .map((g) => parseInt(g, 10))
-          .sort((a, b) => a - b);
-
-        gens.forEach((g) => {
-          const list = byGen[g];
-
-          list.forEach((n) => {
-            n._parentX = parentX(n);
-          });
-
-          list.sort((a, b) => {
-            const ax = a._parentX;
-            const bx = b._parentX;
-            if (ax !== null && bx !== null) return ax - bx;
-            if (ax !== null) return -1;
-            if (bx !== null) return 1;
-            return a.position.x - b.position.x;
-          });
-
-          let x = startX;
-          list.forEach((n) => {
-            if (n._parentX !== null && n._parentX > x) {
-              x = n._parentX;
-            }
-            n.position.x = x;
-            x += minGap;
-          });
-        });
-
-        gens.forEach((g) => {
-          const y = startY + g * levelGap;
-          byGen[g].forEach((n) => {
-            n.position.y = y + (n.type === 'helper' ? UNION_Y_OFFSET : 0);
-          });
+          if (n.type === 'person' && posMap[n.data.id]) {
+            n.position.x = posMap[n.data.id].x;
+            n.position.y = posMap[n.data.id].y;
+          }
         });
 
         refreshUnions();
