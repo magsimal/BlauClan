@@ -243,7 +243,7 @@
           }
           if (ev.shiftKey && ev.altKey && ev.key.toLowerCase() === 't') {
             ev.preventDefault();
-            optimizeLayout();
+            tidyUpLayout();
             return;
           }
           if (ev.key !== 'Delete' || !selectedEdge.value) return;
@@ -835,6 +835,22 @@
             }
           });
 
+          const rows = new Map();
+          list.forEach((n) => {
+            const g = gen.get(n.id) ?? 0;
+            if (!rows.has(g)) rows.set(g, []);
+            rows.get(g).push(map.get(n.id));
+          });
+
+          rows.forEach((row) => {
+            row.sort((a, b) => a.x - b.x);
+            for (let i = 1; i < row.length; i++) {
+              if (row[i].x - row[i - 1].x < 120) {
+                row[i].x = row[i - 1].x + 120;
+              }
+            }
+          });
+
           list.forEach((n) => {
             const p = map.get(n.id);
             n.x = p.x;
@@ -845,7 +861,7 @@
 
 
 
-      function optimizeLayout() {
+      function tidyUpLayout() {
         const people = nodes.value
           .filter((n) => n.type === 'person')
           .map((n) => ({
@@ -956,9 +972,9 @@
          addPerson(pos);
        }
 
-       function menuClean() {
+       function menuTidy() {
          contextMenuVisible.value = false;
-         optimizeLayout();
+         tidyUpLayout();
        }
 
        function menuFit() {
@@ -987,7 +1003,7 @@
          isNew,
          editing,
          avatarSrc,
-         optimizeLayout,
+         tidyUpLayout,
         saveLayout,
         loadLayout,
         fitView,
@@ -1001,7 +1017,7 @@
         contextX,
         contextY,
         menuAdd,
-        menuClean,
+        menuTidy,
         menuFit,
       };
       },
@@ -1011,7 +1027,7 @@
             <button class="icon-button" @click="addPerson" title="Add Person">
               <svg viewBox="0 0 24 24"><path d="M5.25 6.375a4.125 4.125 0 1 1 8.25 0 4.125 4.125 0 0 1-8.25 0ZM2.25 19.125a7.125 7.125 0 0 1 14.25 0v.003l-.001.119a.75.75 0 0 1-.363.63 13.067 13.067 0 0 1-6.761 1.873c-2.472 0-4.786-.684-6.76-1.873a.75.75 0 0 1-.364-.63l-.001-.122ZM18.75 7.5a.75.75 0 0 0-1.5 0v2.25H15a.75.75 0 0 0 0 1.5h2.25v2.25a.75.75 0 0 0 1.5 0v-2.25H21a.75.75 0 0 0 0-1.5h-2.25V7.5Z"/></svg>
             </button>
-            <button class="icon-button" @click="optimizeLayout" title="Optimize Layout">
+            <button class="icon-button" @click="tidyUpLayout" title="Tidy Up">
               <svg viewBox="0 0 24 24">
                 <path d="M19.36,2.72L20.78,4.14L15.06,9.85C16.13,11.39 16.28,13.24 15.38,14.44L9.06,8.12C10.26,7.22 12.11,7.37 13.65,8.44L19.36,2.72M5.93,17.57C3.92,15.56 2.69,13.16 2.35,10.92L7.23,8.83L14.67,16.27L12.58,21.15C10.34,20.81 7.94,19.58 5.93,17.57Z" />
               </svg>
@@ -1090,7 +1106,7 @@
             :style="{ left: contextX + 'px', top: contextY + 'px' }"
           >
             <li @click="menuAdd">Add New</li>
-            <li @click="menuClean">Clean Up</li>
+            <li @click="menuTidy">Tidy Up</li>
             <li @click="menuFit">Zoom to Fit</li>
           </ul>
 
