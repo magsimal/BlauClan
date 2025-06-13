@@ -906,8 +906,11 @@
 
        function openContextMenu(ev) {
          const point = ev.touches ? ev.touches[0] : ev;
-         contextX.value = point.clientX;
-         contextY.value = point.clientY;
+         const rect = document
+           .getElementById('flow-app')
+           .getBoundingClientRect();
+         contextX.value = point.clientX - rect.left;
+         contextY.value = point.clientY - rect.top;
          contextMenuVisible.value = true;
        }
 
