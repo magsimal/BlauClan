@@ -804,7 +804,7 @@
             if (!hasParent && n.children.length) roots.push(n);
           });
           const fakeRoot = { id: 'root', children: roots };
-          const layout = d3.tree().nodeSize([200, 1]);
+          const layout = d3.tree().nodeSize([120, 1]);
           const rootNode = d3.hierarchy(fakeRoot);
           layout(rootNode);
 
@@ -816,6 +816,24 @@
             }
             h.children && h.children.forEach(walk);
           }
+
+
+          const couples = new Set();
+          list.forEach((child) => {
+            if (child.fatherId && child.motherId) {
+              const key = `${child.fatherId}-${child.motherId}`;
+              if (!couples.has(key)) {
+                couples.add(key);
+                const father = map.get(child.fatherId);
+                const mother = map.get(child.motherId);
+                if (father && mother) {
+                  const mid = (father.x + mother.x) / 2;
+                  father.x = mid - 60;
+                  mother.x = mid + 60;
+                }
+              }
+            }
+          });
 
           list.forEach((n) => {
             const p = map.get(n.id);
@@ -994,7 +1012,9 @@
               <svg viewBox="0 0 24 24"><path d="M5.25 6.375a4.125 4.125 0 1 1 8.25 0 4.125 4.125 0 0 1-8.25 0ZM2.25 19.125a7.125 7.125 0 0 1 14.25 0v.003l-.001.119a.75.75 0 0 1-.363.63 13.067 13.067 0 0 1-6.761 1.873c-2.472 0-4.786-.684-6.76-1.873a.75.75 0 0 1-.364-.63l-.001-.122ZM18.75 7.5a.75.75 0 0 0-1.5 0v2.25H15a.75.75 0 0 0 0 1.5h2.25v2.25a.75.75 0 0 0 1.5 0v-2.25H21a.75.75 0 0 0 0-1.5h-2.25V7.5Z"/></svg>
             </button>
             <button class="icon-button" @click="optimizeLayout" title="Optimize Layout">
-              <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M3 6a3 3 0 0 1 3-3h2.25a3 3 0 0 1 3 3v2.25a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6Zm9.75 0a3 3 0 0 1 3-3H18a3 3 0 0 1 3 3v2.25a3 3 0 0 1-3 3h-2.25a3 3 0 0 1-3-3V6ZM3 15.75a3 3 0 0 1 3-3h2.25a3 3 0 0 1 3 3V18a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-2.25Zm9.75 0a3 3 0 0 1 3-3H18a3 3 0 0 1 3 3V18a3 3 0 0 1-3 3h-2.25a3 3 0 0 1-3-3v-2.25Z" clip-rule="evenodd"/></svg>
+              <svg viewBox="0 0 24 24">
+                <path d="M19.36,2.72L20.78,4.14L15.06,9.85C16.13,11.39 16.28,13.24 15.38,14.44L9.06,8.12C10.26,7.22 12.11,7.37 13.65,8.44L19.36,2.72M5.93,17.57C3.92,15.56 2.69,13.16 2.35,10.92L7.23,8.83L14.67,16.27L12.58,21.15C10.34,20.81 7.94,19.58 5.93,17.57Z" />
+              </svg>
             </button>
             <button class="icon-button" @click="saveLayout" title="Save Layout">
               <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2.25a.75.75 0 0 1 .75.75v11.69l3.22-3.22a.75.75 0 1 1 1.06 1.06l-4.5 4.5a.75.75 0 0 1-1.06 0l-4.5-4.5a.75.75 0 1 1 1.06-1.06l3.22 3.22V3a.75.75 0 0 1 .75-.75Zm-9 13.5a.75.75 0 0 1 .75.75v2.25a1.5 1.5 0 0 0 1.5 1.5h13.5a1.5 1.5 0 0 0 1.5-1.5V16.5a.75.75 0 0 1 1.5 0v2.25a3 3 0 0 1-3 3H5.25a3 3 0 0 1-3-3V16.5a.75.75 0 0 1 .75-.75Z" clip-rule="evenodd"/></svg>
