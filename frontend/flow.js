@@ -29,6 +29,8 @@
           screenToFlowCoordinate,
           project,
           dimensions,
+          addSelectedNodes,
+          removeSelectedNodes,
         } = useVueFlow();
         const selected = ref(null);
         const showModal = ref(false);
@@ -169,6 +171,8 @@
                   type: 'helper',
                   position: existingPos[id] || pos,
                   data: { _gen: idMap[child.fatherId]._gen, helper: true },
+                  draggable: false,
+                  selectable: false,
                 });
                 positions[id] = pos;
               }
@@ -234,6 +238,9 @@
         }
 
         function handleKeydown(ev) {
+          if (ev.key === 'Shift') {
+            shiftPressed.value = true;
+          }
           if (ev.shiftKey && ev.altKey && ev.key.toLowerCase() === 't') {
             ev.preventDefault();
             optimizeLayout();
@@ -242,6 +249,12 @@
           if (ev.key !== 'Delete' || !selectedEdge.value) return;
           ev.preventDefault();
           removeSelectedEdge();
+        }
+
+        function handleKeyup(ev) {
+          if (ev.key === 'Shift') {
+            shiftPressed.value = false;
+          }
         }
 
         async function removeSelectedEdge() {
@@ -302,14 +315,18 @@
             }
         }
 
+        const shiftPressed = ref(false);
+
         onMounted(async () => {
           await load();
           fitView();
           window.addEventListener('keydown', handleKeydown);
+          window.addEventListener('keyup', handleKeyup);
         });
 
         onBeforeUnmount(() => {
           window.removeEventListener('keydown', handleKeydown);
+          window.removeEventListener('keyup', handleKeyup);
         });
         const editing = ref(false);
 
@@ -398,6 +415,12 @@
         }
 
         function onNodeClick(evt) {
+          const e = evt.event || evt;
+          if (e.shiftKey || shiftPressed.value) {
+            if (evt.node.selected) removeSelectedNodes([evt.node]);
+            else addSelectedNodes([evt.node]);
+            return;
+          }
           if (clickTimer) {
             clearTimeout(clickTimer);
             clickTimer = null;
@@ -455,6 +478,12 @@
           },
           { deep: true }
         );
+
+        watch(shiftPressed, (val) => {
+          document.body.classList.toggle('multi-select-active', val);
+          const ind = document.getElementById('multiIndicator');
+          if (ind) ind.style.display = val ? 'block' : 'none';
+        });
 
         function onNodeDragStop() {
           refreshUnions();
