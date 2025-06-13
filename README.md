@@ -70,5 +70,7 @@ to display.
 - `DELETE /api/people/:id/spouses/:marriageId`
 - `GET /api/tree/:id` – query param `type` can be `ancestors`, `descendants`, or `both`
 - `GET /api/export/json`
+- `GET /api/export/db`
+- `POST /api/import/db`
 
 This is an early version and subject to change.

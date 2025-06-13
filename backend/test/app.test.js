@@ -58,4 +58,27 @@ describe('People API', () => {
     expect(updateRes.statusCode).toBe(200);
     expect(updateRes.body.fatherId).toBeNull();
   });
+
+  test('exports and imports database', async () => {
+    await sequelize.sync({ force: true });
+    await request(app).post('/api/people').send({ firstName: 'A', lastName: 'B' });
+    await request(app).post('/api/people').send({ firstName: 'C', lastName: 'D' });
+    await request(app).post('/api/people/1/spouses').send({ spouseId: 2 });
+    await request(app).post('/api/layout').send({ nodes: [{ id: 1 }] });
+
+    const exportRes = await request(app).get('/api/export/db');
+    expect(exportRes.statusCode).toBe(200);
+    expect(exportRes.body.people.length).toBe(2);
+
+    await request(app).post('/api/people').send({ firstName: 'X', lastName: 'Y' });
+    const importRes = await request(app).post('/api/import/db').send(exportRes.body);
+    expect(importRes.statusCode).toBe(204);
+
+    const peopleRes = await request(app).get('/api/people');
+    expect(peopleRes.body.length).toBe(2);
+    const spouseRes = await request(app).get('/api/people/1/spouses');
+    expect(spouseRes.body.length).toBe(1);
+    const layoutRes = await request(app).get('/api/layout');
+    expect(layoutRes.body.nodes[0].id).toBe(1);
+  });
 });

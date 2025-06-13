@@ -184,6 +184,32 @@ app.get('/api/export/json', async (req, res) => {
   }
 });
 
+app.get('/api/export/db', async (_req, res) => {
+  const [people, marriages, layouts] = await Promise.all([
+    Person.findAll(),
+    Marriage.findAll(),
+    Layout.findAll(),
+  ]);
+  res.json({ people, marriages, layouts });
+});
+
+app.post('/api/import/db', async (req, res) => {
+  try {
+    const { people = [], marriages = [], layouts = [] } = req.body;
+    await sequelize.transaction(async (t) => {
+      await Marriage.destroy({ where: {}, truncate: true, cascade: true, transaction: t });
+      await Person.destroy({ where: {}, truncate: true, cascade: true, transaction: t });
+      await Layout.destroy({ where: {}, truncate: true, cascade: true, transaction: t });
+      if (people.length) await Person.bulkCreate(people, { transaction: t });
+      if (marriages.length) await Marriage.bulkCreate(marriages, { transaction: t });
+      if (layouts.length) await Layout.bulkCreate(layouts, { transaction: t });
+    });
+    res.sendStatus(204);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 // Layout endpoints
 app.post('/api/layout', async (req, res) => {
   try {
