@@ -34,7 +34,14 @@
           snapToGrid,
           snapGrid,
         } = useVueFlow();
-        const gridSize = (window.AppConfig && AppConfig.gridSize) || 30;
+        const horizontalGridSize =
+          (window.AppConfig &&
+            (AppConfig.horizontalGridSize || AppConfig.gridSize)) ||
+          30;
+        const verticalGridSize =
+          (window.AppConfig &&
+            (AppConfig.verticalGridSize || AppConfig.gridSize)) ||
+          30;
         const selected = ref(null);
         const showModal = ref(false);
         const contextMenuVisible = ref(false);
@@ -323,7 +330,7 @@
         onMounted(async () => {
           await load();
           fitView();
-          snapGrid.value = [gridSize, gridSize];
+          snapGrid.value = [horizontalGridSize, verticalGridSize];
           window.addEventListener('keydown', handleKeydown);
           window.addEventListener('keyup', handleKeyup);
         });
@@ -1019,7 +1026,8 @@
         downloadSvg,
         toggleSnap,
         snapToGrid,
-        gridSize,
+        horizontalGridSize,
+        verticalGridSize,
         onNodeDragStop,
         handleContextMenu,
         handleTouchStart,
@@ -1087,7 +1095,7 @@
             :min-zoom="0.1"
             :select-nodes-on-drag="true"
             :snap-to-grid="snapToGrid"
-            :snap-grid="[gridSize, gridSize]"
+            :snap-grid="[horizontalGridSize, verticalGridSize]"
             selection-key-code="Shift"
             multi-selection-key-code="Shift"
           >
