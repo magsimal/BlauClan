@@ -5,7 +5,7 @@
     global.FlowApp = factory();
   }
 })(this, function () {
-  /* global html2canvas, d3, GenerationLayout */
+  /* global html2canvas, d3, GenerationLayout, AppConfig */
   function debounce(fn, delay) {
     let t;
     return function (...args) {
@@ -31,7 +31,10 @@
           dimensions,
           addSelectedNodes,
           removeSelectedNodes,
+          snapToGrid,
+          snapGrid,
         } = useVueFlow();
+        const gridSize = (window.AppConfig && AppConfig.gridSize) || 30;
         const selected = ref(null);
         const showModal = ref(false);
         const contextMenuVisible = ref(false);
@@ -320,6 +323,7 @@
         onMounted(async () => {
           await load();
           fitView();
+          snapGrid.value = [gridSize, gridSize];
           window.addEventListener('keydown', handleKeydown);
           window.addEventListener('keyup', handleKeyup);
         });
@@ -589,6 +593,10 @@
           } else {
             console.error('ExportSvg utility not loaded');
           }
+        }
+
+        function toggleSnap() {
+          snapToGrid.value = !snapToGrid.value;
         }
 
         async function onConnect(params) {
@@ -1009,6 +1017,9 @@
         fitView,
         downloadPng,
         downloadSvg,
+        toggleSnap,
+        snapToGrid,
+        gridSize,
         onNodeDragStop,
         handleContextMenu,
         handleTouchStart,
@@ -1053,6 +1064,11 @@
                 <path d="M4.5 18.75h15v1.5h-15z"/>
               </svg>
             </button>
+            <button class="icon-button" @click="toggleSnap" :class="{ active: snapToGrid }" :title="snapToGrid ? 'Disable Snap to Grid' : 'Enable Snap to Grid'">
+              <svg viewBox="0 0 24 24">
+                <path d="M3 3h18v18H3V3m2 2v14h14V5H5Z" />
+              </svg>
+            </button>
           </div>
           <VueFlow
             style="width: 100%; height: 100%"
@@ -1070,6 +1086,8 @@
             :fit-view-on-init="true"
             :min-zoom="0.1"
             :select-nodes-on-drag="true"
+            :snap-to-grid="snapToGrid"
+            :snap-grid="[gridSize, gridSize]"
             selection-key-code="Shift"
             multi-selection-key-code="Shift"
           >
