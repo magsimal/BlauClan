@@ -68,15 +68,48 @@
           return 'https://placehold.net/avatar.png';
         }
 
+        const TEMP_KEY = 'tempLayout';
+
+        function saveTempLayout() {
+          const payload = {
+            nodes: nodes.value.map((n) => ({
+              id: n.id,
+              x: n.position.x,
+              y: n.position.y,
+            })),
+          };
+          try {
+            localStorage.setItem(TEMP_KEY, JSON.stringify(payload));
+          } catch (e) {
+            /* ignore */
+          }
+        }
+
+        function loadTempLayout() {
+          try {
+            const str = localStorage.getItem(TEMP_KEY);
+            return str ? JSON.parse(str) : null;
+          } catch (e) {
+            return null;
+          }
+        }
+
         async function applySavedLayout() {
           const res = await fetch('/api/layout');
-          if (!res.ok) return;
-          const layout = await res.json();
-          if (!layout) return;
+          let layout = null;
+          if (res.ok) layout = await res.json();
           const map = {};
-          layout.nodes.forEach((n) => {
-            map[n.id] = n;
-          });
+          if (layout && Array.isArray(layout.nodes)) {
+            layout.nodes.forEach((n) => {
+              map[n.id] = n;
+            });
+          }
+          const temp = loadTempLayout();
+          if (temp && Array.isArray(temp.nodes)) {
+            temp.nodes.forEach((n) => {
+              map[n.id] = n;
+            });
+          }
           nodes.value.forEach((n) => {
             if (map[n.id]) {
               n.position = { x: map[n.id].x, y: map[n.id].y };
@@ -230,6 +263,7 @@
           await applySavedLayout();
           await nextTick();
           refreshUnions();
+          saveTempLayout();
         }
 
         const children = ref([]);
@@ -491,6 +525,7 @@
 
         function onNodeDragStop() {
           refreshUnions();
+          saveTempLayout();
         }
 
         async function saveLayout() {
@@ -502,11 +537,13 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
           });
+          try { localStorage.removeItem(TEMP_KEY); } catch (e) { /* ignore */ }
         }
 
         async function loadLayout() {
           await applySavedLayout();
           refreshUnions();
+          try { localStorage.removeItem(TEMP_KEY); } catch (e) { /* ignore */ }
         }
 
         async function downloadPng() {
@@ -895,6 +932,7 @@
         });
 
         refreshUnions();
+        saveTempLayout();
       }
 
         async function saveNewPerson() {
