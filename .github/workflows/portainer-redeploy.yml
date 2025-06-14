@@ -1,0 +1,31 @@
+name: Trigger Portainer Deploy via n8n
+
+on:
+  push:
+    branches: [main, develop]
+
+jobs:
+  notify-n8n:
+    runs-on: ubuntu-latest
+    container:
+      image: curlimages/curl:latest
+
+    steps:
+      - name: Determine and Trigger
+        env:
+          WEBHOOK_URL: ${{ secrets.N8N_WEBHOOK_URL }}
+          WEBHOOK_SECRET: ${{ secrets.N8N_WEBHOOK_SECRET }}
+        run: |
+          if [[ "${GITHUB_REF##*/}" == "main" ]]; then
+            STACK_ID=139
+          elif [[ "${GITHUB_REF##*/}" == "develop" ]]; then
+            STACK_ID=140
+          else
+            echo "No action for branch ${GITHUB_REF##*/}"
+            exit 0
+          fi
+
+          curl -X POST "$WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -H "x-n8n-secret: $WEBHOOK_SECRET" \
+            -d "{\"stack_id\": $STACK_ID}"
