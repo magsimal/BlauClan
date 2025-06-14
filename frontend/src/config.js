@@ -6,6 +6,9 @@
   }
 })(this, function () {
   return {
-    gridSize: 30
+    // grid size for snapping nodes. horizontalGridSize is slightly
+    // smaller than verticalGridSize to allow tighter horizontal spacing
+    horizontalGridSize: 20,
+    verticalGridSize: 30,
   };
 });
