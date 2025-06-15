@@ -285,6 +285,16 @@
           if (ev.key === 'Shift') {
             shiftPressed.value = true;
           }
+          if (ev.key === 'Enter' && editing.value && showModal.value) {
+            ev.preventDefault();
+            if (isNew.value) {
+              saveNewPerson();
+            } else {
+              saveSelected();
+            }
+            cancelModal();
+            return;
+          }
           if (ev.shiftKey && ev.altKey && ev.key.toLowerCase() === 't') {
             ev.preventDefault();
             tidyUpLayout();
