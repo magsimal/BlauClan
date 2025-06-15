@@ -74,3 +74,7 @@ to display.
 - `POST /api/import/db`
 
 This is an early version and subject to change.
+
+### Keyboard Shortcuts
+
+- **Enter**: When editing a person, press Enter to save changes and close the modal.
