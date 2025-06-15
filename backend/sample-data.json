@@ -2,18 +2,21 @@
   {
     "id": 1,
     "firstName": "John",
+    "callName": "Johnny",
     "lastName": "Doe",
     "gender": "M"
   },
   {
     "id": 2,
     "firstName": "Jane",
+    "callName": "Janey",
     "lastName": "Smith",
     "gender": "F"
   },
   {
     "id": 3,
     "firstName": "Child",
+    "callName": "Kid",
     "lastName": "Doe",
     "fatherId": 1,
     "motherId": 2,

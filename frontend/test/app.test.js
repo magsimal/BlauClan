@@ -76,9 +76,13 @@ describe('frontend helpers', () => {
   });
 
   test('parentName formats correctly', () => {
-    const list = [{ id: 1, firstName: 'A', lastName: 'B' }];
-    expect(parentName(1, list)).toBe('A B');
-    expect(parentName(2, list)).toBe('');
+    const list = [
+      { id: 1, firstName: 'A', callName: 'Al', lastName: 'B' },
+      { id: 2, firstName: 'C', lastName: 'D' },
+    ];
+    expect(parentName(1, list)).toBe('Al (A) B');
+    expect(parentName(2, list)).toBe('C D');
+    expect(parentName(3, list)).toBe('');
   });
 
   test('mountApp loads people', async () => {
