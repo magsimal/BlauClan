@@ -316,7 +316,15 @@
         <div v-if="spouses.length" class="card">
           <h3>Spouses</h3>
           <ul>
-            <li v-for="s in spouses">{{ s.spouse.callName ? s.spouse.callName + ' (' + s.spouse.firstName + ')' : s.spouse.firstName }} {{ s.spouse.lastName }}</li>
+            <li v-for="s in spouses">
+              {{ s.spouse.callName ? s.spouse.callName + ' (' + s.spouse.firstName + ')' : s.spouse.firstName }} {{ s.spouse.lastName }}
+              <span v-if="s.dateOfMarriage || s.marriageApprox || s.placeOfMarriage" class="text-muted">
+                -
+                <span v-if="s.dateOfMarriage">{{ s.dateOfMarriage }}</span>
+                <span v-else-if="s.marriageApprox">{{ s.marriageApprox }}</span>
+                <span v-if="s.placeOfMarriage">@ {{ s.placeOfMarriage }}</span>
+              </span>
+            </li>
           </ul>
         </div>
         <div v-if="childrenOfSelected.length" class="card">

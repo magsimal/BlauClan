@@ -69,7 +69,13 @@ app.get('/api/people/:id/spouses', async (req, res) => {
     const spouseId = m.personId == id ? m.spouseId : m.personId;
     const spouse = await Person.findByPk(spouseId);
     if (spouse) {
-      result.push({ marriageId: m.id, dateOfMarriage: m.dateOfMarriage, spouse });
+      result.push({
+        marriageId: m.id,
+        dateOfMarriage: m.dateOfMarriage,
+        marriageApprox: m.marriageApprox,
+        placeOfMarriage: m.placeOfMarriage,
+        spouse,
+      });
     }
   }
   res.json(result);
@@ -85,6 +91,8 @@ app.post('/api/people/:id/spouses', async (req, res) => {
       personId: id,
       spouseId,
       dateOfMarriage: req.body.dateOfMarriage,
+      marriageApprox: req.body.marriageApprox,
+      placeOfMarriage: req.body.placeOfMarriage,
     });
     res.status(201).json(marriage);
   } catch (err) {
@@ -149,6 +157,8 @@ async function buildDescendants(id) {
     node.spouseRelationships.push({
       spouse: spouse.toJSON(),
       dateOfMarriage: m.dateOfMarriage,
+      marriageApprox: m.marriageApprox,
+      placeOfMarriage: m.placeOfMarriage,
       children: childNodes,
     });
   }

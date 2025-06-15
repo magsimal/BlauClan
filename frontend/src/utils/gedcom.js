@@ -24,7 +24,9 @@
   function parseGedcom(text) {
     const lines = text.split(/\r?\n/);
     const people = [];
+    const families = [];
     let person = null;
+    let family = null;
     let ctx = null;
     lines.forEach((raw) => {
       const line = raw.trim();
@@ -32,14 +34,22 @@
       const parts = line.split(/\s+/);
       const level = parts.shift();
       if (parts.length >= 2 && parts[0].startsWith('@') && parts[1] === 'INDI') {
+        if (family) { families.push(family); family = null; }
         if (person) people.push(person);
-        person = {};
+        person = { gedcomId: parts[0] };
         ctx = null;
         return;
       }
-      if (!person) return;
+      if (parts.length >= 2 && parts[0].startsWith('@') && parts[1] === 'FAM') {
+        if (person) { people.push(person); person = null; }
+        if (family) families.push(family);
+        family = { gedcomId: parts[0], children: [] };
+        ctx = null;
+        return;
+      }
       const tag = parts.shift();
       const rest = parts.join(' ');
+      if (person) {
       if (level === '1' && tag === 'NAME') {
         const m = rest.match(/^([^/]*?)\s*\/([^/]*)\//);
         if (m) {
@@ -69,16 +79,33 @@
         }
       } else if (level === '2' && tag === 'PLAC') {
         if (ctx === 'BIRT') person.placeOfBirth = rest.trim();
-      } else if (level === '0') {
-        if (person) {
-          people.push(person);
-          person = null;
+      } else {
+        // end person block
+      }
+      }
+      if (family) {
+        if (level === '1' && tag === 'HUSB') family.husband = rest.trim();
+        else if (level === '1' && tag === 'WIFE') family.wife = rest.trim();
+        else if (level === '1' && tag === 'CHIL') family.children.push(rest.trim());
+        else if (level === '1' && tag === 'MARR') ctx = 'MARR';
+        else if (level === '2' && ctx === 'MARR' && tag === 'DATE') {
+          const iso = toIso(rest.trim());
+          if (iso) family.date = iso; else family.approx = rest.trim();
+        } else if (level === '2' && ctx === 'MARR' && tag === 'PLAC') {
+          family.place = rest.trim();
+        } else if (level === '0') {
+          families.push(family);
+          family = null;
           ctx = null;
         }
+      } else if (level === '0') {
+        if (person) { people.push(person); person = null; ctx = null; }
+        if (family) { families.push(family); family = null; ctx = null; }
       }
     });
     if (person) people.push(person);
-    return people;
+    if (family) families.push(family);
+    return { people, families };
   }
 
   return { parseGedcom };

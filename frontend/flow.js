@@ -688,19 +688,49 @@
         }
 
         async function processImport() {
-          const list = parseGedcom(gedcomText.value || '');
+          const { people: importPeople = [], families = [] } =
+            parseGedcom(gedcomText.value || '');
           const existing = await FrontendApp.fetchPeople();
           const conflictList = [];
-          for (const p of list) {
+          const idMap = {};
+          for (const p of importPeople) {
             const dup = existing.find(
               (e) =>
-                e.firstName === p.firstName &&
-                e.lastName === p.lastName &&
-                (e.dateOfBirth || e.birthApprox || '') ===
-                  (p.dateOfBirth || p.birthApprox || '')
+                (e.gedcomId && p.gedcomId && e.gedcomId === p.gedcomId) ||
+                (e.firstName === p.firstName &&
+                  e.lastName === p.lastName &&
+                  (e.dateOfBirth || e.birthApprox || '') ===
+                    (p.dateOfBirth || p.birthApprox || ''))
             );
-            if (dup) conflictList.push({ existing: dup, incoming: p });
-            else await FrontendApp.createPerson(p);
+            if (dup) {
+              idMap[p.gedcomId] = dup.id;
+              conflictList.push({ existing: dup, incoming: p });
+            } else {
+              const created = await FrontendApp.createPerson(p);
+              idMap[p.gedcomId] = created.id;
+              existing.push(created);
+            }
+          }
+          for (const f of families) {
+            const hus = idMap[f.husband];
+            const wife = idMap[f.wife];
+            if (hus && wife) {
+              await FrontendApp.linkSpouse(hus, wife, {
+                dateOfMarriage: f.date,
+                marriageApprox: f.approx,
+                placeOfMarriage: f.place,
+              });
+            }
+            for (const cId of f.children) {
+              const cid = idMap[cId];
+              if (!cid) continue;
+              const updates = {};
+              if (hus) updates.fatherId = hus;
+              if (wife) updates.motherId = wife;
+              if (Object.keys(updates).length) {
+                await FrontendApp.updatePerson(cid, updates);
+              }
+            }
           }
           conflicts.value = conflictList;
           conflictIndex.value = 0;

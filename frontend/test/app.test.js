@@ -46,8 +46,15 @@ describe('frontend helpers', () => {
 
   test('linkSpouse posts relationship', async () => {
     global.fetch.mockResolvedValue({ ok: true, json: () => ({ id: 1 }) });
-    await linkSpouse(1, 2);
-    expect(global.fetch).toHaveBeenCalledWith('/api/people/1/spouses', expect.objectContaining({ method: 'POST' }));
+    await linkSpouse(1, 2, { dateOfMarriage: '2000-01-01', placeOfMarriage: 'X' });
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/people/1/spouses',
+      expect.objectContaining({ method: 'POST' })
+    );
+    const [, opts] = global.fetch.mock.calls[0];
+    const body = JSON.parse(opts.body);
+    expect(body.placeOfMarriage).toBe('X');
+    expect(body.dateOfMarriage).toBe('2000-01-01');
   });
 
   test('fetchSpouses gets list', async () => {

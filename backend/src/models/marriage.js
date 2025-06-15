@@ -7,6 +7,8 @@ module.exports = (sequelize) => {
       personId: { type: DataTypes.INTEGER, allowNull: false },
       spouseId: { type: DataTypes.INTEGER, allowNull: false },
       dateOfMarriage: DataTypes.DATEONLY,
+      marriageApprox: DataTypes.STRING,
+      placeOfMarriage: DataTypes.STRING,
     },
     { sequelize, modelName: 'Marriage' }
   );
