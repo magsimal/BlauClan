@@ -292,6 +292,29 @@
             .map((n) => n.data);
         }
 
+        function personName(pid) {
+          const pNode = nodes.value.find((n) => n.id === String(pid));
+          if (!pNode) return '';
+          const p = pNode.data;
+          return (p.callName ? p.callName + ' (' + p.firstName + ')' : p.firstName) + ' ' + p.lastName;
+        }
+
+        async function gotoPerson(pid) {
+          if (!pid) return;
+          showModal.value = false;
+          editing.value = false;
+          await nextTick();
+          const node = nodes.value.find((n) => n.id === String(pid));
+          if (!node) return;
+          highlightBloodline(pid);
+          fitView({ nodes: [String(pid)], maxZoom: 1.5, padding: 0.1 });
+          selected.value = { ...node.data, spouseId: '' };
+          useBirthApprox.value = !!selected.value.birthApprox;
+          useDeathApprox.value = !!selected.value.deathApprox;
+          computeChildren(pid);
+          showModal.value = true;
+        }
+
         function handleKeydown(ev) {
           if (ev.key === 'Shift') {
             shiftPressed.value = true;
@@ -1257,6 +1280,8 @@
         menuTidy,
         menuFit,
         overlayClose,
+        gotoPerson,
+        personName,
       };
       },
       template: `
@@ -1437,11 +1462,21 @@
                     >
                   </p>
                   <p v-if="selected.placeOfBirth"><strong>Place of Birth:</strong> {{ selected.placeOfBirth }}</p>
+                  <p v-if="selected.fatherId">
+                    <strong>Father:</strong>
+                    <a href="#" @click.prevent="gotoPerson(selected.fatherId)">{{ personName(selected.fatherId) }}</a>
+                  </p>
+                  <p v-if="selected.motherId">
+                    <strong>Mother:</strong>
+                    <a href="#" @click.prevent="gotoPerson(selected.motherId)">{{ personName(selected.motherId) }}</a>
+                  </p>
                   <p v-if="selected.notes"><strong>Notes:</strong> {{ selected.notes }}</p>
                   <div v-if="children.length" class="mb-2">
                     <strong>Children:</strong>
                     <ul>
-                      <li v-for="c in children" :key="c.id">{{ c.callName ? c.callName + ' (' + c.firstName + ')' : c.firstName }} {{ c.lastName }}</li>
+                      <li v-for="c in children" :key="c.id">
+                        <a href="#" @click.prevent="gotoPerson(c.id)">{{ personName(c.id) }}</a>
+                      </li>
                     </ul>
                   </div>
                   <div class="text-right mt-3">
@@ -1550,7 +1585,7 @@
                     <label>Children</label>
                     <ul>
                       <li v-for="c in children" :key="c.id">
-                        {{ c.callName ? c.callName + ' (' + c.firstName + ')' : c.firstName }} {{ c.lastName }}
+                        <a href="#" @click.prevent="gotoPerson(c.id)">{{ personName(c.id) }}</a>
                         <button class="btn btn-sm btn-danger ml-1" @click="unlinkChild(c)">x</button>
                       </li>
                     </ul>
