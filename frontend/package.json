@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "scripts": {
     "test": "node ../backend/node_modules/jest/bin/jest.js",
-    "lint": "eslint app.js flow.js src/utils/exportSvg.js src/utils/assignGenerations.js test/**/*.js"
+    "lint": "eslint app.js flow.js src/utils/exportSvg.js src/utils/assignGenerations.js src/utils/gedcom.js test/**/*.js"
   },
   "devDependencies": {
     "eslint": "^8.57.0",
