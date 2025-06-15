@@ -16,6 +16,7 @@ module.exports = (sequelize) => {
       placeOfBirth: DataTypes.STRING,
       notes: DataTypes.TEXT,
       avatarUrl: DataTypes.STRING,
+      gedcomId: DataTypes.STRING,
       fatherId: { type: DataTypes.INTEGER, allowNull: true },
       motherId: { type: DataTypes.INTEGER, allowNull: true },
     },

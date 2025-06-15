@@ -42,11 +42,16 @@
     }
   }
 
-  async function linkSpouse(personId, spouseId) {
+  async function linkSpouse(personId, spouseId, options = {}) {
     const res = await fetch(`/api/people/${personId}/spouses`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ spouseId }),
+      body: JSON.stringify({
+        spouseId,
+        dateOfMarriage: options.dateOfMarriage,
+        marriageApprox: options.marriageApprox,
+        placeOfMarriage: options.placeOfMarriage,
+      }),
     });
     if (!res.ok) {
       throw new Error('Failed to link spouse');
