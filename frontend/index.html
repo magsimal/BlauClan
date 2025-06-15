@@ -282,16 +282,22 @@
             <input class="form-control mb-2" type="date" v-model="selectedPerson.dateOfBirth" placeholder="DoB">
           </div>
           <div class="col">
+            <label>Date of Death</label>
+            <input class="form-control mb-2" type="date" v-model="selectedPerson.dateOfDeath" placeholder="DoD">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="col">
             <label>Place of Birth</label>
             <input class="form-control mb-2" v-model="selectedPerson.placeOfBirth" placeholder="Place of Birth">
+          </div>
+          <div class="col">
+            <label>Maiden Name</label>
+            <input class="form-control mb-2" v-model="selectedPerson.maidenName" placeholder="Maiden Name">
           </div>
         </div>
         <button class="btn btn-link p-0 mb-2" type="button" data-toggle="collapse" data-target="#editDetails">More Details</button>
         <div id="editDetails" class="collapse">
-          <label>Maiden Name</label>
-          <input class="form-control mb-2" v-model="selectedPerson.maidenName" placeholder="Maiden Name">
-          <label>Date of Death</label>
-          <input class="form-control mb-2" type="date" v-model="selectedPerson.dateOfDeath" placeholder="DoD">
           <label>Father</label>
           <select class="form-control mb-2" v-model="selectedPerson.fatherId">
             <option value="">Father</option>
