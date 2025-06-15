@@ -228,7 +228,10 @@ app.get('/api/layout', async (_req, res) => {
 
 const PORT = process.env.PORT || 3009;
 if (require.main === module) {
-  sequelize.sync().then(() => {
+  // Use `alter: true` so new fields like `callName` are added automatically
+  // to existing databases without dropping data. This keeps the schema in sync
+  // when models change during development.
+  sequelize.sync({ alter: true }).then(() => {
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
     });
