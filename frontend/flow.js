@@ -1450,7 +1450,7 @@
                     </div>
                   </div>
                   <button class="btn btn-link p-0 mb-2" type="button" data-toggle="collapse" data-target="#modalDetails">More Details</button>
-                  <div id="modalDetails" class="collapse"
+                  <div id="modalDetails" class="collapse">
                     <div class="d-flex align-items-center mb-2">
                       <label class="mr-2 mb-0" style="width: 90px;">Father</label>
                       <select class="form-control flex-fill" v-model="selected.fatherId" title="Select father">
