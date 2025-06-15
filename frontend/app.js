@@ -73,7 +73,11 @@
 
   function parentName(id, people) {
     const p = people.find((x) => x.id === id);
-    return p ? `${p.firstName} ${p.lastName}` : '';
+    if (!p) return '';
+    if (p.callName) {
+      return `${p.callName} (${p.firstName}) ${p.lastName}`;
+    }
+    return `${p.firstName} ${p.lastName}`;
   }
 
   function mountApp() {
@@ -140,6 +144,7 @@
           if (!this.selectedPerson) return;
           const payload = {
             firstName: this.selectedPerson.firstName,
+            callName: this.selectedPerson.callName || '',
             lastName: this.selectedPerson.lastName,
             maidenName: this.selectedPerson.maidenName || '',
             dateOfBirth: this.selectedPerson.dateOfBirth || null,

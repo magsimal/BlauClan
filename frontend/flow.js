@@ -696,6 +696,7 @@
 
         function addPerson(pos) {
           selected.value = {
+            callName: '',
             firstName: '',
             lastName: '',
             maidenName: '',
@@ -723,6 +724,7 @@
         function addChild() {
           const base = { ...selected.value };
           selected.value = {
+            callName: '',
             firstName: '',
             lastName: '',
             maidenName: '',
@@ -742,6 +744,7 @@
         function addSpouse() {
           const base = { ...selected.value };
           selected.value = {
+            callName: '',
             firstName: '',
             lastName: '',
             maidenName: '',
@@ -761,6 +764,7 @@
         function addParent(type) {
           const childId = selected.value.id;
           selected.value = {
+            callName: '',
             firstName: '',
             lastName: '',
             maidenName: '',
@@ -944,6 +948,7 @@
 
         async function saveNewPerson() {
           const payload = {
+            callName: selected.value.callName || '',
             firstName: selected.value.firstName,
             lastName: selected.value.lastName,
             maidenName: selected.value.maidenName || null,
@@ -1142,8 +1147,9 @@
                 <div class="header">
                   <img :src="avatarSrc(data.gender, 40)" class="avatar" />
                   <div class="name-container">
-                    <span :style="{ fontSize: data.firstName && data.firstName.length > 12 ? '0.7rem' : '0.8rem', fontWeight: 'bold' }">{{ data.firstName }}</span>
-                    <span :style="{ fontSize: data.lastName && data.lastName.length > 12 ? '0.7rem' : '0.8rem', fontWeight: 'bold' }">{{ data.lastName }}</span>
+                    <span :style="{ fontSize: (data.callName || data.firstName) && (data.callName || data.firstName).length > 12 ? '0.7rem' : '0.8rem', fontWeight: 'bold' }">{{ data.callName || data.firstName }}</span>
+                    <span v-if="data.callName" :style="{ fontSize: data.firstName && data.firstName.length > 12 ? '0.7rem' : '0.8rem' }"> ({{ data.firstName }})</span>
+                    <span :style="{ fontSize: data.lastName && data.lastName.length > 12 ? '0.7rem' : '0.8rem', fontWeight: 'bold' }"> {{ data.lastName }}</span>
                   </div>
                 </div>
                 <div class="small">{{ data.dateOfBirth }}<span v-if="data.dateOfBirth || data.dateOfDeath"> - </span>{{ data.dateOfDeath }}</div>
@@ -1189,7 +1195,8 @@
                   <div class="d-flex align-items-center mb-3">
                     <img :src="avatarSrc(selected.gender, 80)" class="avatar-placeholder mr-3" />
                     <div class="name-container">
-                      <div class="h4 mb-0" :style="{ fontSize: selected.firstName && selected.firstName.length > 15 ? '1rem' : '1.25rem' }">{{ selected.firstName }}</div>
+                      <div class="h4 mb-0" :style="{ fontSize: (selected.callName || selected.firstName) && (selected.callName || selected.firstName).length > 15 ? '1rem' : '1.25rem' }">{{ selected.callName || selected.firstName }}</div>
+                      <div v-if="selected.callName" class="h4 mb-0" :style="{ fontSize: selected.firstName && selected.firstName.length > 15 ? '1rem' : '1.25rem' }">({{ selected.firstName }})</div>
                       <div class="h4 mb-0" :style="{ fontSize: selected.lastName && selected.lastName.length > 15 ? '1rem' : '1.25rem' }">{{ selected.lastName }}</div>
                     </div>
                   </div>
@@ -1205,7 +1212,7 @@
                   <div v-if="children.length" class="mb-2">
                     <strong>Children:</strong>
                     <ul>
-                      <li v-for="c in children" :key="c.id">{{ c.firstName }} {{ c.lastName }}</li>
+                      <li v-for="c in children" :key="c.id">{{ c.callName ? c.callName + ' (' + c.firstName + ')' : c.firstName }} {{ c.lastName }}</li>
                     </ul>
                   </div>
                   <div class="text-right mt-3">
@@ -1217,6 +1224,10 @@
                   <h3 class="card-title" v-if="isNew">Add Person</h3>
                   <h3 class="card-title" v-else>Edit Person</h3>
                   <div class="form-row">
+                    <div class="col d-flex align-items-center mb-2">
+                      <label class="mr-2 mb-0" style="width: 90px;">Call Name</label>
+                      <input class="form-control flex-fill" v-model="selected.callName" placeholder="Enter call name" title="Preferred name" />
+                    </div>
                     <div class="col d-flex align-items-center mb-2">
                       <label class="mr-2 mb-0" style="width: 90px;">First Name</label>
                       <input class="form-control flex-fill" v-model="selected.firstName" placeholder="Enter first name" title="Given name" />
@@ -1260,21 +1271,21 @@
                       <label class="mr-2 mb-0" style="width: 90px;">Father</label>
                       <select class="form-control flex-fill" v-model="selected.fatherId" title="Select father">
                         <option value="">Father</option>
-                        <option v-for="n in nodes" :key="'f'+n.id" :value="n.data.id">{{ n.data.firstName }} {{ n.data.lastName }}</option>
+                        <option v-for="n in nodes" :key="'f'+n.id" :value="n.data.id">{{ n.data.callName ? n.data.callName + ' (' + n.data.firstName + ')' : n.data.firstName }} {{ n.data.lastName }}</option>
                       </select>
                     </div>
                     <div class="d-flex align-items-center mb-2">
                       <label class="mr-2 mb-0" style="width: 90px;">Mother</label>
                       <select class="form-control flex-fill" v-model="selected.motherId" title="Select mother">
                         <option value="">Mother</option>
-                        <option v-for="n in nodes" :key="'m'+n.id" :value="n.data.id">{{ n.data.firstName }} {{ n.data.lastName }}</option>
+                        <option v-for="n in nodes" :key="'m'+n.id" :value="n.data.id">{{ n.data.callName ? n.data.callName + ' (' + n.data.firstName + ')' : n.data.firstName }} {{ n.data.lastName }}</option>
                       </select>
                     </div>
                     <div class="d-flex align-items-center mb-2">
                       <label class="mr-2 mb-0" style="width: 90px;">Spouse</label>
                       <select class="form-control flex-fill" v-model="selected.spouseId" title="Link spouse">
                         <option value="">Spouse</option>
-                        <option v-for="n in nodes" :key="'s'+n.id" :value="n.data.id">{{ n.data.firstName }} {{ n.data.lastName }}</option>
+                        <option v-for="n in nodes" :key="'s'+n.id" :value="n.data.id">{{ n.data.callName ? n.data.callName + ' (' + n.data.firstName + ')' : n.data.firstName }} {{ n.data.lastName }}</option>
                       </select>
                     </div>
                     <div class="d-flex align-items-center mb-2">
@@ -1286,7 +1297,7 @@
                     <label>Children</label>
                     <ul>
                       <li v-for="c in children" :key="c.id">
-                        {{ c.firstName }} {{ c.lastName }}
+                        {{ c.callName ? c.callName + ' (' + c.firstName + ')' : c.firstName }} {{ c.lastName }}
                         <button class="btn btn-sm btn-danger ml-1" @click="unlinkChild(c)">x</button>
                       </li>
                     </ul>
