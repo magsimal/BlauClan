@@ -11,6 +11,8 @@ module.exports = (sequelize) => {
       gender: DataTypes.STRING,
       dateOfBirth: DataTypes.DATEONLY,
       dateOfDeath: DataTypes.DATEONLY,
+      birthApprox: DataTypes.STRING,
+      deathApprox: DataTypes.STRING,
       placeOfBirth: DataTypes.STRING,
       notes: DataTypes.TEXT,
       avatarUrl: DataTypes.STRING,

@@ -59,6 +59,16 @@ describe('People API', () => {
     expect(updateRes.body.fatherId).toBeNull();
   });
 
+  test('supports approximate dates', async () => {
+    const res = await request(app)
+      .post('/api/people')
+      .send({ firstName: 'Approx', lastName: 'Date', birthApprox: 'ABT 1900' });
+    expect(res.statusCode).toBe(201);
+    expect(res.body.birthApprox).toBe('ABT 1900');
+    const getRes = await request(app).get(`/api/people/${res.body.id}`);
+    expect(getRes.body.birthApprox).toBe('ABT 1900');
+  });
+
   test('exports and imports database', async () => {
     await sequelize.sync({ force: true });
     await request(app).post('/api/people').send({ firstName: 'A', lastName: 'B' });

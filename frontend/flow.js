@@ -6,6 +6,10 @@
   }
 })(this, function () {
   /* global html2canvas, d3, GenerationLayout, AppConfig */
+  const GedcomUtil = typeof require === 'function'
+    ? (() => { try { return require('./src/utils/gedcom'); } catch (e) { return {}; } })()
+    : (typeof window !== 'undefined' ? (window.Gedcom || {}) : {});
+  const parseGedcom = GedcomUtil.parseGedcom || function () { return []; };
   function debounce(fn, delay) {
     let t;
     return function (...args) {
@@ -47,6 +51,13 @@
         const contextMenuVisible = ref(false);
         const contextX = ref(0);
         const contextY = ref(0);
+        const showImport = ref(false);
+        const gedcomText = ref('');
+        const conflicts = ref([]);
+        const conflictIndex = ref(0);
+        const showConflict = ref(false);
+        const useBirthApprox = ref(false);
+        const useDeathApprox = ref(false);
         let longPressTimer = null;
         const UNION_Y_OFFSET = 20;
         let unions = {};
@@ -480,11 +491,15 @@
             clearTimeout(clickTimer);
             clickTimer = null;
             selected.value = { ...evt.node.data, spouseId: '' };
+            useBirthApprox.value = !!selected.value.birthApprox;
+            useDeathApprox.value = !!selected.value.deathApprox;
             computeChildren(evt.node.data.id);
             editing.value = false;
             showModal.value = true;
           } else {
             selected.value = { ...evt.node.data, spouseId: '' };
+            useBirthApprox.value = !!selected.value.birthApprox;
+            useDeathApprox.value = !!selected.value.deathApprox;
             computeChildren(evt.node.data.id);
             editing.value = false;
             showModal.value = false;
@@ -514,7 +529,7 @@
             const payload = { ...selected.value };
             const spouseId = payload.spouseId;
             delete payload.spouseId;
-            ['maidenName', 'dateOfBirth', 'dateOfDeath', 'placeOfBirth', 'notes', 'fatherId', 'motherId'].forEach((f) => {
+            ['maidenName', 'dateOfBirth', 'birthApprox', 'dateOfDeath', 'deathApprox', 'placeOfBirth', 'notes', 'fatherId', 'motherId'].forEach((f) => {
               if (payload[f] === '') payload[f] = null;
             });
             const updated = await FrontendApp.updatePerson(selected.value.id, payload);
@@ -533,6 +548,20 @@
           },
           { deep: true }
         );
+
+        watch(useBirthApprox, (val) => {
+          if (selected.value) {
+            if (val) selected.value.dateOfBirth = '';
+            else selected.value.birthApprox = '';
+          }
+        });
+
+        watch(useDeathApprox, (val) => {
+          if (selected.value) {
+            if (val) selected.value.dateOfDeath = '';
+            else selected.value.deathApprox = '';
+          }
+        });
 
         watch(shiftPressed, (val) => {
           document.body.classList.toggle('multi-select-active', val);
@@ -653,6 +682,60 @@
           snapToGrid.value = !snapToGrid.value;
         }
 
+        function openImport() {
+          gedcomText.value = '';
+          showImport.value = true;
+        }
+
+        async function processImport() {
+          const list = parseGedcom(gedcomText.value || '');
+          const existing = await FrontendApp.fetchPeople();
+          const conflictList = [];
+          for (const p of list) {
+            const dup = existing.find(
+              (e) =>
+                e.firstName === p.firstName &&
+                e.lastName === p.lastName &&
+                (e.dateOfBirth || e.birthApprox || '') ===
+                  (p.dateOfBirth || p.birthApprox || '')
+            );
+            if (dup) conflictList.push({ existing: dup, incoming: p });
+            else await FrontendApp.createPerson(p);
+          }
+          conflicts.value = conflictList;
+          conflictIndex.value = 0;
+          showImport.value = false;
+          if (conflicts.value.length) showConflict.value = true;
+          else await load(true);
+        }
+
+        async function resolveConflict(action) {
+          const c = conflicts.value[conflictIndex.value];
+          if (!c) return;
+          if (action === 'keepBoth') {
+            await FrontendApp.createPerson(c.incoming);
+          } else if (action === 'keepExisting') {
+            // do nothing, keep existing as is
+          } else if (action === 'overwrite') {
+            await FrontendApp.updatePerson(c.existing.id, c.incoming);
+          } else if (action === 'merge') {
+            const updates = {};
+            Object.keys(c.incoming).forEach((k) => {
+              if (!c.existing[k]) updates[k] = c.incoming[k];
+            });
+            if (Object.keys(updates).length)
+              await FrontendApp.updatePerson(c.existing.id, {
+                ...c.existing,
+                ...updates,
+              });
+          }
+          conflictIndex.value += 1;
+          if (conflictIndex.value >= conflicts.value.length) {
+            showConflict.value = false;
+            await load(true);
+          }
+        }
+
         async function onConnect(params) {
           const sH = params.sourceHandle || '';
           const tH = params.targetHandle || '';
@@ -709,16 +792,20 @@
             callName: '',
             firstName: '',
             lastName: '',
-            maidenName: '',
-            dateOfBirth: '',
-            dateOfDeath: '',
-            placeOfBirth: '',
+           maidenName: '',
+           dateOfBirth: '',
+            birthApprox: '',
+           dateOfDeath: '',
+            deathApprox: '',
+           placeOfBirth: '',
             notes: '',
             gender: 'female',
             fatherId: '',
             motherId: '',
             spouseId: '',
           };
+          useBirthApprox.value = false;
+          useDeathApprox.value = false;
           if (!pos) {
             pos = project({
               x: dimensions.value.width / 2,
@@ -737,16 +824,20 @@
             callName: '',
             firstName: '',
             lastName: '',
-            maidenName: '',
-            dateOfBirth: '',
-            dateOfDeath: '',
-            placeOfBirth: '',
+           maidenName: '',
+           dateOfBirth: '',
+            birthApprox: '',
+           dateOfDeath: '',
+            deathApprox: '',
+           placeOfBirth: '',
             notes: '',
             gender: 'female',
             fatherId: base.gender === 'female' ? '' : base.id,
             motherId: base.gender === 'female' ? base.id : '',
             spouseId: '',
           };
+          useBirthApprox.value = false;
+          useDeathApprox.value = false;
           isNew.value = true;
           editing.value = true;
         }
@@ -757,10 +848,12 @@
             callName: '',
             firstName: '',
             lastName: '',
-            maidenName: '',
-            dateOfBirth: '',
-            dateOfDeath: '',
-            placeOfBirth: '',
+           maidenName: '',
+           dateOfBirth: '',
+            birthApprox: '',
+           dateOfDeath: '',
+            deathApprox: '',
+           placeOfBirth: '',
             notes: '',
             gender: 'female',
             fatherId: '',
@@ -769,6 +862,8 @@
           };
           isNew.value = true;
           editing.value = true;
+          useBirthApprox.value = false;
+          useDeathApprox.value = false;
         }
 
         function addParent(type) {
@@ -777,10 +872,12 @@
             callName: '',
             firstName: '',
             lastName: '',
-            maidenName: '',
-            dateOfBirth: '',
-            dateOfDeath: '',
-            placeOfBirth: '',
+           maidenName: '',
+           dateOfBirth: '',
+            birthApprox: '',
+           dateOfDeath: '',
+            deathApprox: '',
+           placeOfBirth: '',
             notes: '',
             gender: 'female',
             fatherId: '',
@@ -790,6 +887,8 @@
           };
           isNew.value = true;
           editing.value = true;
+          useBirthApprox.value = false;
+          useDeathApprox.value = false;
         }
 
         async function deleteSelected() {
@@ -963,7 +1062,9 @@
             lastName: selected.value.lastName,
             maidenName: selected.value.maidenName || null,
             dateOfBirth: selected.value.dateOfBirth || null,
+            birthApprox: selected.value.birthApprox || null,
             dateOfDeath: selected.value.dateOfDeath || null,
+            deathApprox: selected.value.deathApprox || null,
             placeOfBirth: selected.value.placeOfBirth || null,
             notes: selected.value.notes || null,
             gender: selected.value.gender,
@@ -1097,6 +1198,16 @@
         contextMenuVisible,
         contextX,
         contextY,
+        useBirthApprox,
+        useDeathApprox,
+        showImport,
+        gedcomText,
+        processImport,
+        openImport,
+        showConflict,
+        conflicts,
+        conflictIndex,
+        resolveConflict,
         menuAdd,
         menuTidy,
         menuFit,
@@ -1106,10 +1217,13 @@
       template: `
         <div style="width: 100%; height: 100%" @click="contextMenuVisible = false">
           <div id="toolbar">
-            <button class="icon-button" @click="addPerson" title="Add Person">
-              <svg viewBox="0 0 24 24"><path d="M5.25 6.375a4.125 4.125 0 1 1 8.25 0 4.125 4.125 0 0 1-8.25 0ZM2.25 19.125a7.125 7.125 0 0 1 14.25 0v.003l-.001.119a.75.75 0 0 1-.363.63 13.067 13.067 0 0 1-6.761 1.873c-2.472 0-4.786-.684-6.76-1.873a.75.75 0 0 1-.364-.63l-.001-.122ZM18.75 7.5a.75.75 0 0 0-1.5 0v2.25H15a.75.75 0 0 0 0 1.5h2.25v2.25a.75.75 0 0 0 1.5 0v-2.25H21a.75.75 0 0 0 0-1.5h-2.25V7.5Z"/></svg>
-            </button>
-            <button class="icon-button" @click="tidyUpLayout" title="Tidy Up">
+          <button class="icon-button" @click="addPerson" title="Add Person">
+            <svg viewBox="0 0 24 24"><path d="M5.25 6.375a4.125 4.125 0 1 1 8.25 0 4.125 4.125 0 0 1-8.25 0ZM2.25 19.125a7.125 7.125 0 0 1 14.25 0v.003l-.001.119a.75.75 0 0 1-.363.63 13.067 13.067 0 0 1-6.761 1.873c-2.472 0-4.786-.684-6.76-1.873a.75.75 0 0 1-.364-.63l-.001-.122ZM18.75 7.5a.75.75 0 0 0-1.5 0v2.25H15a.75.75 0 0 0 0 1.5h2.25v2.25a.75.75 0 0 0 1.5 0v-2.25H21a.75.75 0 0 0 0-1.5h-2.25V7.5Z"/></svg>
+          </button>
+          <button class="icon-button" @click="openImport" title="Import GEDCOM">
+            <svg viewBox="0 0 24 24"><path d="M4 4h16v2H4zm0 4h10v2H4zm0 4h16v2H4zm0 4h10v2H4z"/></svg>
+          </button>
+          <button class="icon-button" @click="tidyUpLayout" title="Tidy Up">
               <svg viewBox="0 0 24 24">
                 <path d="M19.36,2.72L20.78,4.14L15.06,9.85C16.13,11.39 16.28,13.24 15.38,14.44L9.06,8.12C10.26,7.22 12.11,7.37 13.65,8.44L19.36,2.72M5.93,17.57C3.92,15.56 2.69,13.16 2.35,10.92L7.23,8.83L14.67,16.27L12.58,21.15C10.34,20.81 7.94,19.58 5.93,17.57Z" />
               </svg>
@@ -1200,7 +1314,33 @@
             <li @click="menuFit">Zoom to Fit</li>
           </ul>
 
+          <div v-if="showImport" class="modal">
+            <div class="modal-content card p-3">
+              <h4>Import GEDCOM</h4>
+              <textarea class="form-control mb-2" rows="10" v-model="gedcomText" placeholder="Paste GEDCOM text"></textarea>
+              <div class="text-right">
+                <button class="btn btn-primary btn-sm mr-2" @click="processImport">Import</button>
+                <button class="btn btn-secondary btn-sm" @click="showImport = false">Cancel</button>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="showConflict" class="modal">
+            <div class="modal-content card p-3">
+              <h4>Duplicate Detected</h4>
+              <p><strong>Existing:</strong> {{ conflicts[conflictIndex].existing.firstName }} {{ conflicts[conflictIndex].existing.lastName }}</p>
+              <p><strong>Incoming:</strong> {{ conflicts[conflictIndex].incoming.firstName }} {{ conflicts[conflictIndex].incoming.lastName }}</p>
+              <div class="text-right">
+                <button class="btn btn-sm btn-info mr-2" @click="resolveConflict('keepBoth')">Keep Both</button>
+                <button class="btn btn-sm btn-info mr-2" @click="resolveConflict('keepExisting')">Keep Existing</button>
+                <button class="btn btn-sm btn-warning mr-2" @click="resolveConflict('overwrite')">Overwrite</button>
+                <button class="btn btn-sm btn-success" @click="resolveConflict('merge')">Merge</button>
+              </div>
+            </div>
+          </div>
+
           <div v-if="showModal" class="modal" @click.self="overlayClose">
+
             <div
               class="modal-content card shadow border-0"
               :style="{
@@ -1278,7 +1418,12 @@
                   <div class="form-row">
                     <div class="col d-flex align-items-center mb-2">
                       <label class="mr-2 mb-0" style="width: 90px;">Date of Birth</label>
-                      <input class="form-control flex-fill" v-model="selected.dateOfBirth" type="date" title="Birth date" />
+                      <input v-if="!useBirthApprox" class="form-control flex-fill" v-model="selected.dateOfBirth" type="date" title="Birth date" />
+                      <input v-else class="form-control flex-fill" v-model="selected.birthApprox" placeholder="e.g., ABT 1900" title="Approximate birth" />
+                      <div class="custom-control custom-switch ml-2">
+                        <input type="checkbox" class="custom-control-input" id="birthApproxSwitch" v-model="useBirthApprox" />
+                        <label class="custom-control-label" for="birthApproxSwitch">Approx</label>
+                      </div>
                     </div>
                     <div class="col d-flex align-items-center mb-2">
                       <label class="mr-2 mb-0" style="width: 90px;">Date of Death</label>
@@ -1294,9 +1439,18 @@
                       <label class="mr-2 mb-0" style="width: 90px;">Maiden Name</label>
                       <input class="form-control flex-fill" v-model="selected.maidenName" placeholder="Birth surname" title="Maiden name" />
                     </div>
+                    <div class="d-flex align-items-center mb-2">
+                      <label class="mr-2 mb-0" style="width: 90px;">Date of Death</label>
+                      <input v-if="!useDeathApprox" class="form-control flex-fill" v-model="selected.dateOfDeath" type="date" title="Death date" />
+                      <input v-else class="form-control flex-fill" v-model="selected.deathApprox" placeholder="e.g., BEF 1950" title="Approximate death" />
+                      <div class="custom-control custom-switch ml-2">
+                        <input type="checkbox" class="custom-control-input" id="deathApproxSwitch" v-model="useDeathApprox" />
+                        <label class="custom-control-label" for="deathApproxSwitch">Approx</label>
+                      </div>
+                    </div>
                   </div>
                   <button class="btn btn-link p-0 mb-2" type="button" data-toggle="collapse" data-target="#modalDetails">More Details</button>
-                  <div id="modalDetails" class="collapse">
+                  <div id="modalDetails" class="collapse"
                     <div class="d-flex align-items-center mb-2">
                       <label class="mr-2 mb-0" style="width: 90px;">Father</label>
                       <select class="form-control flex-fill" v-model="selected.fatherId" title="Select father">
