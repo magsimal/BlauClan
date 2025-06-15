@@ -704,7 +704,7 @@
             dateOfDeath: '',
             placeOfBirth: '',
             notes: '',
-            gender: '',
+            gender: 'female',
             fatherId: '',
             motherId: '',
             spouseId: '',
@@ -732,7 +732,7 @@
             dateOfDeath: '',
             placeOfBirth: '',
             notes: '',
-            gender: '',
+            gender: 'female',
             fatherId: base.gender === 'female' ? '' : base.id,
             motherId: base.gender === 'female' ? base.id : '',
             spouseId: '',
@@ -752,7 +752,7 @@
             dateOfDeath: '',
             placeOfBirth: '',
             notes: '',
-            gender: '',
+            gender: 'female',
             fatherId: '',
             motherId: '',
             spouseId: base.id,
@@ -772,7 +772,7 @@
             dateOfDeath: '',
             placeOfBirth: '',
             notes: '',
-            gender: '',
+            gender: 'female',
             fatherId: '',
             motherId: '',
             spouseId: '',
@@ -1240,11 +1240,19 @@
                   <div class="form-row">
                     <div class="col d-flex align-items-center mb-2">
                       <label class="mr-2 mb-0" style="width: 90px;">Gender</label>
-                      <select class="form-control flex-fill" v-model="selected.gender" title="Gender">
-                        <option value="">Please select</option>
-                        <option value="male">Male</option>
-                        <option value="female">Female</option>
-                      </select>
+                      <div class="custom-control custom-switch">
+                        <input
+                          type="checkbox"
+                          class="custom-control-input"
+                          id="genderSwitch"
+                          v-model="selected.gender"
+                          true-value="male"
+                          false-value="female"
+                        />
+                        <label class="custom-control-label" for="genderSwitch">
+                          {{ selected.gender === 'male' ? 'Male' : 'Female' }}
+                        </label>
+                      </div>
                     </div>
                   </div>
                   <div class="form-row">
