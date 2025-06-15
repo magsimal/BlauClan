@@ -77,8 +77,12 @@
         .attr('fill', '#fff')
         .selectAll('tspan')
         .data(function (d) {
-          var born = d.data.dateOfBirth ? String(d.data.dateOfBirth).slice(0, 4) : '';
-          var died = d.data.dateOfDeath ? String(d.data.dateOfDeath).slice(0, 4) : '';
+          var born = '';
+          if (d.data.dateOfBirth) born = String(d.data.dateOfBirth).slice(0, 4);
+          else if (d.data.birthApprox) born = d.data.birthApprox;
+          var died = '';
+          if (d.data.dateOfDeath) died = String(d.data.dateOfDeath).slice(0, 4);
+          else if (d.data.deathApprox) died = d.data.deathApprox;
           return [d.data.firstName + ' ' + d.data.lastName, born + '\u2013' + died];
         })
         .join('tspan')
