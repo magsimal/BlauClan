@@ -296,6 +296,16 @@
           if (ev.key === 'Shift') {
             shiftPressed.value = true;
           }
+          if (ev.key === 'Enter' && editing.value && showModal.value) {
+            ev.preventDefault();
+            if (isNew.value) {
+              saveNewPerson();
+            } else {
+              saveSelected();
+            }
+            cancelModal();
+            return;
+          }
           if (ev.shiftKey && ev.altKey && ev.key.toLowerCase() === 't') {
             ev.preventDefault();
             tidyUpLayout();
@@ -1097,6 +1107,15 @@
          editing.value = false;
        }
 
+       function overlayClose() {
+         if (isNew.value) {
+           saveNewPerson();
+         } else {
+           if (editing.value) saveSelected();
+           cancelModal();
+         }
+       }
+
        function openContextMenu(ev) {
          const point = ev.touches ? ev.touches[0] : ev;
          const rect = document
@@ -1192,6 +1211,7 @@
         menuAdd,
         menuTidy,
         menuFit,
+        overlayClose,
       };
       },
       template: `
@@ -1319,7 +1339,8 @@
             </div>
           </div>
 
-          <div v-if="showModal" class="modal">
+          <div v-if="showModal" class="modal" @click.self="overlayClose">
+
             <div
               class="modal-content card shadow border-0"
               :style="{
@@ -1405,13 +1426,16 @@
                       </div>
                     </div>
                     <div class="col d-flex align-items-center mb-2">
+                      <label class="mr-2 mb-0" style="width: 90px;">Date of Death</label>
+                      <input class="form-control flex-fill" v-model="selected.dateOfDeath" type="date" title="Death date" />
+                    </div>
+                  </div>
+                  <div class="form-row">
+                    <div class="col d-flex align-items-center mb-2">
                       <label class="mr-2 mb-0" style="width: 90px;">Place of Birth</label>
                       <input class="form-control flex-fill" v-model="selected.placeOfBirth" placeholder="City or town" title="Place of birth" />
                     </div>
-                  </div>
-                  <button class="btn btn-link p-0 mb-2" type="button" data-toggle="collapse" data-target="#modalDetails">More Details</button>
-                  <div id="modalDetails" class="collapse">
-                    <div class="d-flex align-items-center mb-2">
+                    <div class="col d-flex align-items-center mb-2">
                       <label class="mr-2 mb-0" style="width: 90px;">Maiden Name</label>
                       <input class="form-control flex-fill" v-model="selected.maidenName" placeholder="Birth surname" title="Maiden name" />
                     </div>
@@ -1424,6 +1448,9 @@
                         <label class="custom-control-label" for="deathApproxSwitch">Approx</label>
                       </div>
                     </div>
+                  </div>
+                  <button class="btn btn-link p-0 mb-2" type="button" data-toggle="collapse" data-target="#modalDetails">More Details</button>
+                  <div id="modalDetails" class="collapse"
                     <div class="d-flex align-items-center mb-2">
                       <label class="mr-2 mb-0" style="width: 90px;">Father</label>
                       <select class="form-control flex-fill" v-model="selected.fatherId" title="Select father">
