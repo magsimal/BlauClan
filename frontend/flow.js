@@ -1286,7 +1286,12 @@
                     <span :style="{ fontSize: data.lastName && data.lastName.length > 12 ? '0.7rem' : '0.8rem', fontWeight: 'bold' }"> {{ data.lastName }}</span>
                   </div>
                 </div>
-                <div class="small">{{ data.dateOfBirth }}<span v-if="data.dateOfBirth || data.dateOfDeath"> - </span>{{ data.dateOfDeath }}</div>
+                <div class="small">
+                  {{ data.dateOfBirth || data.birthApprox }}<span
+                    v-if="(data.dateOfBirth || data.birthApprox) || (data.dateOfDeath || data.deathApprox)"
+                    > - </span
+                  >{{ data.dateOfDeath || data.deathApprox }}
+                </div>
                 <Handle type="source" position="top" id="s-top" />
                 <Handle type="source" position="right" id="s-right" />
                 <Handle type="source" position="bottom" id="s-bottom" />
@@ -1361,11 +1366,28 @@
                     </div>
                   </div>
                   <p v-if="selected.maidenName"><strong>Maiden Name:</strong> {{ selected.maidenName }}</p>
-                  <p v-if="selected.dateOfBirth || selected.dateOfDeath">
+                  <p
+                    v-if="
+                      selected.dateOfBirth ||
+                      selected.birthApprox ||
+                      selected.dateOfDeath ||
+                      selected.deathApprox
+                    "
+                  >
                     <strong>Life:</strong>
-                    <span v-if="selected.dateOfBirth">{{ selected.dateOfBirth }}</span>
-                    <span v-if="selected.dateOfBirth || selected.dateOfDeath"> - </span>
-                    <span v-if="selected.dateOfDeath">{{ selected.dateOfDeath }}</span>
+                    <span v-if="selected.dateOfBirth || selected.birthApprox"
+                      >{{ selected.dateOfBirth || selected.birthApprox }}</span
+                    >
+                    <span
+                      v-if="
+                        (selected.dateOfBirth || selected.birthApprox) ||
+                        (selected.dateOfDeath || selected.deathApprox)
+                      "
+                      > - </span
+                    >
+                    <span v-if="selected.dateOfDeath || selected.deathApprox"
+                      >{{ selected.dateOfDeath || selected.deathApprox }}</span
+                    >
                   </p>
                   <p v-if="selected.placeOfBirth"><strong>Place of Birth:</strong> {{ selected.placeOfBirth }}</p>
                   <p v-if="selected.notes"><strong>Notes:</strong> {{ selected.notes }}</p>
