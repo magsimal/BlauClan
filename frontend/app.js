@@ -76,6 +76,14 @@
     }
   }
 
+  async function clearDatabase() {
+    await fetch('/api/import/db', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ people: [], marriages: [], layouts: [] }),
+    });
+  }
+
   function parentName(id, people) {
     const p = people.find((x) => x.id === id);
     if (!p) return '';
@@ -180,6 +188,7 @@
     linkSpouse,
     fetchSpouses,
     deleteSpouse,
+    clearDatabase,
     parentName,
     mountApp,
   };

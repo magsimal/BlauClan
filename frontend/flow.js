@@ -306,12 +306,17 @@
             cancelModal();
             return;
           }
-          if (ev.shiftKey && ev.altKey && ev.key.toLowerCase() === 't') {
-            ev.preventDefault();
-            tidyUpLayout();
-            return;
-          }
-          if (ev.key !== 'Delete' || !selectedEdge.value) return;
+        if (ev.shiftKey && ev.altKey && ev.key.toLowerCase() === 't') {
+          ev.preventDefault();
+          tidyUpLayout();
+          return;
+        }
+        if ((ev.metaKey || ev.ctrlKey) && ev.shiftKey && ev.key.toLowerCase() === 'a') {
+          ev.preventDefault();
+          addSelectedNodes(nodes.value);
+          return;
+        }
+        if (ev.key !== 'Delete' || !selectedEdge.value) return;
           ev.preventDefault();
           removeSelectedEdge();
         }
@@ -685,6 +690,15 @@
         function openImport() {
           gedcomText.value = '';
           showImport.value = true;
+        }
+
+        async function deleteAll() {
+          const ok = window.confirm('Delete all nodes and edges?');
+          if (!ok) return;
+          await FrontendApp.clearDatabase();
+          nodes.value = [];
+          edges.value = [];
+          try { localStorage.removeItem(TEMP_KEY); } catch (e) { /* ignore */ }
         }
 
         async function processImport() {
@@ -1218,6 +1232,7 @@
         downloadPng,
         downloadSvg,
         toggleSnap,
+        deleteAll,
         snapToGrid,
         horizontalGridSize,
         verticalGridSize,
@@ -1283,6 +1298,9 @@
               <svg viewBox="0 0 24 24">
                 <path d="M3 3h18v18H3V3m2 2v14h14V5H5Z" />
               </svg>
+            </button>
+            <button class="icon-button" @click="deleteAll" title="Delete All" style="border-color:#dc3545;color:#dc3545;">
+              <svg viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-width="2" fill="none"/></svg>
             </button>
           </div>
           <VueFlow
