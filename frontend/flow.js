@@ -1433,8 +1433,8 @@
               </svg>
             </button>
             <button class="icon-button" @click="resetFilters" title="Reset Filters" :disabled="!filterActive">
-              <svg viewBox="0 0 24 24">
-                <path d="M12 5v14m7-7H5" stroke-width="2" fill="none"/>
+              <svg viewBox="0 0 24 24" class="text-success">
+                <path d="M12 4v16M4 12h16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
               </svg>
             </button>
             <button class="icon-button" @click="toggleSnap" :class="{ active: snapToGrid }" :title="snapToGrid ? 'Disable Snap to Grid' : 'Enable Snap to Grid'">
@@ -1613,7 +1613,11 @@
                     <template v-else>
                       <span class="ml-1" style="cursor: pointer;" @click="startAddParent('father')">
                         <svg viewBox="0 0 24 24" class="text-success" style="width: 16px; height: 16px; vertical-align: middle;">
+<<<<<<< codex/remove-delete-children-section-and-update-parent-modal
+                          <path d="M12 4v16M4 12h16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+=======
                           <path d="M12 5v14m7-7H5" stroke-width="2" fill="none"/>
+>>>>>>> main
                         </svg>
                       </span>
                     </template>
@@ -1626,7 +1630,11 @@
                     <template v-else>
                       <span class="ml-1" style="cursor: pointer;" @click="startAddParent('mother')">
                         <svg viewBox="0 0 24 24" class="text-success" style="width: 16px; height: 16px; vertical-align: middle;">
+<<<<<<< codex/remove-delete-children-section-and-update-parent-modal
+                          <path d="M12 4v16M4 12h16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+=======
                           <path d="M12 5v14m7-7H5" stroke-width="2" fill="none"/>
+>>>>>>> main
                         </svg>
                       </span>
                     </template>
