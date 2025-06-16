@@ -149,6 +149,10 @@
       min-width: 350px;
       max-width: 500px;
     }
+    #search-overlay li.active {
+      background-color: #5e72e4;
+      color: #fff;
+    }
     .avatar-placeholder {
       width: 80px;
       height: 80px;
@@ -349,6 +353,12 @@
       </div>
     </div>
     <footer id="footer" class="text-center py-2">&copy; BlauCity 2025</footer>
+  <div id="search-overlay" class="modal">
+    <div class="modal-content card p-3" style="min-width: 300px;">
+      <input type="text" id="search-input" class="form-control mb-2" placeholder="Search..." />
+      <ul id="search-results" class="list-group" style="max-height:200px;overflow-y:auto"></ul>
+    </div>
+  </div>
   </div>
   <script src="assets/js/argon-design-system.min.js"></script>
   <script src="app.js"></script>
@@ -357,6 +367,8 @@
   <script src="src/utils/gedcom.js"></script>
   <script src="src/config.js"></script>
   <script src="flow.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2"></script>
+  <script src="search.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -371,6 +383,7 @@
       updateTheme();
       FrontendApp.mountApp();
       FlowApp.mount();
+      if (window.SearchApp) SearchApp.init();
     });
   </script>
 </body>
