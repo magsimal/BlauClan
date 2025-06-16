@@ -7,6 +7,13 @@
 })(this, function () {
   let people = [];
   let fuse = null;
+  const root = typeof globalThis !== 'undefined'
+    ? globalThis
+    : (typeof window !== 'undefined'
+      ? window
+      : (typeof self !== 'undefined'
+        ? self
+        : (typeof global !== 'undefined' ? global : {})));
   const overlayId = 'search-overlay';
 
   async function init() {
@@ -50,10 +57,12 @@
       e.preventDefault();
       idx = idx < items.length - 1 ? idx + 1 : 0;
       setActive(items, idx);
+      if (items[idx]) items[idx].scrollIntoView({ block: 'nearest' });
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       idx = idx > 0 ? idx - 1 : items.length - 1;
       setActive(items, idx);
+      if (items[idx]) items[idx].scrollIntoView({ block: 'nearest' });
     } else if (e.key === 'Enter') {
       e.preventDefault();
       if (idx >= 0) {
@@ -81,8 +90,8 @@
       li.textContent = `${item.firstName} ${item.lastName}`;
       li.dataset.id = item.id;
       li.addEventListener('click', () => {
-        if (global.FlowApp && typeof global.FlowApp.focusNode === 'function') {
-          global.FlowApp.focusNode(item.id);
+        if (root.FlowApp && typeof root.FlowApp.focusNode === 'function') {
+          root.FlowApp.focusNode(item.id);
         }
         hide();
       });
