@@ -1025,7 +1025,7 @@
             deathApprox: '',
            placeOfBirth: '',
             notes: '',
-            gender: 'female',
+            gender: type === 'father' ? 'male' : 'female',
             fatherId: '',
             motherId: '',
             spouseId: '',
