@@ -53,6 +53,7 @@
           removeSelectedNodes,
           snapToGrid,
           snapGrid,
+          viewport,
         } = useVueFlow();
         const horizontalGridSize =
           (window.AppConfig &&
@@ -62,6 +63,15 @@
           (window.AppConfig &&
             (AppConfig.verticalGridSize || AppConfig.gridSize)) ||
           30;
+        const baseGridSize =
+          (horizontalGridSize + verticalGridSize) / 2;
+
+        function updateGridSize(zoom) {
+          const el = document.getElementById('flow-app');
+          if (!el) return;
+          const size = Math.max(8, baseGridSize / zoom);
+          el.style.backgroundSize = `${size}px ${size}px`;
+        }
         const relativeAttraction =
           (window.AppConfig &&
             (typeof AppConfig.relativeAttraction !== 'undefined'
@@ -463,6 +473,14 @@
           fitView();
           snapGrid.value = [horizontalGridSize, verticalGridSize];
           snapToGrid.value = true;
+          updateGridSize(viewport.value.zoom || 1);
+          watch(
+            viewport,
+            (v) => {
+              updateGridSize(v.zoom);
+            },
+            { deep: true }
+          );
           window.addEventListener('keydown', handleKeydown);
           window.addEventListener('keyup', handleKeyup);
         });
