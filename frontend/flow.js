@@ -18,6 +18,22 @@
     };
   }
 
+  let appState = null;
+
+  function focusNode(pid) {
+    if (!appState) return;
+    const { nodes, fitView, nextTick } = appState;
+    nextTick(() => {
+      const node = nodes.value.find((n) => n.id === String(pid));
+      if (!node) return;
+      fitView({ nodes: [String(pid)], maxZoom: 1.5, padding: 0.1 });
+      node.data.highlight = true;
+      setTimeout(() => {
+        node.data.highlight = false;
+      }, 800);
+    });
+  }
+
   function mount() {
     const { createApp, ref, onMounted, onBeforeUnmount, watch, nextTick } = Vue;
     const { VueFlow, MarkerType, Handle, useZoomPanHelper, useVueFlow } = window.VueFlow;
@@ -1323,14 +1339,16 @@
          tidyUpLayout();
        }
 
-       function menuFit() {
-         contextMenuVisible.value = false;
-         fitView();
-       }
+      function menuFit() {
+        contextMenuVisible.value = false;
+        fitView();
+      }
 
-        return {
-          nodes,
-          edges,
+      appState = { nodes, fitView, nextTick };
+
+       return {
+         nodes,
+         edges,
          onNodeClick,
          onPaneClick,
          onEdgeClick,
@@ -1767,5 +1785,5 @@
     return app.mount('#flow-app');
   }
 
-  return { mount };
+  return { mount, focusNode };
 });
