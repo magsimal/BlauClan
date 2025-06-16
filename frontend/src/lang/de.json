@@ -1,0 +1,18 @@
+{
+  "editPerson": "Person bearbeiten",
+  "callName": "Rufname",
+  "firstName": "Vorname",
+  "lastName": "Nachname",
+  "dateOfBirth": "Geburtsdatum",
+  "dateOfDeath": "Sterbedatum",
+  "placeOfBirth": "Geburtsort",
+  "maidenName": "Geburtsname",
+  "father": "Vater",
+  "mother": "Mutter",
+  "notes": "Notizen",
+  "save": "Speichern",
+  "delete": "Löschen",
+  "spouses": "Ehepartner",
+  "children": "Kinder",
+  "multiSelect": "Mehrfachauswahl"
+}

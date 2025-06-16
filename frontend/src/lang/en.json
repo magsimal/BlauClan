@@ -1,0 +1,18 @@
+{
+  "editPerson": "Edit Person",
+  "callName": "Call Name",
+  "firstName": "First Name",
+  "lastName": "Last Name",
+  "dateOfBirth": "Date of Birth",
+  "dateOfDeath": "Date of Death",
+  "placeOfBirth": "Place of Birth",
+  "maidenName": "Maiden Name",
+  "father": "Father",
+  "mother": "Mother",
+  "notes": "Notes",
+  "save": "Save",
+  "delete": "Delete",
+  "spouses": "Spouses",
+  "children": "Children",
+  "multiSelect": "Multi-select"
+}
