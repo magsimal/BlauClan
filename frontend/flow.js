@@ -1315,14 +1315,49 @@
          editing.value = false;
        }
 
-       function overlayClose() {
-         if (isNew.value) {
-           saveNewPerson();
-         } else {
-           if (editing.value) saveSelected();
-           cancelModal();
-         }
-       }
+      function overlayClose() {
+        if (isNew.value) {
+          saveNewPerson();
+        } else {
+          if (editing.value) saveSelected();
+          cancelModal();
+        }
+      }
+
+      function toGedcomDate(iso) {
+        if (!iso) return '';
+        const [y, m, d] = iso.split('-');
+        const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+        return `${parseInt(d, 10)} ${months[parseInt(m, 10) - 1]} ${y}`;
+      }
+
+      function personToGedcom(p) {
+        const gid = p.gedcomId || `@I${p.id}@`;
+        const lines = [`0 ${gid} INDI`, `1 NAME ${p.firstName || ''} /${p.lastName || ''}/`];
+        if (p.gender) {
+          lines.push(`1 SEX ${p.gender.toLowerCase().startsWith('f') ? 'F' : 'M'}`);
+        }
+        if (p.dateOfBirth || p.birthApprox) {
+          lines.push('1 BIRT');
+          lines.push(`2 DATE ${p.dateOfBirth ? toGedcomDate(p.dateOfBirth) : p.birthApprox}`);
+          if (p.placeOfBirth) lines.push(`2 PLAC ${p.placeOfBirth}`);
+        }
+        if (p.dateOfDeath || p.deathApprox) {
+          lines.push('1 DEAT');
+          lines.push(`2 DATE ${p.dateOfDeath ? toGedcomDate(p.dateOfDeath) : p.deathApprox}`);
+        }
+        return lines.join('\n');
+      }
+
+      async function copyGedcom() {
+        if (!selected.value) return;
+        const text = personToGedcom(selected.value);
+        try {
+          await navigator.clipboard.writeText(text);
+        } catch (e) {
+          console.error('Copy failed', e);
+        }
+      }
 
        function openContextMenu(ev) {
          const point = ev.touches ? ev.touches[0] : ev;
@@ -1424,6 +1459,7 @@
         menuTidy,
         menuFit,
         overlayClose,
+        copyGedcom,
         openFilter,
         resetFilters,
         showFilter,
@@ -1618,7 +1654,10 @@
                 borderStyle: 'solid',
               }"
             >
-              <div class="card-body p-3" style="max-height: 80vh; overflow-y: auto;">
+              <div class="card-body p-3" style="position:relative;max-height: 80vh; overflow-y: auto;">
+                <button class="icon-button copy-btn" @click="copyGedcom" title="Copy GEDCOM">
+                  <span class="material-icons" style="font-size:16px;">content_copy</span>
+                </button>
                 <template v-if="!editing && !isNew">
                   <div class="d-flex align-items-center mb-3">
                     <img :src="avatarSrc(selected.gender, 80)" class="avatar-placeholder mr-3" />
