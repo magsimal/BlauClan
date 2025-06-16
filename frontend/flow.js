@@ -1037,6 +1037,14 @@
           useDeathApprox.value = false;
         }
 
+        function startAddParent(type) {
+          showModal.value = false;
+          addParent(type);
+          nextTick(() => {
+            showModal.value = true;
+          });
+        }
+
         async function deleteSelected() {
           if (!selected.value) return;
           const id = selected.value.id;
@@ -1335,6 +1343,7 @@
           addChild,
           addSpouse,
           addParent,
+          startAddParent,
           selected,
           showModal,
           children,
@@ -1424,8 +1433,8 @@
               </svg>
             </button>
             <button class="icon-button" @click="resetFilters" title="Reset Filters" :disabled="!filterActive">
-              <svg viewBox="0 0 24 24">
-                <path d="M12 5v14m7-7H5" stroke-width="2" fill="none"/>
+              <svg viewBox="0 0 24 24" class="text-success">
+                <path d="M12 4v16M4 12h16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
               </svg>
             </button>
             <button class="icon-button" @click="toggleSnap" :class="{ active: snapToGrid }" :title="snapToGrid ? 'Disable Snap to Grid' : 'Enable Snap to Grid'">
@@ -1596,13 +1605,31 @@
                     >
                   </p>
                   <p v-if="selected.placeOfBirth"><strong>Place of Birth:</strong> {{ selected.placeOfBirth }}</p>
-                  <p v-if="selected.fatherId">
+                  <p>
                     <strong>Father:</strong>
-                    <a href="#" @click.prevent="gotoPerson(selected.fatherId)">{{ personName(selected.fatherId) }}</a>
+                    <template v-if="selected.fatherId">
+                      <a href="#" @click.prevent="gotoPerson(selected.fatherId)">{{ personName(selected.fatherId) }}</a>
+                    </template>
+                    <template v-else>
+                      <span class="ml-1" style="cursor: pointer;" @click="startAddParent('father')">
+                        <svg viewBox="0 0 24 24" class="text-success" style="width: 16px; height: 16px; vertical-align: middle;">
+                          <path d="M12 4v16M4 12h16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+                        </svg>
+                      </span>
+                    </template>
                   </p>
-                  <p v-if="selected.motherId">
+                  <p>
                     <strong>Mother:</strong>
-                    <a href="#" @click.prevent="gotoPerson(selected.motherId)">{{ personName(selected.motherId) }}</a>
+                    <template v-if="selected.motherId">
+                      <a href="#" @click.prevent="gotoPerson(selected.motherId)">{{ personName(selected.motherId) }}</a>
+                    </template>
+                    <template v-else>
+                      <span class="ml-1" style="cursor: pointer;" @click="startAddParent('mother')">
+                        <svg viewBox="0 0 24 24" class="text-success" style="width: 16px; height: 16px; vertical-align: middle;">
+                          <path d="M12 4v16M4 12h16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+                        </svg>
+                      </span>
+                    </template>
                   </p>
                   <p v-if="selected.notes"><strong>Notes:</strong> {{ selected.notes }}</p>
                   <div v-if="children.length" class="mb-2">
@@ -1714,15 +1741,6 @@
                       <label class="mr-2 mb-0" style="width: 90px;">Notes</label>
                       <textarea class="form-control flex-fill" v-model="selected.notes" placeholder="Additional info" title="Notes"></textarea>
                     </div>
-                  </div>
-                  <div v-if="children.length" class="mb-2">
-                    <label>Children</label>
-                    <ul>
-                      <li v-for="c in children" :key="c.id">
-                        <a href="#" @click.prevent="gotoPerson(c.id)">{{ personName(c.id) }}</a>
-                        <button class="btn btn-sm btn-danger ml-1" @click="unlinkChild(c)">x</button>
-                      </li>
-                    </ul>
                   </div>
                   <div class="text-right mt-3">
                     <button v-if="!isNew" @click="deleteSelected" class="btn btn-danger btn-sm mr-2">Delete</button>
