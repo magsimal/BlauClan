@@ -1524,58 +1524,58 @@
       template: `
         <div style="width: 100%; height: 100%" @click="contextMenuVisible = false">
           <div id="toolbar">
-          <button class="icon-button" @click="addPerson" title="Add Person">
+          <button class="icon-button" @click="addPerson" title="Add Person" data-i18n-title="addPerson">
             <svg viewBox="0 0 24 24"><path d="M5.25 6.375a4.125 4.125 0 1 1 8.25 0 4.125 4.125 0 0 1-8.25 0ZM2.25 19.125a7.125 7.125 0 0 1 14.25 0v.003l-.001.119a.75.75 0 0 1-.363.63 13.067 13.067 0 0 1-6.761 1.873c-2.472 0-4.786-.684-6.76-1.873a.75.75 0 0 1-.364-.63l-.001-.122ZM18.75 7.5a.75.75 0 0 0-1.5 0v2.25H15a.75.75 0 0 0 0 1.5h2.25v2.25a.75.75 0 0 0 1.5 0v-2.25H21a.75.75 0 0 0 0-1.5h-2.25V7.5Z"/></svg>
           </button>
-          <button class="icon-button" @click="openImport" title="Import GEDCOM">
+          <button class="icon-button" @click="openImport" title="Import GEDCOM" data-i18n-title="importGedcom">
             <svg viewBox="0 0 24 24"><path d="M4 4h16v2H4zm0 4h10v2H4zm0 4h16v2H4zm0 4h10v2H4z"/></svg>
           </button>
-          <button class="icon-button" @click="tidyUpLayout" title="Tidy Up">
+          <button class="icon-button" @click="tidyUpLayout" title="Tidy Up" data-i18n-title="tidyUp">
               <svg viewBox="0 0 24 24">
                 <path d="M19.36,2.72L20.78,4.14L15.06,9.85C16.13,11.39 16.28,13.24 15.38,14.44L9.06,8.12C10.26,7.22 12.11,7.37 13.65,8.44L19.36,2.72M5.93,17.57C3.92,15.56 2.69,13.16 2.35,10.92L7.23,8.83L14.67,16.27L12.58,21.15C10.34,20.81 7.94,19.58 5.93,17.57Z" />
               </svg>
             </button>
-            <button class="icon-button" @click="saveLayout" title="Save Layout">
+            <button class="icon-button" @click="saveLayout" title="Save Layout" data-i18n-title="saveLayout">
               <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2.25a.75.75 0 0 1 .75.75v11.69l3.22-3.22a.75.75 0 1 1 1.06 1.06l-4.5 4.5a.75.75 0 0 1-1.06 0l-4.5-4.5a.75.75 0 1 1 1.06-1.06l3.22 3.22V3a.75.75 0 0 1 .75-.75Zm-9 13.5a.75.75 0 0 1 .75.75v2.25a1.5 1.5 0 0 0 1.5 1.5h13.5a1.5 1.5 0 0 0 1.5-1.5V16.5a.75.75 0 0 1 1.5 0v2.25a3 3 0 0 1-3 3H5.25a3 3 0 0 1-3-3V16.5a.75.75 0 0 1 .75-.75Z" clip-rule="evenodd"/></svg>
             </button>
-            <button class="icon-button" @click="loadLayout" title="Reload Layout">
+            <button class="icon-button" @click="loadLayout" title="Reload Layout" data-i18n-title="loadLayout">
               <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M4.755 10.059a7.5 7.5 0 0 1 12.548-3.364l1.903 1.903h-3.183a.75.75 0 1 0 0 1.5h4.992a.75.75 0 0 0 .75-.75V4.356a.75.75 0 0 0-1.5 0v3.18l-1.9-1.9A9 9 0 0 0 3.306 9.67a.75.75 0 1 0 1.45.388Zm15.408 3.352a.75.75 0 0 0-.919.53 7.5 7.5 0 0 1-12.548 3.364l-1.902-1.903h3.183a.75.75 0 0 0 0-1.5H2.984a.75.75 0 0 0-.75.75v4.992a.75.75 0 0 0 1.5 0v-3.18l1.9 1.9a9 9 0 0 0 15.059-4.035.75.75 0 0 0-.53-.918Z" clip-rule="evenodd"/></svg>
             </button>
-            <button class="icon-button" @click="fitView" title="Fit to Screen">
+            <button class="icon-button" @click="fitView" title="Fit to Screen" data-i18n-title="fitToScreen">
               <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M15 3.75a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0V5.56l-3.97 3.97a.75.75 0 1 1-1.06-1.06l3.97-3.97h-2.69a.75.75 0 0 1-.75-.75Zm-12 0A.75.75 0 0 1 3.75 3h4.5a.75.75 0 0 1 0 1.5H5.56l3.97 3.97a.75.75 0 0 1-1.06 1.06L4.5 5.56v2.69a.75.75 0 0 1-1.5 0v-4.5Zm11.47 11.78a.75.75 0 1 1 1.06-1.06l3.97 3.97v-2.69a.75.75 0 0 1 1.5 0v4.5a.75.75 0 0 1-.75.75h-4.5a.75.75 0 0 1 0-1.5h2.69l-3.97-3.97Zm-4.94-1.06a.75.75 0 0 1 0 1.06L5.56 19.5h2.69a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1-.75-.75v-4.5a.75.75 0 0 1 1.5 0v2.69l3.97-3.97a.75.75 0 0 1 1.06 0Z" clip-rule="evenodd"/></svg>
             </button>
-            <button class="icon-button" @click="downloadPng" title="Download PNG">
+            <button class="icon-button" @click="downloadPng" title="Download PNG" data-i18n-title="downloadPng">
               <svg viewBox="0 0 24 24">
                 <path d="M12 9a3.75 3.75 0 1 0 0 7.5A3.75 3.75 0 0 0 12 9Z"/>
                 <path fill-rule="evenodd" d="M9.344 3.071a49.52 49.52 0 0 1 5.312 0c.967.052 1.83.585 2.332 1.39l.821 1.317c.24.383.645.643 1.11.71.386.054.77.113 1.152.177 1.432.239 2.429 1.493 2.429 2.909V18a3 3 0 0 1-3 3h-15a3 3 0 0 1-3-3V9.574c0-1.416.997-2.67 2.429-2.909.382-.064.766-.123 1.151-.178a1.56 1.56 0 0 0 1.11-.71l.822-1.315a2.942 2.942 0 0 1 2.332-1.39ZM6.75 12.75a5.25 5.25 0 1 1 10.5 0 5.25 5.25 0 0 1-10.5 0Zm12-1.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clip-rule="evenodd"/>
               </svg>
             </button>
-            <button class="icon-button" @click="downloadSvg" title="Download SVG">
+            <button class="icon-button" @click="downloadSvg" title="Download SVG" data-i18n-title="downloadSvg">
               <svg viewBox="0 0 24 24">
                 <path d="M11.25 3h1.5v10.379l3.47-3.47 1.06 1.06-5 5a.75.75 0 0 1-1.06 0l-5-5 1.06-1.06 3.47 3.47V3z"/>
                 <path d="M4.5 18.75h15v1.5h-15z"/>
               </svg>
             </button>
-            <button class="icon-button" @click="openFilter" title="Filter Nodes">
+            <button class="icon-button" @click="openFilter" title="Filter Nodes" data-i18n-title="filterNodes">
               <svg viewBox="0 0 24 24">
                 <path d="M3 4h18L13 14v6l-2 2v-8L3 4z"/>
               </svg>
             </button>
-            <button class="icon-button" @click="resetFilters" title="Reset Filters" :disabled="!filterActive">
+            <button class="icon-button" @click="resetFilters" title="Reset Filters" :disabled="!filterActive" data-i18n-title="resetFilters">
               <svg viewBox="0 0 24 24" class="text-success">
                 <path d="M12 4v16M4 12h16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
               </svg>
             </button>
-            <button class="icon-button" @click="toggleSnap" :class="{ active: snapToGrid }" :title="snapToGrid ? 'Disable Snap to Grid' : 'Enable Snap to Grid'">
+            <button class="icon-button" @click="toggleSnap" :class="{ active: snapToGrid }" :title="snapToGrid ? I18n.t('disableSnap') : I18n.t('enableSnap')" data-i18n-title="snapToGrid">
               <svg viewBox="0 0 24 24">
                 <path d="M3 3h18v18H3V3m2 2v14h14V5H5Z" />
               </svg>
             </button>
-            <button v-if="showDeleteAllButton" class="icon-button" @click="deleteAll" title="Delete All" style="border-color:#dc3545;color:#dc3545;">
+            <button v-if="showDeleteAllButton" class="icon-button" @click="deleteAll" title="Delete All" style="border-color:#dc3545;color:#dc3545;" data-i18n-title="deleteAll">
               <svg viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-width="2" fill="none"/></svg>
             </button>
           </div>
-          <button id="searchTrigger" class="icon-button" style="position:absolute;top:10px;right:10px;z-index:30;" @click="triggerSearch">
+          <button id="searchTrigger" class="icon-button" style="position:absolute;top:10px;right:10px;z-index:30;" @click="triggerSearch" data-i18n-title="search" title="Search">
             <svg viewBox="0 0 24 24">
               <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM10.5 14a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/>
             </svg>
@@ -1603,7 +1603,7 @@
             <template #node-person="{ data }">
               <div class="person-node" :class="{ 'highlight-node': data.highlight, 'faded-node': (selected || filterActive) && !data.highlight }" :style="{ borderColor: data.gender === 'female' ? '#f8c' : (data.gender === 'male' ? '#88f' : '#ccc') }">
                 <div class="header">
-                  <img :src="avatarSrc(data.gender, 40)" class="avatar" />
+                  <img :src="avatarSrc(data.gender, 40)" class="avatar" data-i18n-alt="avatar" />
                   <div class="name-container">
                     <span :style="{ fontSize: (data.callName || data.firstName) && (data.callName || data.firstName).length > 12 ? '0.7rem' : '0.8rem', fontWeight: 'bold' }">{{ data.callName || data.firstName }}</span>
                     <span v-if="data.callName" :style="{ fontSize: data.firstName && data.firstName.length > 12 ? '0.7rem' : '0.8rem' }"> ({{ data.firstName }})</span>
@@ -1646,50 +1646,50 @@
 
           <div v-if="showImport" class="modal">
             <div class="modal-content card p-3">
-              <h4>Import GEDCOM</h4>
-              <textarea class="form-control mb-2" rows="10" v-model="gedcomText" placeholder="Paste GEDCOM text"></textarea>
+              <h4 data-i18n="importGedcom">Import GEDCOM</h4>
+              <textarea class="form-control mb-2" rows="10" v-model="gedcomText" placeholder="Paste GEDCOM text" data-i18n-placeholder="pasteGedcom"></textarea>
               <div class="text-right">
-                <button class="btn btn-primary btn-sm mr-2" @click="processImport">Import</button>
-                <button class="btn btn-secondary btn-sm" @click="showImport = false">Cancel</button>
+                <button class="btn btn-primary btn-sm mr-2" @click="processImport" data-i18n="import">Import</button>
+                <button class="btn btn-secondary btn-sm" @click="showImport = false" data-i18n="cancel">Cancel</button>
               </div>
           </div>
         </div>
 
         <div v-if="showFilter" class="modal">
           <div class="modal-content card p-3">
-            <h4>Filter Nodes</h4>
+            <h4 data-i18n="filterNodes">Filter Nodes</h4>
             <div class="form-check">
               <input class="form-check-input" type="checkbox" id="f1" v-model="filters.missingParents">
-              <label class="form-check-label" for="f1">Missing father or mother</label>
+              <label class="form-check-label" for="f1" data-i18n="missingParents">Missing father or mother</label>
             </div>
             <div class="form-check">
               <input class="form-check-input" type="checkbox" id="f2" v-model="filters.missingBirth">
-              <label class="form-check-label" for="f2">Missing Date of Birth</label>
+              <label class="form-check-label" for="f2" data-i18n="missingBirth">Missing Date of Birth</label>
             </div>
             <div class="form-check">
               <input class="form-check-input" type="checkbox" id="f3" v-model="filters.missingDeath">
-              <label class="form-check-label" for="f3">Missing Date of Death</label>
+              <label class="form-check-label" for="f3" data-i18n="missingDeath">Missing Date of Death</label>
             </div>
             <div class="form-check">
               <input class="form-check-input" type="checkbox" id="f4" v-model="filters.missingMaiden">
-              <label class="form-check-label" for="f4">Females without maiden name</label>
+              <label class="form-check-label" for="f4" data-i18n="missingMaiden">Females without maiden name</label>
             </div>
             <div class="text-right mt-2">
-              <button class="btn btn-primary btn-sm mr-2" @click="showFilter = false">Close</button>
+              <button class="btn btn-primary btn-sm mr-2" @click="showFilter = false" data-i18n="close">Close</button>
             </div>
           </div>
         </div>
 
         <div v-if="showConflict" class="modal">
             <div class="modal-content card p-3">
-              <h4>Duplicate Detected</h4>
-              <p><strong>Existing:</strong> {{ conflicts[conflictIndex].existing.firstName }} {{ conflicts[conflictIndex].existing.lastName }}</p>
-              <p><strong>Incoming:</strong> {{ conflicts[conflictIndex].incoming.firstName }} {{ conflicts[conflictIndex].incoming.lastName }}</p>
+              <h4 data-i18n="duplicateDetected">Duplicate Detected</h4>
+              <p><strong data-i18n="existing">Existing:</strong> {{ conflicts[conflictIndex].existing.firstName }} {{ conflicts[conflictIndex].existing.lastName }}</p>
+              <p><strong data-i18n="incoming">Incoming:</strong> {{ conflicts[conflictIndex].incoming.firstName }} {{ conflicts[conflictIndex].incoming.lastName }}</p>
               <div class="text-right">
-                <button class="btn btn-sm btn-info mr-2" @click="resolveConflict('keepBoth')">Keep Both</button>
-                <button class="btn btn-sm btn-info mr-2" @click="resolveConflict('keepExisting')">Keep Existing</button>
-                <button class="btn btn-sm btn-warning mr-2" @click="resolveConflict('overwrite')">Overwrite</button>
-                <button class="btn btn-sm btn-success" @click="resolveConflict('merge')">Merge</button>
+                <button class="btn btn-sm btn-info mr-2" @click="resolveConflict('keepBoth')" data-i18n="keepBoth">Keep Both</button>
+                <button class="btn btn-sm btn-info mr-2" @click="resolveConflict('keepExisting')" data-i18n="keepExisting">Keep Existing</button>
+                <button class="btn btn-sm btn-warning mr-2" @click="resolveConflict('overwrite')" data-i18n="overwrite">Overwrite</button>
+                <button class="btn btn-sm btn-success" @click="resolveConflict('merge')" data-i18n="merge">Merge</button>
               </div>
             </div>
           </div>
@@ -1706,19 +1706,19 @@
               }"
             >
               <div class="card-body p-3" style="position:relative;max-height: 80vh; overflow-y: auto;">
-                <button class="icon-button copy-btn" @click="copyGedcom" title="Copy GEDCOM">
+                <button class="icon-button copy-btn" @click="copyGedcom" title="Copy GEDCOM" data-i18n-title="copyGedcom">
                   <span class="material-icons" style="font-size:16px;">content_copy</span>
                 </button>
                 <template v-if="!editing && !isNew">
                   <div class="d-flex align-items-center mb-3">
-                    <img :src="avatarSrc(selected.gender, 80)" class="avatar-placeholder mr-3" />
+                    <img :src="avatarSrc(selected.gender, 80)" class="avatar-placeholder mr-3" data-i18n-alt="avatar" />
                     <div class="name-container">
                       <div class="h4 mb-0" :style="{ fontSize: (selected.callName || selected.firstName) && (selected.callName || selected.firstName).length > 15 ? '1rem' : '1.25rem' }">{{ selected.callName || selected.firstName }}</div>
                       <div v-if="selected.callName" class="h4 mb-0" :style="{ fontSize: selected.firstName && selected.firstName.length > 15 ? '1rem' : '1.25rem' }">({{ selected.firstName }})</div>
                       <div class="h4 mb-0" :style="{ fontSize: selected.lastName && selected.lastName.length > 15 ? '1rem' : '1.25rem' }">{{ selected.lastName }}</div>
                     </div>
                   </div>
-                  <p v-if="selected.maidenName"><strong>Maiden Name:</strong> {{ selected.maidenName }}</p>
+                  <p v-if="selected.maidenName"><strong data-i18n="maidenNameLabel">Maiden Name:</strong> {{ selected.maidenName }}</p>
                   <p
                     v-if="
                       selected.dateOfBirth ||
@@ -1727,7 +1727,7 @@
                       selected.deathApprox
                     "
                   >
-                    <strong>Life:</strong>
+                    <strong data-i18n="life">Life:</strong>
                     <span v-if="selected.dateOfBirth || selected.birthApprox"
                       >{{ selected.dateOfBirth || selected.birthApprox }}</span
                     >
@@ -1742,44 +1742,36 @@
                       >{{ selected.dateOfDeath || selected.deathApprox }}</span
                     >
                   </p>
-                  <p v-if="selected.placeOfBirth"><strong>Place of Birth:</strong> {{ selected.placeOfBirth }}</p>
+                  <p v-if="selected.placeOfBirth"><strong data-i18n="placeOfBirthLabel">Place of Birth:</strong> {{ selected.placeOfBirth }}</p>
                   <p>
-                    <strong>Father:</strong>
+                    <strong data-i18n="fatherLabel">Father:</strong>
                     <template v-if="selected.fatherId">
                       <a href="#" @click.prevent="gotoPerson(selected.fatherId)">{{ personName(selected.fatherId) }}</a>
                     </template>
                     <template v-else>
                       <span class="ml-1" style="cursor: pointer;" @click="startAddParent('father')">
                         <svg viewBox="0 0 24 24" class="text-success" style="width: 16px; height: 16px; vertical-align: middle;">
-<<<<<<< codex/remove-delete-children-section-and-update-parent-modal
                           <path d="M12 4v16M4 12h16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
-=======
-                          <path d="M12 5v14m7-7H5" stroke-width="2" fill="none"/>
->>>>>>> main
                         </svg>
                       </span>
                     </template>
                   </p>
                   <p>
-                    <strong>Mother:</strong>
+                    <strong data-i18n="motherLabel">Mother:</strong>
                     <template v-if="selected.motherId">
                       <a href="#" @click.prevent="gotoPerson(selected.motherId)">{{ personName(selected.motherId) }}</a>
                     </template>
                     <template v-else>
                       <span class="ml-1" style="cursor: pointer;" @click="startAddParent('mother')">
                         <svg viewBox="0 0 24 24" class="text-success" style="width: 16px; height: 16px; vertical-align: middle;">
-<<<<<<< codex/remove-delete-children-section-and-update-parent-modal
                           <path d="M12 4v16M4 12h16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
-=======
-                          <path d="M12 5v14m7-7H5" stroke-width="2" fill="none"/>
->>>>>>> main
                         </svg>
                       </span>
                     </template>
                   </p>
-                  <p v-if="selected.notes"><strong>Notes:</strong> {{ selected.notes }}</p>
+                  <p v-if="selected.notes"><strong data-i18n="notesLabel">Notes:</strong> {{ selected.notes }}</p>
                   <div v-if="children.length" class="mb-2">
-                    <strong>Children:</strong>
+                    <strong data-i18n="childrenLabel">Children:</strong>
                     <ul>
                       <li v-for="c in children" :key="c.id">
                         <a href="#" @click.prevent="gotoPerson(c.id)">{{ personName(c.id) }}</a>
@@ -1787,30 +1779,30 @@
                     </ul>
                   </div>
                   <div class="text-right mt-3">
-                    <button class="btn btn-primary btn-sm mr-2" @click="editing = true">Edit</button>
-                    <button class="btn btn-secondary btn-sm" @click="cancelModal">Close</button>
+                    <button class="btn btn-primary btn-sm mr-2" @click="editing = true" data-i18n="edit">Edit</button>
+                    <button class="btn btn-secondary btn-sm" @click="cancelModal" data-i18n="close">Close</button>
                   </div>
                 </template>
                 <template v-else>
-                  <h3 class="card-title" v-if="isNew">Add Person</h3>
-                  <h3 class="card-title" v-else>Edit Person</h3>
+                  <h3 class="card-title" v-if="isNew" data-i18n="addPerson">Add Person</h3>
+                  <h3 class="card-title" v-else data-i18n="editPerson">Edit Person</h3>
                   <div class="form-row">
                     <div class="col d-flex align-items-center mb-2">
-                      <label class="mr-2 mb-0" style="width: 90px;">Call Name</label>
-                      <input class="form-control flex-fill" v-model="selected.callName" placeholder="Enter call name" title="Preferred name" />
+                      <label class="mr-2 mb-0" style="width: 90px;" data-i18n="callName">Call Name</label>
+                      <input class="form-control flex-fill" v-model="selected.callName" placeholder="Enter call name" title="Preferred name" data-i18n-placeholder="callName" />
                     </div>
                     <div class="col d-flex align-items-center mb-2">
-                      <label class="mr-2 mb-0" style="width: 90px;">First Name</label>
-                      <input class="form-control flex-fill" v-model="selected.firstName" placeholder="Enter first name" title="Given name" />
+                      <label class="mr-2 mb-0" style="width: 90px;" data-i18n="firstName">First Name</label>
+                      <input class="form-control flex-fill" v-model="selected.firstName" placeholder="Enter first name" title="Given name" data-i18n-placeholder="firstName" />
                     </div>
                     <div class="col d-flex align-items-center mb-2">
-                      <label class="mr-2 mb-0" style="width: 90px;">Last Name</label>
-                      <input class="form-control flex-fill" v-model="selected.lastName" placeholder="Enter last name" title="Family name" />
+                      <label class="mr-2 mb-0" style="width: 90px;" data-i18n="lastName">Last Name</label>
+                      <input class="form-control flex-fill" v-model="selected.lastName" placeholder="Enter last name" title="Family name" data-i18n-placeholder="lastName" />
                     </div>
                   </div>
                   <div class="form-row">
                     <div class="col d-flex align-items-center mb-2">
-                      <label class="mr-2 mb-0" style="width: 90px;">Gender</label>
+                      <label class="mr-2 mb-0" style="width: 90px;" data-i18n="gender">Gender</label>
                       <div class="custom-control custom-switch">
                         <input
                           type="checkbox"
@@ -1821,73 +1813,73 @@
                           false-value="female"
                         />
                         <label class="custom-control-label" for="genderSwitch">
-                          {{ selected.gender === 'male' ? 'Male' : 'Female' }}
+                          {{ selected.gender === 'male' ? I18n.t('male') : I18n.t('female') }}
                         </label>
                       </div>
                     </div>
                   </div>
                   <div class="form-row">
                     <div class="col d-flex align-items-center mb-2">
-                      <label class="mr-2 mb-0" style="width: 90px;">Date of Birth</label>
+                      <label class="mr-2 mb-0" style="width: 90px;" data-i18n="dateOfBirth">Date of Birth</label>
                       <input v-if="!useBirthApprox" class="form-control flex-fill" v-model="selected.dateOfBirth" type="date" title="Birth date" />
-                      <input v-else class="form-control flex-fill" v-model="selected.birthApprox" placeholder="e.g., ABT 1900" title="Approximate birth" />
+                      <input v-else class="form-control flex-fill" v-model="selected.birthApprox" placeholder="e.g., ABT 1900" title="Approximate birth" data-i18n-placeholder="approxExample" />
                       <div class="custom-control custom-switch ml-2">
                         <input type="checkbox" class="custom-control-input" id="birthApproxSwitch" v-model="useBirthApprox" />
-                        <label class="custom-control-label" for="birthApproxSwitch">Approx</label>
+                        <label class="custom-control-label" for="birthApproxSwitch" data-i18n="approx">Approx</label>
                       </div>
                     </div>
                   </div>
                   <div class="form-row">
                     <div class="col d-flex align-items-center mb-2">
-                      <label class="mr-2 mb-0" style="width: 90px;">Place of Birth</label>
-                      <input class="form-control flex-fill" v-model="selected.placeOfBirth" placeholder="City or town" title="Place of birth" />
+                      <label class="mr-2 mb-0" style="width: 90px;" data-i18n="placeOfBirth">Place of Birth</label>
+                      <input class="form-control flex-fill" v-model="selected.placeOfBirth" placeholder="City or town" title="Place of birth" data-i18n-placeholder="placeOfBirth" />
                     </div>
                     <div class="col d-flex align-items-center mb-2">
-                      <label class="mr-2 mb-0" style="width: 90px;">Maiden Name</label>
-                      <input class="form-control flex-fill" v-model="selected.maidenName" placeholder="Birth surname" title="Maiden name" />
+                      <label class="mr-2 mb-0" style="width: 90px;" data-i18n="maidenName">Maiden Name</label>
+                      <input class="form-control flex-fill" v-model="selected.maidenName" placeholder="Birth surname" title="Maiden name" data-i18n-placeholder="maidenName" />
                     </div>
                     <div class="d-flex align-items-center mb-2">
-                      <label class="mr-2 mb-0" style="width: 90px;">Date of Death</label>
+                      <label class="mr-2 mb-0" style="width: 90px;" data-i18n="dateOfDeath">Date of Death</label>
                       <input v-if="!useDeathApprox" class="form-control flex-fill" v-model="selected.dateOfDeath" type="date" title="Death date" />
-                      <input v-else class="form-control flex-fill" v-model="selected.deathApprox" placeholder="e.g., BEF 1950" title="Approximate death" />
+                      <input v-else class="form-control flex-fill" v-model="selected.deathApprox" placeholder="e.g., BEF 1950" title="Approximate death" data-i18n-placeholder="approxExample" />
                       <div class="custom-control custom-switch ml-2">
                         <input type="checkbox" class="custom-control-input" id="deathApproxSwitch" v-model="useDeathApprox" />
-                        <label class="custom-control-label" for="deathApproxSwitch">Approx</label>
+                        <label class="custom-control-label" for="deathApproxSwitch" data-i18n="approx">Approx</label>
                       </div>
                     </div>
                   </div>
-                  <button class="btn btn-link p-0 mb-2" type="button" data-toggle="collapse" data-target="#modalDetails">More Details</button>
+                  <button class="btn btn-link p-0 mb-2" type="button" data-toggle="collapse" data-target="#modalDetails" data-i18n="moreDetails">More Details</button>
                   <div id="modalDetails" class="collapse">
                     <div class="d-flex align-items-center mb-2">
-                      <label class="mr-2 mb-0" style="width: 90px;">Father</label>
+                      <label class="mr-2 mb-0" style="width: 90px;" data-i18n="father">Father</label>
                       <select class="form-control flex-fill" v-model="selected.fatherId" title="Select father">
-                        <option value="">Father</option>
+                        <option value="" data-i18n="father">Father</option>
                         <option v-for="n in nodes" :key="'f'+n.id" :value="n.data.id">{{ n.data.callName ? n.data.callName + ' (' + n.data.firstName + ')' : n.data.firstName }} {{ n.data.lastName }}</option>
                       </select>
                     </div>
                     <div class="d-flex align-items-center mb-2">
-                      <label class="mr-2 mb-0" style="width: 90px;">Mother</label>
+                      <label class="mr-2 mb-0" style="width: 90px;" data-i18n="mother">Mother</label>
                       <select class="form-control flex-fill" v-model="selected.motherId" title="Select mother">
-                        <option value="">Mother</option>
+                        <option value="" data-i18n="mother">Mother</option>
                         <option v-for="n in nodes" :key="'m'+n.id" :value="n.data.id">{{ n.data.callName ? n.data.callName + ' (' + n.data.firstName + ')' : n.data.firstName }} {{ n.data.lastName }}</option>
                       </select>
                     </div>
                     <div class="d-flex align-items-center mb-2">
-                      <label class="mr-2 mb-0" style="width: 90px;">Spouse</label>
+                      <label class="mr-2 mb-0" style="width: 90px;" data-i18n="spouse">Spouse</label>
                       <select class="form-control flex-fill" v-model="selected.spouseId" title="Link spouse">
-                        <option value="">Spouse</option>
+                        <option value="" data-i18n="spouse">Spouse</option>
                         <option v-for="n in nodes" :key="'s'+n.id" :value="n.data.id">{{ n.data.callName ? n.data.callName + ' (' + n.data.firstName + ')' : n.data.firstName }} {{ n.data.lastName }}</option>
                       </select>
                     </div>
                     <div class="d-flex align-items-center mb-2">
-                      <label class="mr-2 mb-0" style="width: 90px;">Notes</label>
-                      <textarea class="form-control flex-fill" v-model="selected.notes" placeholder="Additional info" title="Notes"></textarea>
+                      <label class="mr-2 mb-0" style="width: 90px;" data-i18n="notes">Notes</label>
+                      <textarea class="form-control flex-fill" v-model="selected.notes" placeholder="Additional info" title="Notes" data-i18n-placeholder="notes"></textarea>
                     </div>
                   </div>
                   <div class="text-right mt-3">
-                    <button v-if="!isNew" @click="deleteSelected" class="btn btn-danger btn-sm mr-2">Delete</button>
-                    <button v-if="isNew" class="btn btn-primary mr-2" @click="saveNewPerson">Save</button>
-                    <button class="btn btn-secondary" @click="cancelModal">{{ isNew ? 'Cancel' : 'Close' }}</button>
+                    <button v-if="!isNew" @click="deleteSelected" class="btn btn-danger btn-sm mr-2" data-i18n="delete">Delete</button>
+                    <button v-if="isNew" class="btn btn-primary mr-2" @click="saveNewPerson" data-i18n="save">Save</button>
+                    <button class="btn btn-secondary" @click="cancelModal">{{ isNew ? I18n.t('cancel') : I18n.t('close') }}</button>
                   </div>
                 </template>
 
