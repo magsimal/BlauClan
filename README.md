@@ -28,6 +28,9 @@ the backend listens on port `3009`. You can change this by setting the
 used for both the Node.js server and the Nginx proxy configuration. The front-end itself is served on
 `http://localhost:8080`.
 
+You can also tweak how tightly related nodes are drawn together by setting
+`RELATIVE_ATTRACTION` (0 = loose layout, 1 = very compact). It defaults to `0.5`.
+
 ### Running with Prebuilt Images
 
 After Docker images are published to GitHub Container Registry you can run the stack with:
