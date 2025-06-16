@@ -236,9 +236,7 @@
       position: relative;
     }
     #themeToggleContainer {
-      position: absolute;
-      top: 0.25rem;
-      right: 0.5rem;
+      margin-right: 0.5rem;
     }
     .context-menu {
       position: absolute;
@@ -324,7 +322,7 @@
             <input class="form-control mb-2" v-model="selectedPerson.maidenName" placeholder="Maiden Name" data-i18n-placeholder="maidenName">
           </div>
         </div>
-        <button class="btn btn-link p-0 mb-2" type="button" data-toggle="collapse" data-target="#editDetails">More Details</button>
+        <button class="btn btn-link p-0 mb-2" type="button" data-toggle="collapse" data-target="#editDetails" data-i18n="moreDetails">More Details</button>
         <div id="editDetails" class="collapse">
           <label data-i18n="father">Father</label>
           <select class="form-control mb-2" v-model="selectedPerson.fatherId">
