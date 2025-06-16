@@ -1108,7 +1108,8 @@
             if (!hasParent && n.children.length) roots.push(n);
           });
           const fakeRoot = { id: 'root', children: roots };
-          const layout = d3.tree().nodeSize([120, 1]);
+          const H_SPACING = horizontalGridSize * 4;
+          const layout = d3.tree().nodeSize([H_SPACING, 1]);
           const rootNode = d3.hierarchy(fakeRoot);
           layout(rootNode);
 
@@ -1132,8 +1133,8 @@
                 const mother = map.get(child.motherId);
                 if (father && mother) {
                   const mid = (father.x + mother.x) / 2;
-                  father.x = mid - 60;
-                  mother.x = mid + 60;
+                  father.x = mid - H_SPACING / 2;
+                  mother.x = mid + H_SPACING / 2;
                 }
               }
             }
@@ -1149,8 +1150,8 @@
           rows.forEach((row) => {
             row.sort((a, b) => a.x - b.x);
             for (let i = 1; i < row.length; i++) {
-              if (row[i].x - row[i - 1].x < 120) {
-                row[i].x = row[i - 1].x + 120;
+              if (row[i].x - row[i - 1].x < H_SPACING) {
+                row[i].x = row[i - 1].x + H_SPACING;
               }
             }
           });
@@ -1172,9 +1173,20 @@
             id: n.data.id,
             fatherId: n.data.fatherId,
             motherId: n.data.motherId,
+            spouseIds: [],
             x: 0,
             y: 0,
           }));
+
+        const pMap = new Map(people.map((p) => [p.id, p]));
+        Object.values(unions).forEach((u) => {
+          const a = pMap.get(u.fatherId);
+          const b = pMap.get(u.motherId);
+          if (a && b) {
+            if (!a.spouseIds.includes(b.id)) a.spouseIds.push(b.id);
+            if (!b.spouseIds.includes(a.id)) b.spouseIds.push(a.id);
+          }
+        });
 
         tidyUp(people);
 
