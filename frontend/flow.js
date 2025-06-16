@@ -828,6 +828,12 @@
           showFilter.value = true;
         }
 
+        function triggerSearch() {
+          if (window.SearchApp && typeof window.SearchApp.show === 'function') {
+            window.SearchApp.show();
+          }
+        }
+
         async function deleteAll() {
           const ok = window.confirm('Delete all nodes and edges?');
           if (!ok) return;
@@ -1423,6 +1429,7 @@
         showFilter,
         filters,
         filterActive,
+        triggerSearch,
         gotoPerson,
         personName,
         showDeleteAllButton,
@@ -1482,6 +1489,11 @@
               <svg viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-width="2" fill="none"/></svg>
             </button>
           </div>
+          <button id="searchTrigger" class="icon-button" style="position:absolute;top:10px;right:10px;z-index:30;" @click="triggerSearch">
+            <svg viewBox="0 0 24 24">
+              <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM10.5 14a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/>
+            </svg>
+          </button>
           <VueFlow
             style="width: 100%; height: 100%"
             v-model:nodes="nodes"
