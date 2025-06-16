@@ -1785,10 +1785,6 @@
                         <label class="custom-control-label" for="birthApproxSwitch">Approx</label>
                       </div>
                     </div>
-                    <div class="col d-flex align-items-center mb-2">
-                      <label class="mr-2 mb-0" style="width: 90px;">Date of Death</label>
-                      <input class="form-control flex-fill" v-model="selected.dateOfDeath" type="date" title="Death date" />
-                    </div>
                   </div>
                   <div class="form-row">
                     <div class="col d-flex align-items-center mb-2">
