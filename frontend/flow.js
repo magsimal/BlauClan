@@ -86,6 +86,15 @@
           return 'https://placehold.net/avatar.png';
         }
 
+        function spouseHandles(n1, n2) {
+          if (!n1 || !n2) {
+            return { source: 's-right', target: 't-left' };
+          }
+          return n1.position.x <= n2.position.x
+            ? { source: 's-right', target: 't-left' }
+            : { source: 's-left', target: 't-right' };
+        }
+
         const TEMP_KEY = 'tempLayout';
 
         function saveTempLayout() {
@@ -234,14 +243,21 @@
             }
           });
 
-          Object.values(unions).forEach((m) => {
+         Object.values(unions).forEach((m) => {
+            const fatherNode = nodes.value.find(
+              (n) => n.id === String(m.fatherId)
+            );
+            const motherNode = nodes.value.find(
+              (n) => n.id === String(m.motherId)
+            );
+            const handles = spouseHandles(fatherNode, motherNode);
             edges.value.push({
               id: `spouse-line-${m.id}`,
               source: String(m.fatherId),
               target: String(m.motherId),
               type: 'straight',
-              sourceHandle: 's-right',
-              targetHandle: 't-left',
+              sourceHandle: handles.source,
+              targetHandle: handles.target,
             });
 
             m.children.forEach((cid) => {
@@ -1004,8 +1020,9 @@
                 (e) => e.id === `spouse-line-${u.id}`
               );
               if (spEdge) {
-                spEdge.sourceHandle = 's-right';
-                spEdge.targetHandle = 't-left';
+                const handles = spouseHandles(father, mother);
+                spEdge.sourceHandle = handles.source;
+                spEdge.targetHandle = handles.target;
               }
 
               u.children.forEach((cid) => {
