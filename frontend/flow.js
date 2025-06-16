@@ -51,6 +51,8 @@
             (typeof AppConfig.relativeAttraction !== 'undefined'
               ? parseFloat(AppConfig.relativeAttraction)
               : null)) || 0.5;
+        const showDeleteAllButton =
+          !!(window.AppConfig && AppConfig.showDeleteAllButton);
         const selected = ref(null);
         const showModal = ref(false);
         const contextMenuVisible = ref(false);
@@ -444,6 +446,7 @@
           await load();
           fitView();
           snapGrid.value = [horizontalGridSize, verticalGridSize];
+          snapToGrid.value = true;
           window.addEventListener('keydown', handleKeydown);
           window.addEventListener('keyup', handleKeyup);
         });
@@ -1377,6 +1380,7 @@
         filterActive,
         gotoPerson,
         personName,
+        showDeleteAllButton,
       };
       },
       template: `
@@ -1429,7 +1433,7 @@
                 <path d="M3 3h18v18H3V3m2 2v14h14V5H5Z" />
               </svg>
             </button>
-            <button class="icon-button" @click="deleteAll" title="Delete All" style="border-color:#dc3545;color:#dc3545;">
+            <button v-if="showDeleteAllButton" class="icon-button" @click="deleteAll" title="Delete All" style="border-color:#dc3545;color:#dc3545;">
               <svg viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-width="2" fill="none"/></svg>
             </button>
           </div>

@@ -13,5 +13,6 @@
     // how strongly relatives attract each other horizontally
     // 0 = very loose layout, 1 = compact layout
     relativeAttraction: parseFloat('${RELATIVE_ATTRACTION}') || 0.5,
+    showDeleteAllButton: '${SHOW_DELETE_ALL_BUTTON}' === 'true',
   };
 });
