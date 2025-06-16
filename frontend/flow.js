@@ -51,6 +51,7 @@
           dimensions,
           addSelectedNodes,
           removeSelectedNodes,
+          getSelectedNodes,
           snapToGrid,
           snapGrid,
           viewport,
@@ -1359,6 +1360,53 @@
         }
       }
 
+      function personGedcomId(p) {
+        return p.gedcomId || `@I${p.id}@`;
+      }
+
+      async function copySelectedGedcom() {
+        const list = getSelectedNodes.value;
+        if (!list || list.length === 0) return;
+        contextMenuVisible.value = false;
+        const map = {};
+        list.forEach((n) => {
+          map[n.id] = n.data;
+        });
+        const parts = list.map((n) => personToGedcom(n.data));
+        const famMap = {};
+        list.forEach((n) => {
+          const d = n.data;
+          if (d.fatherId && d.motherId && map[d.fatherId] && map[d.motherId]) {
+            const key = `${d.fatherId}-${d.motherId}`;
+            famMap[key] = famMap[key] || {
+              father: d.fatherId,
+              mother: d.motherId,
+              children: [],
+            };
+            famMap[key].children.push(d.id);
+          }
+        });
+        let idx = 1;
+        Object.values(famMap).forEach((fam) => {
+          const lines = [
+            `0 @F${idx}@ FAM`,
+            `1 HUSB ${personGedcomId(map[fam.father])}`,
+            `1 WIFE ${personGedcomId(map[fam.mother])}`,
+          ];
+          fam.children.forEach((c) => {
+            lines.push(`1 CHIL ${personGedcomId(map[c])}`);
+          });
+          parts.push(lines.join('\n'));
+          idx += 1;
+        });
+        const text = parts.join('\n');
+        try {
+          await navigator.clipboard.writeText(text);
+        } catch (e) {
+          console.error('Copy failed', e);
+        }
+      }
+
        function openContextMenu(ev) {
          const point = ev.touches ? ev.touches[0] : ev;
          const rect = document
@@ -1460,6 +1508,8 @@
         menuFit,
         overlayClose,
         copyGedcom,
+        copySelectedGedcom,
+        getSelectedNodes,
         openFilter,
         resetFilters,
         showFilter,
@@ -1588,9 +1638,10 @@
             class="context-menu"
             :style="{ left: contextX + 'px', top: contextY + 'px' }"
           >
-            <li @click="menuAdd" data-i18n="addNew">Add New</li>
-            <li @click="menuTidy" data-i18n="tidyUp">Tidy Up</li>
-            <li @click="menuFit" data-i18n="zoomToFit">Zoom to Fit</li>
+            <li @click="menuAdd">Add New</li>
+            <li @click="menuTidy">Tidy Up</li>
+            <li @click="menuFit">Zoom to Fit</li>
+            <li v-if="getSelectedNodes.length > 1" @click="copySelectedGedcom">Copy GEDCOM</li>
           </ul>
 
           <div v-if="showImport" class="modal">
@@ -1700,11 +1751,7 @@
                     <template v-else>
                       <span class="ml-1" style="cursor: pointer;" @click="startAddParent('father')">
                         <svg viewBox="0 0 24 24" class="text-success" style="width: 16px; height: 16px; vertical-align: middle;">
-<<<<<<< codex/remove-delete-children-section-and-update-parent-modal
                           <path d="M12 4v16M4 12h16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
-=======
-                          <path d="M12 5v14m7-7H5" stroke-width="2" fill="none"/>
->>>>>>> main
                         </svg>
                       </span>
                     </template>
@@ -1717,11 +1764,7 @@
                     <template v-else>
                       <span class="ml-1" style="cursor: pointer;" @click="startAddParent('mother')">
                         <svg viewBox="0 0 24 24" class="text-success" style="width: 16px; height: 16px; vertical-align: middle;">
-<<<<<<< codex/remove-delete-children-section-and-update-parent-modal
                           <path d="M12 4v16M4 12h16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
-=======
-                          <path d="M12 5v14m7-7H5" stroke-width="2" fill="none"/>
->>>>>>> main
                         </svg>
                       </span>
                     </template>
