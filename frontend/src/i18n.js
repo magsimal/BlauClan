@@ -29,6 +29,14 @@
       const k = el.getAttribute('data-i18n-placeholder');
       el.setAttribute('placeholder', t(k));
     });
+    document.querySelectorAll('[data-i18n-title]').forEach((el) => {
+      const k = el.getAttribute('data-i18n-title');
+      el.setAttribute('title', t(k));
+    });
+    document.querySelectorAll('[data-i18n-alt]').forEach((el) => {
+      const k = el.getAttribute('data-i18n-alt');
+      el.setAttribute('alt', t(k));
+    });
   }
 
   global.I18n = { t, setLang, getLang: () => current, updateDom, load };
