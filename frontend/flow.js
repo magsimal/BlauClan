@@ -58,6 +58,14 @@
         const showConflict = ref(false);
         const useBirthApprox = ref(false);
         const useDeathApprox = ref(false);
+        const showFilter = ref(false);
+        const filters = ref({
+          missingParents: false,
+          missingBirth: false,
+          missingDeath: false,
+          missingMaiden: false,
+        });
+        const filterActive = ref(false);
         let longPressTimer = null;
         const UNION_Y_OFFSET = 20;
         let unions = {};
@@ -298,6 +306,7 @@
           await nextTick();
           refreshUnions();
           saveTempLayout();
+          applyFilters();
         }
 
         const children = ref([]);
@@ -613,6 +622,48 @@
           if (ind) ind.style.display = val ? 'block' : 'none';
         });
 
+        function applyFilters() {
+          const f = filters.value;
+          filterActive.value =
+            f.missingParents || f.missingBirth || f.missingDeath || f.missingMaiden;
+          nodes.value.forEach((n) => {
+            if (!n.data || n.data.helper) return;
+            if (!filterActive.value) {
+              n.data.highlight = false;
+              return;
+            }
+            let h = false;
+            if (f.missingParents && (!n.data.fatherId || !n.data.motherId)) h = true;
+            if (f.missingBirth && !(n.data.dateOfBirth || n.data.birthApprox)) h = true;
+            if (f.missingDeath && !(n.data.dateOfDeath || n.data.deathApprox)) h = true;
+            if (
+              f.missingMaiden &&
+              n.data.gender === 'female' &&
+              !n.data.maidenName
+            )
+              h = true;
+            n.data.highlight = h;
+          });
+        }
+
+        function resetFilters() {
+          filters.value = {
+            missingParents: false,
+            missingBirth: false,
+            missingDeath: false,
+            missingMaiden: false,
+          };
+          applyFilters();
+        }
+
+        watch(
+          filters,
+          () => {
+            applyFilters();
+          },
+          { deep: true }
+        );
+
         function onNodeDragStop() {
           refreshUnions();
           saveTempLayout();
@@ -729,6 +780,10 @@
         function openImport() {
           gedcomText.value = '';
           showImport.value = true;
+        }
+
+        function openFilter() {
+          showFilter.value = true;
         }
 
         async function deleteAll() {
@@ -1297,6 +1352,11 @@
         menuTidy,
         menuFit,
         overlayClose,
+        openFilter,
+        resetFilters,
+        showFilter,
+        filters,
+        filterActive,
         gotoPerson,
         personName,
       };
@@ -1336,6 +1396,16 @@
                 <path d="M4.5 18.75h15v1.5h-15z"/>
               </svg>
             </button>
+            <button class="icon-button" @click="openFilter" title="Filter Nodes">
+              <svg viewBox="0 0 24 24">
+                <path d="M3 4h18L13 14v6l-2 2v-8L3 4z"/>
+              </svg>
+            </button>
+            <button class="icon-button" @click="resetFilters" title="Reset Filters" :disabled="!filterActive">
+              <svg viewBox="0 0 24 24">
+                <path d="M12 5v14m7-7H5" stroke-width="2" fill="none"/>
+              </svg>
+            </button>
             <button class="icon-button" @click="toggleSnap" :class="{ active: snapToGrid }" :title="snapToGrid ? 'Disable Snap to Grid' : 'Enable Snap to Grid'">
               <svg viewBox="0 0 24 24">
                 <path d="M3 3h18v18H3V3m2 2v14h14V5H5Z" />
@@ -1366,7 +1436,7 @@
             selection-key-code="Shift"
           >
             <template #node-person="{ data }">
-              <div class="person-node" :class="{ 'highlight-node': data.highlight, 'faded-node': selected && !data.highlight }" :style="{ borderColor: data.gender === 'female' ? '#f8c' : (data.gender === 'male' ? '#88f' : '#ccc') }">
+              <div class="person-node" :class="{ 'highlight-node': data.highlight, 'faded-node': (selected || filterActive) && !data.highlight }" :style="{ borderColor: data.gender === 'female' ? '#f8c' : (data.gender === 'male' ? '#88f' : '#ccc') }">
                 <div class="header">
                   <img :src="avatarSrc(data.gender, 40)" class="avatar" />
                   <div class="name-container">
@@ -1392,7 +1462,7 @@
               </div>
             </template>
             <template #node-helper="{ data }">
-              <div class="helper-node" :class="{ 'highlight-node': data.highlight, 'faded-node': selected && !data.highlight }">
+              <div class="helper-node" :class="{ 'highlight-node': data.highlight, 'faded-node': (selected || filterActive) && !data.highlight }">
                 <Handle type="source" position="bottom" id="s-bottom" />
               </div>
             </template>
@@ -1416,10 +1486,35 @@
                 <button class="btn btn-primary btn-sm mr-2" @click="processImport">Import</button>
                 <button class="btn btn-secondary btn-sm" @click="showImport = false">Cancel</button>
               </div>
+          </div>
+        </div>
+
+        <div v-if="showFilter" class="modal">
+          <div class="modal-content card p-3">
+            <h4>Filter Nodes</h4>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="f1" v-model="filters.missingParents">
+              <label class="form-check-label" for="f1">Missing father or mother</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="f2" v-model="filters.missingBirth">
+              <label class="form-check-label" for="f2">Missing Date of Birth</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="f3" v-model="filters.missingDeath">
+              <label class="form-check-label" for="f3">Missing Date of Death</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="f4" v-model="filters.missingMaiden">
+              <label class="form-check-label" for="f4">Females without maiden name</label>
+            </div>
+            <div class="text-right mt-2">
+              <button class="btn btn-primary btn-sm mr-2" @click="showFilter = false">Close</button>
             </div>
           </div>
+        </div>
 
-          <div v-if="showConflict" class="modal">
+        <div v-if="showConflict" class="modal">
             <div class="modal-content card p-3">
               <h4>Duplicate Detected</h4>
               <p><strong>Existing:</strong> {{ conflicts[conflictIndex].existing.firstName }} {{ conflicts[conflictIndex].existing.lastName }}</p>
