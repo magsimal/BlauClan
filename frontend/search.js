@@ -23,17 +23,20 @@
   }
 
   function setupDom() {
-    const overlay = document.createElement('div');
-    overlay.id = overlayId;
-    overlay.className = 'modal';
-    overlay.style.display = 'none';
-    overlay.innerHTML = `
-      <div class="modal-content card p-3" style="min-width: 300px;">
-        <input type="text" id="search-input" class="form-control mb-2" placeholder="Search..." />
-        <ul id="search-results" class="list-group" style="max-height:200px;overflow-y:auto"></ul>
-      </div>`;
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) hide(); });
-    document.body.appendChild(overlay);
+    let overlay = document.getElementById(overlayId);
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = overlayId;
+      overlay.className = 'modal';
+      overlay.style.display = 'none';
+      overlay.innerHTML = `
+        <div class="modal-content card p-3" style="min-width: 300px;">
+          <input type="text" id="search-input" class="form-control mb-2" placeholder="Search..." />
+          <ul id="search-results" class="list-group" style="max-height:200px;overflow-y:auto"></ul>
+        </div>`;
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) hide(); });
+      document.body.appendChild(overlay);
+    }
     const input = overlay.querySelector('#search-input');
     input.addEventListener('input', updateResults);
     input.addEventListener('keydown', handleInputKey);
@@ -112,5 +115,5 @@
     if (overlay) overlay.style.display = 'none';
   }
 
-  return { init };
+  return { init, show, hide };
 });
