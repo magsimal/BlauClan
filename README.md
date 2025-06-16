@@ -30,6 +30,8 @@ used for both the Node.js server and the Nginx proxy configuration. The front-en
 
 You can also tweak how tightly related nodes are drawn together by setting
 `RELATIVE_ATTRACTION` (0 = loose layout, 1 = very compact). It defaults to `0.5`.
+The bulk delete button is hidden by default. Set `SHOW_DELETE_ALL_BUTTON=true`
+if you want to display it in the toolbar.
 
 ### Running with Prebuilt Images
 
