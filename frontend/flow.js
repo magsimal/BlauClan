@@ -46,6 +46,11 @@
           (window.AppConfig &&
             (AppConfig.verticalGridSize || AppConfig.gridSize)) ||
           30;
+        const relativeAttraction =
+          (window.AppConfig &&
+            (typeof AppConfig.relativeAttraction !== 'undefined'
+              ? parseFloat(AppConfig.relativeAttraction)
+              : null)) || 0.5;
         const selected = ref(null);
         const showModal = ref(false);
         const contextMenuVisible = ref(false);
@@ -1108,7 +1113,8 @@
             if (!hasParent && n.children.length) roots.push(n);
           });
           const fakeRoot = { id: 'root', children: roots };
-          const H_SPACING = horizontalGridSize * 4;
+          const baseSpacing = horizontalGridSize * 4;
+          const H_SPACING = baseSpacing - (baseSpacing - horizontalGridSize) * relativeAttraction;
           const layout = d3.tree().nodeSize([H_SPACING, 1]);
           const rootNode = d3.hierarchy(fakeRoot);
           layout(rootNode);

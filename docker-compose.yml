@@ -32,6 +32,7 @@ services:
     build: ./frontend
     environment:
       BACKEND_PORT: ${BACKEND_PORT:-3009}
+      RELATIVE_ATTRACTION: ${RELATIVE_ATTRACTION:-0.5}
     ports:
       - '8080:80'
     depends_on:
