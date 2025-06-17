@@ -1717,6 +1717,9 @@
               }"
             >
               <div class="card-body p-3" style="position:relative;max-height: 80vh; overflow-y: auto;">
+                <button class="icon-button edit-btn" @click="editing = true" title="Edit" data-i18n-title="edit" v-if="!editing && !isNew">
+                  <span class="material-icons" style="font-size:16px;">edit</span>
+                </button>
                 <button class="icon-button copy-btn" @click="copyGedcom" title="Copy GEDCOM" data-i18n-title="copyGedcom">
                   <span class="material-icons" style="font-size:16px;">content_copy</span>
                 </button>
@@ -1790,7 +1793,6 @@
                     </ul>
                   </div>
                   <div class="text-right mt-3">
-                    <button class="btn btn-primary btn-sm mr-2" @click="editing = true" data-i18n="edit">Edit</button>
                     <button class="btn btn-secondary btn-sm" @click="cancelModal" data-i18n="close">Close</button>
                   </div>
                 </template>
@@ -1890,8 +1892,8 @@
                   </div>
                   <div class="text-right mt-3">
                     <button v-if="!isNew" @click="deleteSelected" class="btn btn-danger btn-sm mr-2" data-i18n="delete">Delete</button>
-                    <button v-if="isNew" class="btn btn-primary mr-2" @click="saveNewPerson" data-i18n="save">Save</button>
-                    <button class="btn btn-secondary" @click="cancelModal">
+                    <button v-if="isNew" class="btn btn-primary btn-sm mr-2" @click="saveNewPerson" data-i18n="save">Save</button>
+                    <button class="btn btn-secondary btn-sm" @click="cancelModal">
                       <span v-if="isNew" data-i18n="cancel">Cancel</span>
                       <span v-else data-i18n="close">Close</span>
                     </button>
