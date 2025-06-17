@@ -63,5 +63,6 @@
   "deleteAll": "Alle l\u00f6schen",
   "search": "Suche",
   "copyGedcom": "GEDCOM kopieren",
-  "avatar": "Avatar"
+  "avatar": "Avatar",
+  "useExactly": "Eingabe verwenden"
 }

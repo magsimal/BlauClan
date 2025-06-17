@@ -1,6 +1,8 @@
 const express = require('express');
+const crypto = require('crypto');
 const { sequelize, Person, Marriage, Layout } = require('./models');
 const { Op } = require('sequelize');
+const cache = require('./cache');
 
 const app = express();
 app.use(express.json());
@@ -18,9 +20,66 @@ function normalizeParentIds(data) {
   return updates;
 }
 
+async function geonamesSuggest(query, lang = 'en', cc = '') {
+  const q = query.trim().replace(/\s+/g, ' ');
+  if (!q) return [];
+  const hash = crypto.createHash('sha1').update(q + lang + cc).digest('hex');
+  const key = `gn:${hash}`;
+  const cached = await cache.get(key);
+  if (cached) return cached;
+  const url = new URL('https://api.geonames.org/searchJSON');
+  url.searchParams.set('q', q);
+  url.searchParams.set('fuzzy', '0.8');
+  url.searchParams.set('maxRows', '10');
+  url.searchParams.set('username', process.env.GEONAMES_USER);
+  url.searchParams.set('lang', lang);
+  if (cc) url.searchParams.set('country', cc);
+  url.searchParams.set('isNameRequired', 'true');
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('geonames error');
+    const data = await resp.json();
+    let res = Array.isArray(data.geonames) ? data.geonames : [];
+    if (!/County|Province|District/i.test(q)) {
+      res = res.filter((r) => ['PPL', 'PPLA', 'PPLC'].includes(r.fcode));
+    }
+    const final = res.slice(0, 5).map((r) => ({
+      geonameId: r.geonameId,
+      name: r.name,
+      adminName1: r.adminName1,
+      countryCode: r.countryCode,
+      lat: r.lat,
+      lng: r.lng,
+      score: r.score,
+    }));
+    await cache.set(key, final, 86400);
+    return final;
+  } catch (e) {
+    return [];
+  }
+}
+
+async function validatePlace(place) {
+  if (process.env.VALIDATOR_STRICT !== 'true' || !place) return true;
+  const suggestions = await geonamesSuggest(place, 'en');
+  if (!suggestions.length) return false;
+  return suggestions.some(
+    (s) => s.score >= 0.9 && s.name.toLowerCase() === place.toLowerCase(),
+  );
+}
+
+app.get('/places/suggest', async (req, res) => {
+  const { q = '', lang = 'en', cc = '' } = req.query;
+  const suggestions = await geonamesSuggest(q, lang, cc);
+  res.json(suggestions);
+});
+
 app.post('/api/people', async (req, res) => {
   try {
     const payload = normalizeParentIds(req.body);
+    if (!(await validatePlace(payload.placeOfBirth))) {
+      return res.status(400).json({ error: 'Invalid placeOfBirth' });
+    }
     const person = await Person.create(payload);
     res.status(201).json(person);
   } catch (err) {
@@ -42,6 +101,9 @@ app.put('/api/people/:id', async (req, res) => {
   const person = await Person.findByPk(id);
   if (!person) return res.sendStatus(404);
   const updates = normalizeParentIds(req.body);
+  if (!(await validatePlace(updates.placeOfBirth))) {
+    return res.status(400).json({ error: 'Invalid placeOfBirth' });
+  }
   await person.update(updates);
   res.json(person);
 });

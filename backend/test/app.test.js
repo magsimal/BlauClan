@@ -91,4 +91,18 @@ describe('People API', () => {
     const layoutRes = await request(app).get('/api/layout');
     expect(layoutRes.body.nodes[0].id).toBe(1);
   });
+
+  test('place suggestions route returns data', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        geonames: [
+          { geonameId: 1, name: 'Test', adminName1: 'X', countryCode: 'US', lat: '0', lng: '0', score: 1, fcode: 'PPL' },
+        ],
+      }),
+    });
+    const res = await request(app).get('/places/suggest?q=Test');
+    expect(res.statusCode).toBe(200);
+    expect(res.body[0].name).toBe('Test');
+  });
 });
