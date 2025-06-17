@@ -15,8 +15,11 @@
         ? self
         : (typeof global !== 'undefined' ? global : {})));
   const overlayId = 'search-overlay';
+  let initialized = false;
 
   async function init() {
+    if (initialized) return;
+    initialized = true;
     try {
       const res = await fetch('/api/people');
       people = await res.json();
@@ -45,8 +48,11 @@
       document.body.appendChild(overlay);
     }
     const input = overlay.querySelector('#search-input');
-    input.addEventListener('input', updateResults);
-    input.addEventListener('keydown', handleInputKey);
+    if (!input.dataset.bound) {
+      input.addEventListener('input', updateResults);
+      input.addEventListener('keydown', handleInputKey);
+      input.dataset.bound = 'true';
+    }
   }
 
   function handleInputKey(e) {
