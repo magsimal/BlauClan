@@ -133,3 +133,4 @@ Use these final requirements to implement the Family Tree application from scrat
         •       `cd backend && npm run lint && npm test`
         •       `cd frontend && npm run lint && npm test`
         •       Skip these checks if the commit only changes documentation files (`*.md`).
+        •       Whenever adding new frontend UI elements (buttons, labels, tool tips, etc.), update the translation files in `frontend/src/lang/` for all supported languages.
