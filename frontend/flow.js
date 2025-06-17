@@ -819,6 +819,9 @@
 
         function toggleSnap() {
           snapToGrid.value = !snapToGrid.value;
+          if (I18n && typeof I18n.updateDom === 'function') {
+            I18n.updateDom();
+          }
         }
 
         function openImport() {
@@ -1568,7 +1571,13 @@
                 <path d="M12 4v16M4 12h16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
               </svg>
             </button>
-            <button class="icon-button" @click="toggleSnap" :class="{ active: snapToGrid }" :title="snapToGrid ? I18n.t('disableSnap') : I18n.t('enableSnap')" data-i18n-title="snapToGrid">
+            <button
+              class="icon-button"
+              @click="toggleSnap"
+              :class="{ active: snapToGrid }"
+              :title="snapToGrid ? I18n.t('disableSnap') : I18n.t('enableSnap')"
+              :data-i18n-title="snapToGrid ? 'disableSnap' : 'enableSnap'"
+            >
               <svg viewBox="0 0 24 24">
                 <path d="M3 3h18v18H3V3m2 2v14h14V5H5Z" />
               </svg>
@@ -1815,7 +1824,8 @@
                           false-value="female"
                         />
                         <label class="custom-control-label" for="genderSwitch">
-                          {{ selected.gender === 'male' ? I18n.t('male') : I18n.t('female') }}
+                          <span v-if="selected.gender === 'male'" data-i18n="male">Male</span>
+                          <span v-else data-i18n="female">Female</span>
                         </label>
                       </div>
                     </div>
@@ -1881,7 +1891,10 @@
                   <div class="text-right mt-3">
                     <button v-if="!isNew" @click="deleteSelected" class="btn btn-danger btn-sm mr-2" data-i18n="delete">Delete</button>
                     <button v-if="isNew" class="btn btn-primary mr-2" @click="saveNewPerson" data-i18n="save">Save</button>
-                    <button class="btn btn-secondary" @click="cancelModal">{{ isNew ? I18n.t('cancel') : I18n.t('close') }}</button>
+                    <button class="btn btn-secondary" @click="cancelModal">
+                      <span v-if="isNew" data-i18n="cancel">Cancel</span>
+                      <span v-else data-i18n="close">Close</span>
+                    </button>
                   </div>
                 </template>
 
