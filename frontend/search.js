@@ -87,7 +87,21 @@
     results.forEach(({ item }) => {
       const li = document.createElement('li');
       li.className = 'list-group-item list-group-item-action';
-      li.textContent = `${item.firstName} ${item.lastName}`;
+
+      const nameDiv = document.createElement('div');
+      nameDiv.textContent = `${item.firstName} ${item.lastName}`;
+      li.appendChild(nameDiv);
+
+      const born = item.dateOfBirth || item.birthApprox || '';
+      const died = item.dateOfDeath || item.deathApprox || '';
+      const life = [born, died].filter(Boolean).join(' - ');
+      if (life) {
+        const small = document.createElement('div');
+        small.className = 'small text-muted';
+        small.textContent = life;
+        li.appendChild(small);
+      }
+
       li.dataset.id = item.id;
       li.addEventListener('click', () => {
         if (root.FlowApp && typeof root.FlowApp.focusNode === 'function') {
