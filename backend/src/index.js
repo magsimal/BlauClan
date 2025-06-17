@@ -20,7 +20,10 @@ function normalizeParentIds(data) {
   return updates;
 }
 
+let geonamesEnabled = true;
+
 async function geonamesSuggest(query, lang = 'en', cc = '') {
+  if (!geonamesEnabled) return [];
   const q = query.trim().replace(/\s+/g, ' ');
   if (!q) return [];
   const hash = crypto.createHash('sha1').update(q + lang + cc).digest('hex');
@@ -56,6 +59,24 @@ async function geonamesSuggest(query, lang = 'en', cc = '') {
     return final;
   } catch (e) {
     return [];
+  }
+}
+
+async function verifyGeonames() {
+  if (!process.env.GEONAMES_USER) {
+    console.log('GeoNames disabled: GEONAMES_USER not set');
+    geonamesEnabled = false;
+    return;
+  }
+  try {
+    const res = await geonamesSuggest('Berlin', 'en');
+    if (!res.length) {
+      console.log('GeoNames disabled: invalid GEONAMES_USER');
+      geonamesEnabled = false;
+    }
+  } catch (_e) {
+    console.log('GeoNames disabled: invalid GEONAMES_USER');
+    geonamesEnabled = false;
   }
 }
 
@@ -300,12 +321,15 @@ app.get('/api/layout', async (_req, res) => {
 
 const PORT = process.env.PORT || 3009;
 if (require.main === module) {
+
   // Use `alter: true` so new fields like `callName` are added automatically
   // to existing databases without dropping data. This keeps the schema in sync
   // when models change during development.
-  sequelize.sync({ alter: true }).then(() => {
-    app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
+  verifyGeonames().finally(() => {
+    sequelize.sync({ alter: true }).then(() => {
+      app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+      });
     });
   });
 }
