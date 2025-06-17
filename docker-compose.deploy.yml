@@ -22,11 +22,14 @@ services:
       DB_PASSWORD: postgres
       DB_HOST: db
       PORT: ${BACKEND_PORT:-3009}
+      REDIS_URL: redis://cache:6379
     ports:
       - '${BACKEND_PORT:-3009}:${BACKEND_PORT:-3009}'
     depends_on:
       db:
         condition: service_healthy
+      cache:
+        condition: service_started
     restart: unless-stopped
   frontend:
     image: ghcr.io/magsimal/blauclan-frontend:latest
@@ -38,6 +41,10 @@ services:
       - '${FRONTEND_PORT:-8080}:80'
     depends_on:
       - backend
+    restart: unless-stopped
+  cache:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
     restart: unless-stopped
 volumes:
   db-data:
