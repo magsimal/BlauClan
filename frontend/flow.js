@@ -97,6 +97,8 @@
         const deathExactBackup = ref('');
         let originalSelected = null;
         const showFilter = ref(false);
+        const placeSuggestions = ref([]);
+        const placeFocus = ref(false);
         const filters = ref({
           missingParents: false,
           missingBirth: false,
@@ -674,6 +676,36 @@
             selected.value.dateOfDeath = deathExactBackup.value;
           }
         });
+
+        const fetchPlaces = debounce(async (val) => {
+          if (!val) { placeSuggestions.value = []; return; }
+          const lang = I18nGlobal.getLang ? I18nGlobal.getLang().toLowerCase() : 'en';
+          try {
+            const res = await fetch(`/places/suggest?q=${encodeURIComponent(val)}&lang=${lang}`);
+            placeSuggestions.value = res.ok ? await res.json() : [];
+          } catch (e) {
+            placeSuggestions.value = [];
+          }
+        }, 250);
+
+        function onPlaceInput(e) {
+          fetchPlaces(e.target.value);
+        }
+
+        function hidePlaceDropdown() {
+          setTimeout(() => { placeFocus.value = false; }, 150);
+        }
+
+        function applyPlace(s) {
+          if (!selected.value) return;
+          selected.value.placeOfBirth = s.name;
+          selected.value.geonameId = s.geonameId;
+          placeFocus.value = false;
+        }
+
+        function useTypedPlace() {
+          placeFocus.value = false;
+        }
 
         watch(editing, (val, oldVal) => {
           if (val && !oldVal && selected.value && !isNew.value) {
@@ -1581,6 +1613,12 @@
         triggerSearch,
         gotoPerson,
         personName,
+        placeSuggestions,
+        placeFocus,
+        onPlaceInput,
+        hidePlaceDropdown,
+        applyPlace,
+        useTypedPlace,
         showDeleteAllButton,
         I18n: I18nGlobal,
       };
@@ -1903,9 +1941,13 @@
                     </div>
                   </div>
                   <div class="form-row">
-                    <div class="col d-flex align-items-center mb-2">
+                    <div class="col d-flex align-items-center mb-2 position-relative">
                       <label class="mr-2 mb-0" style="width: 90px;" data-i18n="placeOfBirth">Place of Birth</label>
-                      <input class="form-control flex-fill" v-model="selected.placeOfBirth" placeholder="City or town" title="Place of birth" data-i18n-placeholder="placeOfBirth" />
+                      <input class="form-control flex-fill" v-model="selected.placeOfBirth" placeholder="City or town" title="Place of birth" data-i18n-placeholder="placeOfBirth" @focus="placeFocus=true" @blur="hidePlaceDropdown" @input="onPlaceInput" />
+                      <ul v-if="placeFocus && placeSuggestions.length" class="list-group position-absolute" style="top:100%; left:90px; right:0; z-index:1000; max-height:150px; overflow-y:auto;">
+                        <li v-for="s in placeSuggestions" :key="s.geonameId" class="list-group-item list-group-item-action" @mousedown.prevent="applyPlace(s)">{{ s.name }}<span v-if="s.adminName1">, {{ s.adminName1 }}</span> {{ s.countryCode }}</li>
+                        <li class="list-group-item list-group-item-action" @mousedown.prevent="useTypedPlace" data-i18n="useExactly">Use Exactly</li>
+                      </ul>
                     </div>
                     <div class="col d-flex align-items-center mb-2">
                       <label class="mr-2 mb-0" style="width: 90px;" data-i18n="maidenName">Maiden Name</label>
