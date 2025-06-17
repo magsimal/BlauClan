@@ -7,8 +7,20 @@ describe('SearchApp', () => {
     jest.resetModules();
     global.fetch = jest.fn().mockResolvedValue({
       json: () => [
-        { id: 1, firstName: 'John', lastName: 'Doe' },
-        { id: 2, firstName: 'Jane', lastName: 'Smith' },
+        {
+          id: 1,
+          firstName: 'John',
+          lastName: 'Doe',
+          dateOfBirth: '1900-01-01',
+          dateOfDeath: '1980-01-01',
+        },
+        {
+          id: 2,
+          firstName: 'Jane',
+          lastName: 'Smith',
+          dateOfBirth: '1905-05-10',
+          dateOfDeath: '1990-05-10',
+        },
       ],
     });
     global.Fuse = class {
@@ -36,6 +48,16 @@ describe('SearchApp', () => {
     const results = overlay.querySelectorAll('li');
     expect(results.length).toBe(1);
     expect(results[0].textContent).toContain('Jane Smith');
+  });
+
+  test('displays birth and death dates when available', () => {
+    const overlay = document.getElementById('search-overlay');
+    const input = overlay.querySelector('#search-input');
+    input.value = 'John';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    const result = overlay.querySelector('li');
+    expect(result.innerHTML).toContain('1900-01-01');
+    expect(result.innerHTML).toContain('1980-01-01');
   });
 
   test('show and hide control visibility', () => {
