@@ -689,6 +689,18 @@
           if (ind) ind.style.display = val ? 'block' : 'none';
         });
 
+        function refreshI18n() {
+          if (I18n && typeof I18n.updateDom === 'function') {
+            nextTick(() => I18n.updateDom());
+          }
+        }
+
+        watch(showModal, refreshI18n);
+        watch(editing, refreshI18n);
+        watch(showImport, (v) => v && refreshI18n());
+        watch(showFilter, (v) => v && refreshI18n());
+        watch(showConflict, (v) => v && refreshI18n());
+
         function applyFilters() {
           const f = filters.value;
           filterActive.value =
