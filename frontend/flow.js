@@ -704,6 +704,9 @@
         }
 
         function useTypedPlace() {
+          if (selected.value) {
+            selected.value.placeOfBirth = (selected.value.placeOfBirth || '').trim();
+          }
           placeFocus.value = false;
         }
 
@@ -1507,15 +1510,16 @@
         }
       }
 
-       function openContextMenu(ev) {
-         const point = ev.touches ? ev.touches[0] : ev;
-         const rect = document
-           .getElementById('flow-app')
-           .getBoundingClientRect();
-         contextX.value = point.clientX - rect.left;
-         contextY.value = point.clientY - rect.top;
-         contextMenuVisible.value = true;
-       }
+      function openContextMenu(ev) {
+        clearTimeout(longPressTimer);
+        const point = ev.touches ? ev.touches[0] : ev;
+        const rect = document
+          .getElementById('flow-app')
+          .getBoundingClientRect();
+        contextX.value = point.clientX - rect.left;
+        contextY.value = point.clientY - rect.top;
+        contextMenuVisible.value = true;
+      }
 
        function handleContextMenu(ev) {
          ev.preventDefault();
