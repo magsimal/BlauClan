@@ -1,6 +1,13 @@
 (function (global) {
   const translations = {};
+  const STORAGE_KEY = 'preferredLang';
   let current = 'EN';
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) current = saved;
+  } catch (e) {
+    /* ignore */
+  }
 
   async function load(lang) {
     if (!translations[lang]) {
@@ -16,6 +23,11 @@
 
   async function setLang(lang) {
     current = lang;
+    try {
+      localStorage.setItem(STORAGE_KEY, lang);
+    } catch (e) {
+      /* ignore */
+    }
     await load(lang);
     updateDom();
   }
