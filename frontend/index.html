@@ -338,37 +338,10 @@
             <input class="form-control mb-2" v-model="selectedPerson.maidenName" placeholder="Maiden Name" data-i18n-placeholder="maidenName">
           </div>
         </div>
-        <button class="btn btn-link p-0 mb-2" type="button" data-toggle="collapse" data-target="#editDetails" data-i18n="moreDetails">More Details</button>
-        <div id="editDetails" class="collapse">
-          <label data-i18n="father">Father</label>
-          <select class="form-control mb-2" v-model="selectedPerson.fatherId">
-            <option value="" data-i18n="father">Father</option>
-            <option v-for="p in availableParentOptions" :value="p.id">{{ p.callName ? p.callName + ' (' + p.firstName + ')' : p.firstName }} {{ p.lastName }}</option>
-          </select>
-          <label data-i18n="mother">Mother</label>
-          <select class="form-control mb-2" v-model="selectedPerson.motherId">
-            <option value="" data-i18n="mother">Mother</option>
-            <option v-for="p in availableParentOptions" :value="p.id">{{ p.callName ? p.callName + ' (' + p.firstName + ')' : p.firstName }} {{ p.lastName }}</option>
-          </select>
-          <label data-i18n="notes">Notes</label>
-          <textarea class="form-control mb-2" v-model="selectedPerson.notes" placeholder="Notes" data-i18n-placeholder="notes"></textarea>
-        </div>
+        <label data-i18n="notes">Notes</label>
+        <textarea class="form-control mb-2" v-model="selectedPerson.notes" placeholder="Notes" data-i18n-placeholder="notes"></textarea>
         <button class="btn btn-success mr-2" @click="savePerson" data-i18n="save">Save</button>
         <button class="btn btn-danger" @click="deleteSelected" data-i18n="delete">Delete</button>
-        <div v-if="spouses.length" class="card">
-          <h3 data-i18n="spouses">Spouses</h3>
-          <ul>
-            <li v-for="s in spouses">
-              {{ s.spouse.callName ? s.spouse.callName + ' (' + s.spouse.firstName + ')' : s.spouse.firstName }} {{ s.spouse.lastName }}
-              <span v-if="s.dateOfMarriage || s.marriageApprox || s.placeOfMarriage" class="text-muted">
-                -
-                <span v-if="s.dateOfMarriage">{{ s.dateOfMarriage }}</span>
-                <span v-else-if="s.marriageApprox">{{ s.marriageApprox }}</span>
-                <span v-if="s.placeOfMarriage">@ {{ s.placeOfMarriage }}</span>
-              </span>
-            </li>
-          </ul>
-        </div>
         <div v-if="childrenOfSelected.length" class="card">
           <h3 data-i18n="children">Children</h3>
           <ul>
