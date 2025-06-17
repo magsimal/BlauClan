@@ -909,6 +909,18 @@
           }
         }
 
+        async function handleNodesChange(changes) {
+          const removed = (changes || []).filter((c) => c.type === 'remove');
+          for (const r of removed) {
+            if (!/^\d+$/.test(r.id)) continue;
+            try {
+              await FrontendApp.deletePerson(parseInt(r.id, 10));
+            } catch (e) {
+              console.error('Failed to delete person', r.id, e);
+            }
+          }
+        }
+
         async function deleteAll() {
           const ok = window.confirm('Delete all nodes and edges?');
           if (!ok) return;
@@ -1630,6 +1642,7 @@
         filters,
         filterActive,
         triggerSearch,
+        handleNodesChange,
         gotoPerson,
         personName,
         placeSuggestions,
@@ -1720,6 +1733,7 @@
             @touchstart="handleTouchStart"
             @touchend="handleTouchEnd"
             @touchcancel="handleTouchEnd"
+            @nodes-change="handleNodesChange"
             :fit-view-on-init="true"
             :min-zoom="0.1"
             :select-nodes-on-drag="true"
