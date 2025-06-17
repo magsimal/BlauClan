@@ -1246,8 +1246,11 @@
         function tidyUp(list) {
           const map = new Map(list.map((n) => [n.id, { ...n, children: [] }]));
           map.forEach((n) => {
-            if (n.motherId && map.has(n.motherId)) map.get(n.motherId).children.push(n);
-            if (n.fatherId && map.has(n.fatherId)) map.get(n.fatherId).children.push(n);
+            if (n.fatherId && map.has(n.fatherId)) {
+              map.get(n.fatherId).children.push(n);
+            } else if (n.motherId && map.has(n.motherId)) {
+              map.get(n.motherId).children.push(n);
+            }
           });
 
           const gen = GenerationLayout.assignGenerations(list);
@@ -1256,7 +1259,7 @@
           const roots = [];
           map.forEach((n) => {
             const hasParent = list.some((p) => p.id === n.motherId || p.id === n.fatherId);
-            if (!hasParent && n.children.length) roots.push(n);
+            if (!hasParent) roots.push(n);
           });
           const fakeRoot = { id: 'root', children: roots };
           const baseSpacing = horizontalGridSize * 4;
@@ -1300,6 +1303,9 @@
           });
 
           rows.forEach((row) => {
+            row.forEach((p) => {
+              if (typeof p.x !== 'number') p.x = 0;
+            });
             row.sort((a, b) => a.x - b.x);
             for (let i = 1; i < row.length; i++) {
               if (row[i].x - row[i - 1].x < H_SPACING) {
