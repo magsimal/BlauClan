@@ -95,16 +95,38 @@
 
   function mountApp() {
     const { createApp } = Vue;
+    const I18nGlobal = (typeof window !== 'undefined' && window.I18n)
+      ? window.I18n
+      : { getLang: () => 'en' };
+    function debounce(fn, delay) {
+      let t;
+      return function (...args) {
+        clearTimeout(t);
+        t = setTimeout(() => fn.apply(this, args), delay);
+      };
+    }
     const app = createApp({
       data() {
         return {
           people: [],
           selectedPerson: null,
           spouses: [],
+          pobSuggestions: [],
+          pobFocus: false,
         };
       },
       async mounted() {
         this.people = await fetchPeople();
+        this.debouncedPob = debounce(async (val) => {
+          if (!val) { this.pobSuggestions = []; return; }
+          const lang = I18nGlobal.getLang ? I18nGlobal.getLang().toLowerCase() : 'en';
+          try {
+            const res = await fetch(`/places/suggest?q=${encodeURIComponent(val)}&lang=${lang}`);
+            this.pobSuggestions = res.ok ? await res.json() : [];
+          } catch (e) {
+            this.pobSuggestions = [];
+          }
+        }, 250);
       },
       computed: {
         childrenOfSelected() {
@@ -153,10 +175,26 @@
           const idx = this.people.findIndex((p) => p.id === updated.id);
           if (idx !== -1) Object.assign(this.people[idx], updated);
         },
+        onPobInput(e) {
+          if (this.debouncedPob) this.debouncedPob(e.target.value);
+        },
+        hidePobDropdown() {
+          setTimeout(() => { this.pobFocus = false; }, 150);
+        },
+        applyPob(s) {
+          if (this.selectedPerson) this.selectedPerson.placeOfBirth = s.name;
+          this.pobFocus = false;
+        },
+        useTypedPob() {
+          if (this.selectedPerson) {
+            this.selectedPerson.placeOfBirth = (this.selectedPerson.placeOfBirth || '').trim();
+          }
+          this.pobFocus = false;
+        },
        async savePerson() {
-          if (!this.selectedPerson) return;
-          const payload = {
-            firstName: this.selectedPerson.firstName,
+         if (!this.selectedPerson) return;
+         const payload = {
+           firstName: this.selectedPerson.firstName,
             callName: this.selectedPerson.callName || '',
             lastName: this.selectedPerson.lastName,
             maidenName: this.selectedPerson.maidenName || '',

@@ -28,6 +28,18 @@ the backend listens on port `3009`. You can change this by setting the
 used for both the Node.js server and the Nginx proxy configuration. The front-end itself is served on
 `http://localhost:8080`.
 
+For place of birth suggestions to work you must provide a valid
+GeoNames username. Sign up for a free account at
+<https://www.geonames.org/> and set the `GEONAMES_USER` environment
+variable. When using Docker Compose this variable can be added to a
+`.env` file in the project root or passed directly on the command
+line. If you launch the containers with Portainer make sure the
+backend service receives this variable. Newly created GeoNames
+accounts can take up to half an hour before they start returning
+results, so suggestions may initially appear empty. Set
+`VALIDATOR_STRICT=true` if you also want to reject unknown places on
+form submission.
+
 You can also tweak how tightly related nodes are drawn together by setting
 `RELATIVE_ATTRACTION` (0 = loose layout, 1 = very compact). It defaults to `0.5`.
 The bulk delete button is hidden by default. Set `SHOW_DELETE_ALL_BUTTON=true`
