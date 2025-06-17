@@ -1247,7 +1247,9 @@
         }
 
         function tidyUp(list) {
-          const map = new Map(list.map((n) => [n.id, { ...n, children: [] }]));
+          const map = new Map(
+            list.map((n) => [n.id, { ...n, children: [], width: n.width || 0 }])
+          );
           map.forEach((n) => {
             if (n.fatherId && map.has(n.fatherId)) {
               map.get(n.fatherId).children.push(n);
@@ -1290,9 +1292,11 @@
                 const father = map.get(child.fatherId);
                 const mother = map.get(child.motherId);
                 if (father && mother) {
-                  const mid = (father.x + mother.x) / 2;
-                  father.x = mid - H_SPACING / 2;
-                  mother.x = mid + H_SPACING / 2;
+                  const mid =
+                    (father.x + father.width / 2 + mother.x + mother.width / 2) /
+                    2;
+                  father.x = mid - father.width / 2 - H_SPACING / 2;
+                  mother.x = mid + H_SPACING / 2 - mother.width / 2;
                 }
               }
             }
@@ -1311,8 +1315,12 @@
             });
             row.sort((a, b) => a.x - b.x);
             for (let i = 1; i < row.length; i++) {
-              if (row[i].x - row[i - 1].x < H_SPACING) {
-                row[i].x = row[i - 1].x + H_SPACING;
+              const prev = row[i - 1];
+              const curr = row[i];
+              const prevRight = prev.x + (prev.width || 0);
+              const minX = prevRight + H_SPACING;
+              if (curr.x < minX) {
+                curr.x = minX;
               }
             }
           });
@@ -1335,6 +1343,7 @@
             fatherId: n.data.fatherId,
             motherId: n.data.motherId,
             spouseIds: [],
+            width: n.dimensions?.width || 0,
             x: 0,
             y: 0,
           }));
