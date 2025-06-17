@@ -5,7 +5,7 @@
     global.FlowApp = factory();
   }
 })(this, function () {
-  /* global html2canvas, d3, GenerationLayout, AppConfig */
+  /* global html2canvas, d3, GenerationLayout, AppConfig, I18n */
   const GedcomUtil = typeof require === 'function'
     ? (() => { try { return require('./src/utils/gedcom'); } catch (e) { return {}; } })()
     : (typeof window !== 'undefined' ? (window.Gedcom || {}) : {});
@@ -44,6 +44,7 @@
         const nodes = ref([]);
         const edges = ref([]);
         const selectedEdge = ref(null);
+        const I18nGlobal = typeof I18n !== 'undefined' ? I18n : { t: (k) => k };
         const { fitView } = useZoomPanHelper();
         const {
           screenToFlowCoordinate,
@@ -1519,6 +1520,7 @@
         gotoPerson,
         personName,
         showDeleteAllButton,
+        I18n: I18nGlobal,
       };
       },
       template: `
