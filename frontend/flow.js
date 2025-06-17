@@ -93,6 +93,9 @@
         const showConflict = ref(false);
         const useBirthApprox = ref(false);
         const useDeathApprox = ref(false);
+        const birthExactBackup = ref('');
+        const deathExactBackup = ref('');
+        let originalSelected = null;
         const showFilter = ref(false);
         const filters = ref({
           missingParents: false,
@@ -371,6 +374,8 @@
           selected.value = { ...node.data, spouseId: '' };
           useBirthApprox.value = !!selected.value.birthApprox;
           useDeathApprox.value = !!selected.value.deathApprox;
+          birthExactBackup.value = selected.value.dateOfBirth || '';
+          deathExactBackup.value = selected.value.dateOfDeath || '';
           computeChildren(pid);
           showModal.value = true;
         }
@@ -590,6 +595,8 @@
             selected.value = { ...evt.node.data, spouseId: '' };
             useBirthApprox.value = !!selected.value.birthApprox;
             useDeathApprox.value = !!selected.value.deathApprox;
+            birthExactBackup.value = selected.value.dateOfBirth || '';
+            deathExactBackup.value = selected.value.dateOfDeath || '';
             computeChildren(evt.node.data.id);
             editing.value = false;
             showModal.value = true;
@@ -597,6 +604,8 @@
             selected.value = { ...evt.node.data, spouseId: '' };
             useBirthApprox.value = !!selected.value.birthApprox;
             useDeathApprox.value = !!selected.value.deathApprox;
+            birthExactBackup.value = selected.value.dateOfBirth || '';
+            deathExactBackup.value = selected.value.dateOfDeath || '';
             computeChildren(evt.node.data.id);
             editing.value = false;
             showModal.value = false;
@@ -647,16 +656,30 @@
         );
 
         watch(useBirthApprox, (val) => {
-          if (selected.value) {
-            if (val) selected.value.dateOfBirth = '';
-            else selected.value.birthApprox = '';
+          if (!selected.value) return;
+          if (val) {
+            birthExactBackup.value = selected.value.dateOfBirth;
+            selected.value.dateOfBirth = '';
+          } else if (!selected.value.birthApprox) {
+            selected.value.dateOfBirth = birthExactBackup.value;
           }
         });
 
         watch(useDeathApprox, (val) => {
-          if (selected.value) {
-            if (val) selected.value.dateOfDeath = '';
-            else selected.value.deathApprox = '';
+          if (!selected.value) return;
+          if (val) {
+            deathExactBackup.value = selected.value.dateOfDeath;
+            selected.value.dateOfDeath = '';
+          } else if (!selected.value.deathApprox) {
+            selected.value.dateOfDeath = deathExactBackup.value;
+          }
+        });
+
+        watch(editing, (val, oldVal) => {
+          if (val && !oldVal && selected.value && !isNew.value) {
+            originalSelected = JSON.parse(JSON.stringify(selected.value));
+            birthExactBackup.value = selected.value.dateOfBirth || '';
+            deathExactBackup.value = selected.value.dateOfDeath || '';
           }
         });
 
@@ -1099,6 +1122,29 @@
           await load(true);
         }
 
+        async function cancelEdit() {
+          if (!originalSelected || !selected.value || isNew.value) {
+            editing.value = false;
+            return;
+          }
+          const payload = { ...originalSelected };
+          const spouseId = payload.spouseId;
+          delete payload.spouseId;
+          ['maidenName', 'dateOfBirth', 'birthApprox', 'dateOfDeath', 'deathApprox', 'placeOfBirth', 'notes', 'fatherId', 'motherId'].forEach((f) => {
+            if (payload[f] === '') payload[f] = null;
+          });
+          await FrontendApp.updatePerson(originalSelected.id, payload);
+          if (spouseId) {
+            await FrontendApp.linkSpouse(originalSelected.id, parseInt(spouseId));
+          }
+          await load(true);
+          selected.value = { ...originalSelected };
+          computeChildren(originalSelected.id);
+          useBirthApprox.value = !!selected.value.birthApprox;
+          useDeathApprox.value = !!selected.value.deathApprox;
+          editing.value = false;
+        }
+
         async function unlinkChild(child) {
           const updates = {};
           if (child.fatherId === selected.value.id) updates.fatherId = null;
@@ -1471,14 +1517,15 @@
           unlinkChild,
           addChild,
           addSpouse,
-          addParent,
-          startAddParent,
-          selected,
-          showModal,
-          children,
-         isNew,
-         editing,
-         avatarSrc,
+        addParent,
+        startAddParent,
+        selected,
+        showModal,
+        children,
+        isNew,
+        editing,
+        cancelEdit,
+        avatarSrc,
          tidyUpLayout,
         saveLayout,
         loadLayout,
@@ -1837,7 +1884,7 @@
                       <label class="mr-2 mb-0" style="width: 90px;" data-i18n="dateOfBirth">Date of Birth</label>
                       <input v-if="!useBirthApprox" class="form-control flex-fill" v-model="selected.dateOfBirth" type="date" title="Birth date" />
                       <input v-else class="form-control flex-fill" v-model="selected.birthApprox" placeholder="e.g., ABT 1900" title="Approximate birth" data-i18n-placeholder="approxExample" />
-                      <div class="custom-control custom-switch ml-2">
+                      <div class="custom-control custom-switch ml-2 align-self-center">
                         <input type="checkbox" class="custom-control-input" id="birthApproxSwitch" v-model="useBirthApprox" />
                         <label class="custom-control-label" for="birthApproxSwitch" data-i18n="approx">Approx</label>
                       </div>
@@ -1856,7 +1903,7 @@
                       <label class="mr-2 mb-0" style="width: 90px;" data-i18n="dateOfDeath">Date of Death</label>
                       <input v-if="!useDeathApprox" class="form-control flex-fill" v-model="selected.dateOfDeath" type="date" title="Death date" />
                       <input v-else class="form-control flex-fill" v-model="selected.deathApprox" placeholder="e.g., BEF 1950" title="Approximate death" data-i18n-placeholder="approxExample" />
-                      <div class="custom-control custom-switch ml-2">
+                      <div class="custom-control custom-switch ml-2 align-self-center">
                         <input type="checkbox" class="custom-control-input" id="deathApproxSwitch" v-model="useDeathApprox" />
                         <label class="custom-control-label" for="deathApproxSwitch" data-i18n="approx">Approx</label>
                       </div>
@@ -1893,6 +1940,7 @@
                   <div class="text-right mt-3">
                     <button v-if="!isNew" @click="deleteSelected" class="btn btn-danger btn-sm mr-2" data-i18n="delete">Delete</button>
                     <button v-if="isNew" class="btn btn-primary btn-sm mr-2" @click="saveNewPerson" data-i18n="save">Save</button>
+                    <button v-if="!isNew" class="btn btn-secondary btn-sm mr-2" @click="cancelEdit" data-i18n="cancel">Cancel</button>
                     <button class="btn btn-secondary btn-sm" @click="cancelModal">
                       <span v-if="isNew" data-i18n="cancel">Cancel</span>
                       <span v-else data-i18n="close">Close</span>
