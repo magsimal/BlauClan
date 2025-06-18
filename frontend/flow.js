@@ -677,14 +677,20 @@
           }
         });
 
+        let placeController = null;
         const fetchPlaces = debounce(async (val) => {
+          if (placeController) placeController.abort();
           if (!val) { placeSuggestions.value = []; return; }
+          placeController = new AbortController();
           const lang = I18nGlobal.getLang ? I18nGlobal.getLang().toLowerCase() : 'en';
           try {
-            const res = await fetch(`/places/suggest?q=${encodeURIComponent(val)}&lang=${lang}`);
+            const res = await fetch(
+              `/places/suggest?q=${encodeURIComponent(val)}&lang=${lang}`,
+              { signal: placeController.signal },
+            );
             placeSuggestions.value = res.ok ? await res.json() : [];
           } catch (e) {
-            placeSuggestions.value = [];
+            if (e.name !== 'AbortError') placeSuggestions.value = [];
           }
         }, 250);
 
