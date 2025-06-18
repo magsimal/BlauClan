@@ -117,14 +117,20 @@
       },
       async mounted() {
         this.people = await fetchPeople();
+        let pobController = null;
         this.debouncedPob = debounce(async (val) => {
+          if (pobController) pobController.abort();
           if (!val) { this.pobSuggestions = []; return; }
+          pobController = new AbortController();
           const lang = I18nGlobal.getLang ? I18nGlobal.getLang().toLowerCase() : 'en';
           try {
-            const res = await fetch(`/places/suggest?q=${encodeURIComponent(val)}&lang=${lang}`);
+            const res = await fetch(
+              `/places/suggest?q=${encodeURIComponent(val)}&lang=${lang}`,
+              { signal: pobController.signal },
+            );
             this.pobSuggestions = res.ok ? await res.json() : [];
           } catch (e) {
-            this.pobSuggestions = [];
+            if (e.name !== 'AbortError') this.pobSuggestions = [];
           }
         }, 250);
       },
