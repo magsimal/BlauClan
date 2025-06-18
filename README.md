@@ -54,6 +54,7 @@ docker-compose -f docker-compose.deploy.yml up -d
 ```
 
 Replace `OWNER` in `docker-compose.deploy.yml` with your GitHub username or organisation.
+Ensure your `.env` file also defines `GEONAMES_USER` so the backend can access GeoNames.
 
 ### Running Backend Tests
 
