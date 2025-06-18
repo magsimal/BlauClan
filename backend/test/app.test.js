@@ -69,6 +69,27 @@ describe('People API', () => {
     expect(getRes.body.birthApprox).toBe('ABT 1900');
   });
 
+  test('rejects invalid spouse relationships', async () => {
+    await sequelize.sync({ force: true });
+    await request(app).post('/api/people').send({ firstName: 'A', lastName: 'B' });
+    await request(app).post('/api/people').send({ firstName: 'C', lastName: 'D' });
+
+    const selfRes = await request(app)
+      .post('/api/people/1/spouses')
+      .send({ spouseId: 1 });
+    expect(selfRes.statusCode).toBe(400);
+
+    const first = await request(app)
+      .post('/api/people/1/spouses')
+      .send({ spouseId: 2 });
+    expect(first.statusCode).toBe(201);
+
+    const dupRes = await request(app)
+      .post('/api/people/2/spouses')
+      .send({ spouseId: 1 });
+    expect(dupRes.statusCode).toBe(400);
+  });
+
   test('exports and imports database', async () => {
     await sequelize.sync({ force: true });
     await request(app).post('/api/people').send({ firstName: 'A', lastName: 'B' });

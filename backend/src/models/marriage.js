@@ -10,7 +10,16 @@ module.exports = (sequelize) => {
       marriageApprox: DataTypes.STRING,
       placeOfMarriage: DataTypes.STRING,
     },
-    { sequelize, modelName: 'Marriage' }
+    {
+      sequelize,
+      modelName: 'Marriage',
+      indexes: [
+        {
+          unique: true,
+          fields: ['personId', 'spouseId'],
+        },
+      ],
+    }
   );
   return Marriage;
 };
