@@ -19,17 +19,18 @@
 
   async function init() {
     if (initialized) return;
-    initialized = true;
     try {
       const res = await fetch('/api/people');
       people = await res.json();
       fuse = new Fuse(people, { keys: ['firstName', 'lastName', 'callName'], threshold: 0.3 });
     } catch (e) {
       console.error('Failed to load people', e);
-      return;
+      people = [];
+      fuse = { search: () => [] };
     }
     setupDom();
     document.addEventListener('keydown', handleKeydown);
+    initialized = true;
   }
 
   function setupDom() {

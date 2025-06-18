@@ -21,8 +21,8 @@
 
     var svg;
     if (svgEl) {
+      var bb = svgEl.getBBox();
       svg = svgEl.cloneNode(true);
-      var bb = svg.getBBox();
       svg.setAttribute('viewBox', bb.x + ' ' + bb.y + ' ' + bb.width + ' ' + bb.height);
       svg.setAttribute('width', bb.width);
       svg.setAttribute('height', bb.height);
