@@ -63,6 +63,7 @@ async function geonamesSuggest(query, lang = 'en', cc = '') {
 }
 
 async function verifyGeonames() {
+  console.log(`GEONAMES_USER: ${process.env.GEONAMES_USER || '(not set)'}`);
   if (!process.env.GEONAMES_USER) {
     console.log('GeoNames disabled: GEONAMES_USER not set');
     geonamesEnabled = false;
