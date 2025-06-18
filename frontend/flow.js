@@ -1782,7 +1782,7 @@
             <li @click="menuAdd">Add New</li>
             <li @click="menuTidy">Tidy Up</li>
             <li @click="menuFit">Zoom to Fit</li>
-            <li v-if="getSelectedNodes.length > 1" @click="copySelectedGedcom">Copy GEDCOM</li>
+            <li v-if="getSelectedNodes.value.length > 1" @click="copySelectedGedcom">Copy GEDCOM</li>
           </ul>
 
           <div v-if="showImport" class="modal">
