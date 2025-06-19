@@ -64,5 +64,10 @@
   "search": "Search",
   "copyGedcom": "Copy GEDCOM",
   "avatar": "Avatar",
-  "useExactly": "Use Exactly"
+  "useExactly": "Use Exactly",
+  "showRelatives": "Show Relatives",
+  "relativeView": "Relatives View",
+  "ancestorsOnly": "Ancestors",
+  "descendantsOnly": "Descendants",
+  "both": "Both"
 }
