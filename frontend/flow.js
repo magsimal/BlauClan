@@ -1900,6 +1900,11 @@
             @nodes-change="handleNodesChange"
             :fit-view-on-init="true"
             :min-zoom="0.1"
+            :max-zoom="2"
+            :zoom-on-scroll="true"
+            :pan-on-scroll="true"
+            :pan-on-scroll-speed="1"
+            :zoom-on-pinch="true"
             :select-nodes-on-drag="true"
             :snap-to-grid="snapToGrid"
             :snap-grid="[horizontalGridSize, verticalGridSize]"
@@ -1997,7 +2002,17 @@
               </select>
             </div>
             <div style="width:100%;height:60vh;">
-              <VueFlow :nodes="relativesNodes" :edges="relativesEdges" fit-view-on-init="true" :min-zoom="0.1" />
+              <VueFlow
+                :nodes="relativesNodes"
+                :edges="relativesEdges"
+                fit-view-on-init="true"
+                :min-zoom="0.1"
+                :max-zoom="2"
+                :zoom-on-scroll="true"
+                :pan-on-scroll="true"
+                :pan-on-scroll-speed="1"
+                :zoom-on-pinch="true"
+              />
             </div>
             <div class="text-right mt-2">
               <button class="btn btn-primary btn-sm mr-2" @click="showRelatives = false" data-i18n="close">Close</button>
