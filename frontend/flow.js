@@ -101,6 +101,11 @@
         const deathExactBackup = ref('');
         let originalSelected = null;
         const showFilter = ref(false);
+        const showRelatives = ref(false);
+        const relativesNodes = ref([]);
+        const relativesEdges = ref([]);
+        const relativesMode = ref('both');
+        let relativesRoot = null;
         const placeSuggestions = ref([]);
         const placeFocus = ref(false);
         const filters = ref({
@@ -588,6 +593,142 @@
           });
         }
 
+        function computeRelatives() {
+          if (!relativesRoot) return;
+          const mode = relativesMode.value;
+          const map = {};
+          nodes.value.forEach((n) => {
+            map[n.id] = n;
+          });
+          const allowed = new Set();
+          const visitedUp = new Set();
+          const visitedDown = new Set();
+
+          function unionId(f, m) {
+            return `u-${f}-${m}`;
+          }
+
+          function addNode(id) {
+            if (id) allowed.add(String(id));
+          }
+
+          function walkAncestors(pid) {
+            if (!pid || visitedUp.has(pid)) return;
+            visitedUp.add(pid);
+            const node = map[String(pid)];
+            if (!node) return;
+            addNode(pid);
+            if (node.data.fatherId && node.data.motherId) {
+              addNode(unionId(node.data.fatherId, node.data.motherId));
+            }
+            walkAncestors(node.data.fatherId);
+            walkAncestors(node.data.motherId);
+          }
+
+          function walkDescendants(pid) {
+            if (!pid || visitedDown.has(pid)) return;
+            visitedDown.add(pid);
+            const node = map[String(pid)];
+            if (!node) return;
+            addNode(pid);
+            nodes.value.forEach((child) => {
+              if (
+                child.data.fatherId === pid ||
+                child.data.motherId === pid
+              ) {
+                if (child.data.fatherId && child.data.motherId) {
+                  addNode(unionId(child.data.fatherId, child.data.motherId));
+                }
+                walkDescendants(parseInt(child.id));
+              }
+            });
+          }
+
+          if (mode === 'ancestors' || mode === 'both') walkAncestors(relativesRoot);
+          if (mode === 'descendants' || mode === 'both') walkDescendants(relativesRoot);
+
+          const newNodes = nodes.value
+            .filter((n) => allowed.has(n.id))
+            .map((n) => ({
+              id: n.id,
+              type: n.type,
+              position: { ...n.position },
+              data: { ...n.data },
+              dimensions: n.dimensions ? { ...n.dimensions } : undefined,
+            }));
+
+          const newEdges = edges.value
+            .filter((e) => allowed.has(e.source) && allowed.has(e.target))
+            .map((e) => ({ ...e }));
+
+          tidySubtree(newNodes);
+          relativesNodes.value = newNodes;
+          relativesEdges.value = newEdges;
+        }
+
+        function tidySubtree(list) {
+          const people = list
+            .filter((n) => n.type === 'person')
+            .map((n) => ({
+              id: n.data.id,
+              fatherId: n.data.fatherId,
+              motherId: n.data.motherId,
+              spouseIds: [],
+              width: n.dimensions?.width || 0,
+              x: 0,
+              y: 0,
+            }));
+          const pMap = new Map(people.map((p) => [p.id, p]));
+          list.forEach((n) => {
+            if (n.id.startsWith('u-')) {
+              const parts = n.id.split('-');
+              const a = pMap.get(parseInt(parts[1]));
+              const b = pMap.get(parseInt(parts[2]));
+              if (a && b) {
+                if (!a.spouseIds.includes(b.id)) a.spouseIds.push(b.id);
+                if (!b.spouseIds.includes(a.id)) b.spouseIds.push(a.id);
+              }
+            }
+          });
+          tidyUp(people);
+          const posMap = {};
+          people.forEach((p) => {
+            posMap[p.id] = { x: p.x, y: p.y };
+          });
+          list.forEach((n) => {
+            if (n.type === 'person' && posMap[n.data.id]) {
+              n.position.x = posMap[n.data.id].x;
+              n.position.y = posMap[n.data.id].y;
+            }
+          });
+          list.forEach((n) => {
+            if (n.id.startsWith('u-')) {
+              const parts = n.id.split('-');
+              const father = list.find((p) => p.id === parts[1]);
+              const mother = list.find((p) => p.id === parts[2]);
+              if (father && mother) {
+                const fatherWidth = father.dimensions?.width || 0;
+                const motherWidth = mother.dimensions?.width || 0;
+                const fatherHeight = father.dimensions?.height || 0;
+                const motherHeight = mother.dimensions?.height || 0;
+                n.position = {
+                  x:
+                    (father.position.x + fatherWidth / 2 +
+                      mother.position.x +
+                      motherWidth / 2) /
+                    2,
+                  y:
+                    (father.position.y + fatherHeight / 2 +
+                      mother.position.y +
+                      motherHeight / 2) /
+                      2 +
+                    UNION_Y_OFFSET,
+                };
+              }
+            }
+          });
+        }
+
         function onNodeClick(evt) {
           const e = evt.event || evt;
           if (e.shiftKey || shiftPressed.value) {
@@ -745,6 +886,7 @@
         watch(showImport, (v) => v && refreshI18n());
         watch(showFilter, (v) => v && refreshI18n());
         watch(showConflict, (v) => v && refreshI18n());
+        watch(showRelatives, (v) => v && refreshI18n());
 
         function applyFilters() {
           const f = filters.value;
@@ -787,6 +929,10 @@
           },
           { deep: true }
         );
+
+        watch(relativesMode, () => {
+          computeRelatives();
+        });
 
         function onNodeDragStop() {
           refreshUnions();
@@ -911,6 +1057,15 @@
 
         function openFilter() {
           showFilter.value = true;
+        }
+
+        function openRelatives() {
+          const list = getSelectedNodes.value;
+          if (list.length !== 1) return;
+          relativesRoot = parseInt(list[0].id);
+          relativesMode.value = 'both';
+          computeRelatives();
+          showRelatives.value = true;
         }
 
         function triggerSearch() {
@@ -1641,10 +1796,15 @@
         copySelectedGedcom,
         getSelectedNodes,
         openFilter,
+        openRelatives,
         resetFilters,
         showFilter,
+        showRelatives,
         filters,
         filterActive,
+        relativesNodes,
+        relativesEdges,
+        relativesMode,
         triggerSearch,
         handleNodesChange,
         gotoPerson,
@@ -1786,6 +1946,7 @@
             <li @click="menuAdd">Add New</li>
             <li @click="menuTidy">Tidy Up</li>
             <li @click="menuFit">Zoom to Fit</li>
+            <li v-if="getSelectedNodes.value.length === 1" @click="openRelatives" data-i18n="showRelatives">Show Relatives</li>
             <li v-if="getSelectedNodes.value.length > 1" @click="copySelectedGedcom">Copy GEDCOM</li>
           </ul>
 
@@ -1821,6 +1982,25 @@
             </div>
             <div class="text-right mt-2">
               <button class="btn btn-primary btn-sm mr-2" @click="showFilter = false" data-i18n="close">Close</button>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="showRelatives" class="modal">
+          <div class="modal-content card p-3" style="max-width:90%;">
+            <h4 data-i18n="relativeView">Relatives View</h4>
+            <div class="form-group">
+              <select class="form-control" v-model="relativesMode">
+                <option value="descendants" data-i18n="descendantsOnly">Descendants</option>
+                <option value="ancestors" data-i18n="ancestorsOnly">Ancestors</option>
+                <option value="both" data-i18n="both">Both</option>
+              </select>
+            </div>
+            <div style="width:100%;height:60vh;">
+              <VueFlow :nodes="relativesNodes" :edges="relativesEdges" fit-view-on-init="true" :min-zoom="0.1" />
+            </div>
+            <div class="text-right mt-2">
+              <button class="btn btn-primary btn-sm mr-2" @click="showRelatives = false" data-i18n="close">Close</button>
             </div>
           </div>
         </div>

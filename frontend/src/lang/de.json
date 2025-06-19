@@ -64,5 +64,10 @@
   "search": "Suche",
   "copyGedcom": "GEDCOM kopieren",
   "avatar": "Avatar",
-  "useExactly": "Eingabe verwenden"
+  "useExactly": "Eingabe verwenden",
+  "showRelatives": "Verwandte anzeigen",
+  "relativeView": "Verwandtschaft",
+  "ancestorsOnly": "Vorfahren",
+  "descendantsOnly": "Nachkommen",
+  "both": "Beides"
 }
