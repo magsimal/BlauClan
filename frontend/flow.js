@@ -1936,22 +1936,28 @@
                   <h3 class="card-title" v-if="isNew" data-i18n="addPerson">Add Person</h3>
                   <h3 class="card-title" v-else data-i18n="editPerson">Edit Person</h3>
                   <div class="form-row">
-                    <div class="col d-flex align-items-center mb-2">
-                      <label class="mr-2 mb-0" style="width: 90px;" data-i18n="callName">Call Name</label>
-                      <input class="form-control flex-fill" v-model="selected.callName" placeholder="Enter call name" title="Preferred name" data-i18n-placeholder="callName" />
+                    <div class="col mb-2">
+                      <label class="small" data-i18n="callName">Call Name</label>
+                      <input class="form-control" v-model="selected.callName" placeholder="Enter call name" title="Preferred name" data-i18n-placeholder="callName" />
                     </div>
-                    <div class="col d-flex align-items-center mb-2">
-                      <label class="mr-2 mb-0" style="width: 90px;" data-i18n="firstName">First Name</label>
-                      <input class="form-control flex-fill" v-model="selected.firstName" placeholder="Enter first name" title="Given name" data-i18n-placeholder="firstName" />
-                    </div>
-                    <div class="col d-flex align-items-center mb-2">
-                      <label class="mr-2 mb-0" style="width: 90px;" data-i18n="lastName">Last Name</label>
-                      <input class="form-control flex-fill" v-model="selected.lastName" placeholder="Enter last name" title="Family name" data-i18n-placeholder="lastName" />
+                    <div class="col mb-2">
+                      <label class="small" data-i18n="firstName">First Name</label>
+                      <input class="form-control" v-model="selected.firstName" placeholder="Enter first name" title="Given name" data-i18n-placeholder="firstName" />
                     </div>
                   </div>
                   <div class="form-row">
-                    <div class="col d-flex align-items-center mb-2">
-                      <label class="mr-2 mb-0" style="width: 90px;" data-i18n="gender">Gender</label>
+                    <div class="col mb-2">
+                      <label class="small" data-i18n="lastName">Last Name</label>
+                      <input class="form-control" v-model="selected.lastName" placeholder="Enter last name" title="Family name" data-i18n-placeholder="lastName" />
+                    </div>
+                    <div class="col mb-2">
+                      <label class="small" data-i18n="maidenName">Maiden Name</label>
+                      <input class="form-control" v-model="selected.maidenName" placeholder="Birth surname" title="Maiden name" data-i18n-placeholder="maidenName" />
+                    </div>
+                  </div>
+                  <div class="form-row">
+                    <div class="col mb-2">
+                      <label class="small" data-i18n="gender">Gender</label>
                       <div class="custom-control custom-switch">
                         <input
                           type="checkbox"
@@ -1969,10 +1975,10 @@
                     </div>
                   </div>
                   <div class="form-row">
-                    <div class="col d-flex align-items-center mb-2">
-                      <label class="mr-2 mb-0" style="width: 90px;" data-i18n="dateOfBirth">Date of Birth</label>
-                      <input v-if="!useBirthApprox" class="form-control flex-fill" v-model="selected.dateOfBirth" type="date" title="Birth date" />
-                      <input v-else class="form-control flex-fill" v-model="selected.birthApprox" placeholder="e.g., ABT 1900" title="Approximate birth" data-i18n-placeholder="approxExample" />
+                    <div class="col mb-2">
+                      <label class="small" data-i18n="dateOfBirth">Date of Birth</label>
+                      <input v-if="!useBirthApprox" class="form-control" v-model="selected.dateOfBirth" type="date" title="Birth date" />
+                      <input v-else class="form-control" v-model="selected.birthApprox" placeholder="e.g., ABT 1900" title="Approximate birth" data-i18n-placeholder="approxExample" />
                       <div class="custom-control custom-switch ml-2 align-self-center">
                         <input type="checkbox" class="custom-control-input" id="birthApproxSwitch" v-model="useBirthApprox" />
                         <label class="custom-control-label" for="birthApproxSwitch" data-i18n="approx">Approx</label>
@@ -1980,54 +1986,30 @@
                     </div>
                   </div>
                   <div class="form-row">
-                    <div class="col d-flex align-items-center mb-2 position-relative">
-                      <label class="mr-2 mb-0" style="width: 90px;" data-i18n="placeOfBirth">Place of Birth</label>
-                      <input class="form-control flex-fill" v-model="selected.placeOfBirth" placeholder="City or town" title="Place of birth" data-i18n-placeholder="placeOfBirth" @focus="placeFocus=true" @blur="hidePlaceDropdown" @input="onPlaceInput" />
-                      <ul v-if="placeFocus && placeSuggestions.length" class="list-group position-absolute" style="top:100%; left:90px; right:0; z-index:1000; max-height:150px; overflow-y:auto;">
+                    <div class="col mb-2 position-relative">
+                      <label class="small" data-i18n="placeOfBirth">Place of Birth</label>
+                      <input class="form-control" v-model="selected.placeOfBirth" placeholder="City or town" title="Place of birth" data-i18n-placeholder="placeOfBirth" @focus="placeFocus=true" @blur="hidePlaceDropdown" @input="onPlaceInput" />
+                      <ul v-if="placeFocus && placeSuggestions.length" class="list-group position-absolute" style="top:100%; left:0; right:0; z-index:1000; max-height:150px; overflow-y:auto;">
                         <li v-for="s in placeSuggestions" :key="s.geonameId" class="list-group-item list-group-item-action" @mousedown.prevent="applyPlace(s)">{{ s.name }}<span v-if="s.adminName1">, {{ s.adminName1 }}</span> {{ s.countryCode }}</li>
                         <li class="list-group-item list-group-item-action" @mousedown.prevent="useTypedPlace" data-i18n="useExactly">Use Exactly</li>
                       </ul>
                     </div>
-                    <div class="col d-flex align-items-center mb-2">
-                      <label class="mr-2 mb-0" style="width: 90px;" data-i18n="maidenName">Maiden Name</label>
-                      <input class="form-control flex-fill" v-model="selected.maidenName" placeholder="Birth surname" title="Maiden name" data-i18n-placeholder="maidenName" />
-                    </div>
-                    <div class="d-flex align-items-center mb-2">
-                      <label class="mr-2 mb-0" style="width: 90px;" data-i18n="dateOfDeath">Date of Death</label>
-                      <input v-if="!useDeathApprox" class="form-control flex-fill" v-model="selected.dateOfDeath" type="date" title="Death date" />
-                      <input v-else class="form-control flex-fill" v-model="selected.deathApprox" placeholder="e.g., BEF 1950" title="Approximate death" data-i18n-placeholder="approxExample" />
+                  </div>
+                  <div class="form-row">
+                    <div class="col mb-2">
+                      <label class="small" data-i18n="dateOfDeath">Date of Death</label>
+                      <input v-if="!useDeathApprox" class="form-control" v-model="selected.dateOfDeath" type="date" title="Death date" />
+                      <input v-else class="form-control" v-model="selected.deathApprox" placeholder="e.g., BEF 1950" title="Approximate death" data-i18n-placeholder="approxExample" />
                       <div class="custom-control custom-switch ml-2 align-self-center">
                         <input type="checkbox" class="custom-control-input" id="deathApproxSwitch" v-model="useDeathApprox" />
                         <label class="custom-control-label" for="deathApproxSwitch" data-i18n="approx">Approx</label>
                       </div>
                     </div>
                   </div>
-                  <button class="btn btn-link p-0 mb-2" type="button" data-toggle="collapse" data-target="#modalDetails" data-i18n="moreDetails">More Details</button>
-                  <div id="modalDetails" class="collapse">
-                    <div class="d-flex align-items-center mb-2">
-                      <label class="mr-2 mb-0" style="width: 90px;" data-i18n="father">Father</label>
-                      <select class="form-control flex-fill" v-model="selected.fatherId" title="Select father">
-                        <option value="" data-i18n="father">Father</option>
-                        <option v-for="n in nodes" :key="'f'+n.id" :value="n.data.id">{{ n.data.callName ? n.data.callName + ' (' + n.data.firstName + ')' : n.data.firstName }} {{ n.data.lastName }}</option>
-                      </select>
-                    </div>
-                    <div class="d-flex align-items-center mb-2">
-                      <label class="mr-2 mb-0" style="width: 90px;" data-i18n="mother">Mother</label>
-                      <select class="form-control flex-fill" v-model="selected.motherId" title="Select mother">
-                        <option value="" data-i18n="mother">Mother</option>
-                        <option v-for="n in nodes" :key="'m'+n.id" :value="n.data.id">{{ n.data.callName ? n.data.callName + ' (' + n.data.firstName + ')' : n.data.firstName }} {{ n.data.lastName }}</option>
-                      </select>
-                    </div>
-                    <div class="d-flex align-items-center mb-2">
-                      <label class="mr-2 mb-0" style="width: 90px;" data-i18n="spouse">Spouse</label>
-                      <select class="form-control flex-fill" v-model="selected.spouseId" title="Link spouse">
-                        <option value="" data-i18n="spouse">Spouse</option>
-                        <option v-for="n in nodes" :key="'s'+n.id" :value="n.data.id">{{ n.data.callName ? n.data.callName + ' (' + n.data.firstName + ')' : n.data.firstName }} {{ n.data.lastName }}</option>
-                      </select>
-                    </div>
-                    <div class="d-flex align-items-center mb-2">
-                      <label class="mr-2 mb-0" style="width: 90px;" data-i18n="notes">Notes</label>
-                      <textarea class="form-control flex-fill" v-model="selected.notes" placeholder="Additional info" title="Notes" data-i18n-placeholder="notes"></textarea>
+                  <div class="form-row">
+                    <div class="col mb-2">
+                      <label class="small" data-i18n="notes">Notes</label>
+                      <textarea class="form-control" v-model="selected.notes" placeholder="Additional info" title="Notes" data-i18n-placeholder="notes"></textarea>
                     </div>
                   </div>
                   <div class="text-right mt-3">
