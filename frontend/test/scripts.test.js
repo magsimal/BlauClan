@@ -9,6 +9,7 @@ describe('index.html scripts', () => {
       'src/utils/exportSvg.js',
       'src/utils/assignGenerations.js',
       'src/utils/gedcom.js',
+      'src/utils/dedup.js',
       'src/config.js',
       'flow.js',
       'search.js',
