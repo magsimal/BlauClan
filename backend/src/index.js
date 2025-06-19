@@ -32,16 +32,13 @@ async function geonamesSuggest(query, lang = 'en', cc = '') {
   const cached = await cache.get(key);
   if (cached) return cached;
   // The GeoNames API only works over HTTP for free accounts
-  const url = new URL('http://api.geonames.org/searchJSON');
-  url.searchParams.set('q', q);
-  url.searchParams.set('fuzzy', '0.8');
-  url.searchParams.set('maxRows', '10');
-  url.searchParams.set('username', GEONAMES_USER);
-  url.searchParams.set('lang', lang);
-  if (cc) url.searchParams.set('country', cc);
-  url.searchParams.set('isNameRequired', 'true');
+  const url = `http://api.geonames.org/searchJSON?q=${encodeURIComponent(q)}`
+    + `&fuzzy=0.8&maxRows=10&username=${GEONAMES_USER}`
+    + `&lang=${lang}`
+    + (cc ? `&country=${cc}` : '')
+    + '&isNameRequired=true';
   try {
-    console.debug(`GeoNames request: ${url.toString()}`);
+    console.debug(`GeoNames request: ${url}`);
     const resp = await fetch(url);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
@@ -61,7 +58,7 @@ async function geonamesSuggest(query, lang = 'en', cc = '') {
     await cache.set(key, final, 86400);
     return final;
   } catch (e) {
-    console.warn(`GeoNames request failed for ${url.toString()}: ${e.message}`);
+    console.warn(`GeoNames request failed for ${url}: ${e.message}`);
     return [];
   }
 }
