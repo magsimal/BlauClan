@@ -113,6 +113,7 @@
           spouses: [],
           pobSuggestions: [],
           pobFocus: false,
+          pobCache: {},
         };
       },
       async mounted() {
@@ -120,15 +121,22 @@
         let pobController = null;
         this.debouncedPob = debounce(async (val) => {
           if (pobController) pobController.abort();
-          if (!val) { this.pobSuggestions = []; return; }
+          const trimmed = (val || '').trim();
+          if (!trimmed) { this.pobSuggestions = []; return; }
+          const cacheKey = trimmed.toLowerCase();
+          if (this.pobCache[cacheKey]) {
+            this.pobSuggestions = this.pobCache[cacheKey];
+            return;
+          }
           pobController = new AbortController();
           const lang = I18nGlobal.getLang ? I18nGlobal.getLang().toLowerCase() : 'en';
           try {
             const res = await fetch(
-              `/places/suggest?q=${encodeURIComponent(val)}&lang=${lang}`,
+              `/places/suggest?q=${encodeURIComponent(trimmed)}&lang=${lang}`,
               { signal: pobController.signal },
             );
             this.pobSuggestions = res.ok ? await res.json() : [];
+            this.pobCache[cacheKey] = this.pobSuggestions;
           } catch (e) {
             if (e.name !== 'AbortError') this.pobSuggestions = [];
           }
