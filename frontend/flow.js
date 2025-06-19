@@ -1952,12 +1952,12 @@
             <li @click="menuTidy">Tidy Up</li>
             <li @click="menuFit">Zoom to Fit</li>
             <li
-              v-if="getSelectedNodes && getSelectedNodes.value && getSelectedNodes.value.length === 1"
+              v-if="getSelectedNodes && getSelectedNodes.value && getSelectedNodes.value.length > 0"
               @click="openRelatives"
               data-i18n="showRelatives"
             >Show Relatives</li>
             <li
-              v-if="getSelectedNodes && getSelectedNodes.value && getSelectedNodes.value.length > 1"
+              v-if="getSelectedNodes && getSelectedNodes.value && getSelectedNodes.value.length > 0"
               @click="copySelectedGedcom"
             >Copy GEDCOM</li>
           </ul>
