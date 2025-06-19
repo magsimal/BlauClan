@@ -181,7 +181,8 @@
           const idx = this.people.findIndex((p) => p.id === updated.id);
           if (idx !== -1) Object.assign(this.people[idx], updated);
         },
-        onPobInput(e) {
+       onPobInput(e) {
+          this.pobFocus = true;
           if (this.debouncedPob) this.debouncedPob(e.target.value);
         },
         hidePobDropdown() {
@@ -189,6 +190,7 @@
         },
         applyPob(s) {
           if (this.selectedPerson) this.selectedPerson.placeOfBirth = s.name;
+          this.pobSuggestions = [];
           this.pobFocus = false;
         },
         useTypedPob() {
