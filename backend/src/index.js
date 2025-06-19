@@ -39,8 +39,9 @@ async function geonamesSuggest(query, lang = 'en', cc = '') {
   if (cc) url.searchParams.set('country', cc);
   url.searchParams.set('isNameRequired', 'true');
   try {
+    console.debug(`GeoNames request: ${url.toString()}`);
     const resp = await fetch(url);
-    if (!resp.ok) throw new Error('geonames error');
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
     let res = Array.isArray(data.geonames) ? data.geonames : [];
     if (!/County|Province|District/i.test(q)) {
@@ -58,6 +59,7 @@ async function geonamesSuggest(query, lang = 'en', cc = '') {
     await cache.set(key, final, 86400);
     return final;
   } catch (e) {
+    console.warn(`GeoNames request failed for ${url.toString()}: ${e.message}`);
     return [];
   }
 }
