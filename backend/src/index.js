@@ -20,6 +20,7 @@ function normalizeParentIds(data) {
   return updates;
 }
 
+const GEONAMES_USER = process.env.GEONAMES_USER;
 let geonamesEnabled = true;
 
 async function geonamesSuggest(query, lang = 'en', cc = '') {
@@ -30,11 +31,12 @@ async function geonamesSuggest(query, lang = 'en', cc = '') {
   const key = `gn:${hash}`;
   const cached = await cache.get(key);
   if (cached) return cached;
-  const url = new URL('https://api.geonames.org/searchJSON');
+  // The GeoNames API only works over HTTP for free accounts
+  const url = new URL('http://api.geonames.org/searchJSON');
   url.searchParams.set('q', q);
   url.searchParams.set('fuzzy', '0.8');
   url.searchParams.set('maxRows', '10');
-  url.searchParams.set('username', process.env.GEONAMES_USER);
+  url.searchParams.set('username', GEONAMES_USER);
   url.searchParams.set('lang', lang);
   if (cc) url.searchParams.set('country', cc);
   url.searchParams.set('isNameRequired', 'true');
@@ -63,21 +65,33 @@ async function geonamesSuggest(query, lang = 'en', cc = '') {
 }
 
 async function verifyGeonames() {
-  if (!process.env.GEONAMES_USER) {
+  if (!GEONAMES_USER) {
     console.log('GeoNames disabled: GEONAMES_USER not set');
     geonamesEnabled = false;
     return;
   }
   try {
     const res = await geonamesSuggest('Berlin', 'en');
-    if (!res.length) {
-      console.log('GeoNames disabled: invalid GEONAMES_USER');
-      geonamesEnabled = false;
+    if (res.length) {
+      geonamesEnabled = true;
+      return;
     }
-  } catch (_e) {
     console.log('GeoNames disabled: invalid GEONAMES_USER');
-    geonamesEnabled = false;
+  } catch (_e) {
+    // network or authentication failed
+    try {
+      const demo = await fetch('http://api.geonames.org/searchJSON?q=london&maxRows=10&username=demo');
+      const data = await demo.json();
+      if (demo.ok && Array.isArray(data.geonames) && data.geonames.length) {
+        console.log('GeoNames disabled: invalid GEONAMES_USER');
+      } else {
+        console.log('GeoNames disabled: service unreachable');
+      }
+    } catch (_err) {
+      console.log('GeoNames disabled: service unreachable');
+    }
   }
+  geonamesEnabled = false;
 }
 
 async function validatePlace(place) {

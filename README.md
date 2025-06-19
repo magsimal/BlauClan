@@ -31,9 +31,9 @@ used for both the Node.js server and the Nginx proxy configuration. The front-en
 For place of birth suggestions to work you must provide a valid
 GeoNames username. Sign up for a free account at
 <https://www.geonames.org/> and set the `GEONAMES_USER` environment
-variable. When using Docker Compose this variable can be added to a
-`.env` file in the project root or passed directly on the command
-line. If you launch the containers with Portainer make sure the
+variable. When using Docker Compose for deployment edit
+`docker-compose.deploy.yml` and set this value under the backend
+service. If you launch the containers with Portainer make sure the
 backend service receives this variable. Newly created GeoNames
 accounts can take up to half an hour before they start returning
 results, so suggestions may initially appear empty. Set
@@ -54,7 +54,7 @@ docker-compose -f docker-compose.deploy.yml up -d
 ```
 
 Replace `OWNER` in `docker-compose.deploy.yml` with your GitHub username or organisation.
-Ensure your `.env` file also defines `GEONAMES_USER` so the backend can access GeoNames.
+Ensure `docker-compose.deploy.yml` defines `GEONAMES_USER` so the backend can access GeoNames.
 
 ### Running Backend Tests
 
