@@ -25,7 +25,11 @@ let geonamesEnabled = true;
 
 async function geonamesSuggest(query, lang = 'en', cc = '') {
   if (!geonamesEnabled) return [];
-  const q = query.trim().replace(/\s+/g, ' ');
+  const q = query
+    .trim()
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/\s*-\s*/g, '-')
+    .replace(/\s+/g, ' ');
   if (!q) return [];
   const hash = crypto.createHash('sha1').update(q + lang + cc).digest('hex');
   const key = `gn:${hash}`;

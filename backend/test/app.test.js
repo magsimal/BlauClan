@@ -126,4 +126,15 @@ describe('People API', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body[0].name).toBe('Test');
   });
+
+  test('place suggestions normalize dash characters', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ geonames: [] }) });
+    global.fetch = fetchMock;
+    const res = await request(app)
+      .get('/places/suggest')
+      .query({ q: 'Foo\u2013Bar' });
+    expect(res.statusCode).toBe(200);
+    expect(fetchMock).toHaveBeenCalled();
+    expect(fetchMock.mock.calls[0][0]).toContain('q=Foo-Bar');
+  });
 });
