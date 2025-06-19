@@ -9,7 +9,11 @@
   const GedcomUtil = typeof require === 'function'
     ? (() => { try { return require('./src/utils/gedcom'); } catch (e) { return {}; } })()
     : (typeof window !== 'undefined' ? (window.Gedcom || {}) : {});
+  const DedupeUtil = typeof require === 'function'
+    ? (() => { try { return require('./src/utils/dedup'); } catch (e) { return {}; } })()
+    : (typeof window !== 'undefined' ? (window.Dedupe || {}) : {});
   const parseGedcom = GedcomUtil.parseGedcom || function () { return []; };
+  const findBestMatch = DedupeUtil.findBestMatch || function () { return { match: null, score: 0 }; };
   function debounce(fn, delay) {
     let t;
     return function (...args) {
@@ -942,16 +946,10 @@
           const existing = await FrontendApp.fetchPeople();
           const conflictList = [];
           const idMap = {};
+          const THRESHOLD = 4;
           for (const p of importPeople) {
-            const dup = existing.find(
-              (e) =>
-                (e.gedcomId && p.gedcomId && e.gedcomId === p.gedcomId) ||
-                (e.firstName === p.firstName &&
-                  e.lastName === p.lastName &&
-                  (e.dateOfBirth || e.birthApprox || '') ===
-                    (p.dateOfBirth || p.birthApprox || ''))
-            );
-            if (dup) {
+            const { match: dup, score } = findBestMatch(p, existing);
+            if (dup && score >= THRESHOLD) {
               idMap[p.gedcomId] = dup.id;
               conflictList.push({ existing: dup, incoming: p });
             } else {
