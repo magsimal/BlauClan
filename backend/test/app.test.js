@@ -135,6 +135,17 @@ describe('People API', () => {
       .query({ q: 'Foo\u2013Bar' });
     expect(res.statusCode).toBe(200);
     expect(fetchMock).toHaveBeenCalled();
-    expect(fetchMock.mock.calls[0][0]).toContain('q=Foo-Bar');
+    expect(fetchMock.mock.calls[0][0]).toContain('q=Foo%2DBar');
+  });
+
+  test('place suggestions encode umlauts correctly', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ geonames: [] }) });
+    global.fetch = fetchMock;
+    const res = await request(app)
+      .get('/places/suggest')
+      .query({ q: 'M\u00fcnchen' });
+    expect(res.statusCode).toBe(200);
+    expect(fetchMock).toHaveBeenCalled();
+    expect(fetchMock.mock.calls[0][0]).toContain('q=M%C3%BCnchen');
   });
 });
