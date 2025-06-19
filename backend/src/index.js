@@ -23,6 +23,21 @@ function normalizeParentIds(data) {
 const GEONAMES_USER = process.env.GEONAMES_USER;
 let geonamesEnabled = true;
 
+const PRIORITY_COUNTRIES = new Set(['DE', 'PL', 'HU']);
+const EUROPE_COUNTRIES = new Set([
+  'AL','AD','AM','AT','AZ','BY','BE','BA','BG','CH','CY','CZ','DE','DK','EE','ES','FI','FR','GB','GE','GR','HR','HU','IE','IS','IT','LI','LT','LU','LV','MC','MD','ME','MK','MT','NL','NO','PL','PT','RO','RU','SE','SI','SK','SM','TR','UA','VA','XK','RS','FO'
+]);
+const AMERICAS_COUNTRIES = new Set([
+  'US','CA','MX','GT','HN','SV','BZ','CR','PA','NI','CU','HT','DO','JM','BS','BB','TT','GY','SR','VE','CO','EC','PE','BO','CL','AR','PY','UY','BR'
+]);
+
+function regionPriority(cc) {
+  if (PRIORITY_COUNTRIES.has(cc)) return 1;
+  if (EUROPE_COUNTRIES.has(cc)) return 2;
+  if (AMERICAS_COUNTRIES.has(cc)) return 3;
+  return 4;
+}
+
 async function geonamesSuggest(query, lang = 'en', cc = '') {
   if (!geonamesEnabled) return [];
   const q = query
@@ -51,7 +66,13 @@ async function geonamesSuggest(query, lang = 'en', cc = '') {
     if (!/County|Province|District/i.test(q)) {
       res = res.filter((r) => ['PPL', 'PPLA', 'PPLC'].includes(r.fcode));
     }
-    const final = res.slice(0, 5).map((r) => ({
+    res.sort((a, b) => {
+      const pa = regionPriority(a.countryCode);
+      const pb = regionPriority(b.countryCode);
+      if (pa !== pb) return pa - pb;
+      return b.score - a.score;
+    });
+    const final = res.slice(0, 10).map((r) => ({
       geonameId: r.geonameId,
       name: r.name,
       adminName1: r.adminName1,
