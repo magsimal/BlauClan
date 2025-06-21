@@ -38,6 +38,32 @@ function regionPriority(cc) {
   return 4;
 }
 
+async function geonamesPostalCode(lat, lng, cc) {
+  if (!geonamesEnabled) return null;
+  const key = `gnzip:${lat}:${lng}:${cc}`;
+  const cached = await cache.get(key);
+  if (cached !== null) return cached;
+  const url =
+    `http://api.geonames.org/findNearbyPostalCodesJSON?lat=${lat}&lng=${lng}` +
+    (cc ? `&country=${cc}` : '') +
+    `&maxRows=1&username=${GEONAMES_USER}`;
+  try {
+    console.debug(`GeoNames postal request: ${url}`);
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    if (data.postalCodes && data.postalCodes.length) {
+      const code = data.postalCodes[0].postalCode || null;
+      await cache.set(key, code, 604800); // one week
+      return code;
+    }
+  } catch (e) {
+    console.warn(`GeoNames postal request failed for ${url}: ${e.message}`);
+  }
+  await cache.set(key, null, 86400);
+  return null;
+}
+
 async function geonamesSuggest(query, lang = 'en', cc = '') {
   if (!geonamesEnabled) return [];
   const q = query
@@ -72,15 +98,26 @@ async function geonamesSuggest(query, lang = 'en', cc = '') {
       if (pa !== pb) return pa - pb;
       return b.score - a.score;
     });
-    const final = res.map((r) => ({
-      geonameId: r.geonameId,
-      name: r.name,
-      adminName1: r.adminName1,
-      countryCode: r.countryCode,
-      lat: r.lat,
-      lng: r.lng,
-      score: r.score,
-    }));
+
+    const seen = new Set();
+    const unique = res.filter((r) => {
+      if (seen.has(r.geonameId)) return false;
+      seen.add(r.geonameId);
+      return true;
+    });
+
+    const final = await Promise.all(
+      unique.map(async (r) => ({
+        geonameId: r.geonameId,
+        name: r.name,
+        adminName1: r.adminName1,
+        countryCode: r.countryCode,
+        lat: r.lat,
+        lng: r.lng,
+        score: r.score,
+        postalCode: await geonamesPostalCode(r.lat, r.lng, r.countryCode),
+      })),
+    );
     await cache.set(key, final, 86400);
     return final;
   } catch (e) {
