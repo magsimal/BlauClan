@@ -53,7 +53,7 @@ async function geonamesSuggest(query, lang = 'en', cc = '') {
   // The GeoNames API only works over HTTP for free accounts
   const encoded = encodeURIComponent(q).replace(/-/g, '%2D');
   const url = `http://api.geonames.org/searchJSON?q=${encoded}`
-    + `&fuzzy=0.8&maxRows=10&username=${GEONAMES_USER}`
+    + `&fuzzy=0.8&maxRows=100&username=${GEONAMES_USER}`
     + `&lang=${lang}`
     + (cc ? `&country=${cc}` : '')
     + '&isNameRequired=true';
@@ -72,7 +72,7 @@ async function geonamesSuggest(query, lang = 'en', cc = '') {
       if (pa !== pb) return pa - pb;
       return b.score - a.score;
     });
-    const final = res.slice(0, 10).map((r) => ({
+    const final = res.map((r) => ({
       geonameId: r.geonameId,
       name: r.name,
       adminName1: r.adminName1,
