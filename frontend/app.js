@@ -112,6 +112,7 @@
           selectedPerson: null,
           spouses: [],
           pobSuggestions: [],
+          pobDisplayCount: 5,
           pobFocus: false,
           pobCache: {},
         };
@@ -122,10 +123,11 @@
         this.debouncedPob = debounce(async (val) => {
           if (pobController) pobController.abort();
           const trimmed = (val || '').trim();
-          if (!trimmed) { this.pobSuggestions = []; return; }
+          if (!trimmed) { this.pobSuggestions = []; this.pobDisplayCount = 5; return; }
           const cacheKey = trimmed.toLowerCase();
           if (this.pobCache[cacheKey]) {
             this.pobSuggestions = this.pobCache[cacheKey];
+            this.pobDisplayCount = 5;
             return;
           }
           pobController = new AbortController();
@@ -136,6 +138,7 @@
               { signal: pobController.signal },
             );
             this.pobSuggestions = res.ok ? await res.json() : [];
+            this.pobDisplayCount = 5;
             this.pobCache[cacheKey] = this.pobSuggestions;
           } catch (e) {
             if (e.name !== 'AbortError') this.pobSuggestions = [];
@@ -148,6 +151,9 @@
           return this.people.filter(
             (c) => c.fatherId === this.selectedPerson.id || c.motherId === this.selectedPerson.id
           );
+        },
+        visiblePobSuggestions() {
+          return this.pobSuggestions.slice(0, this.pobDisplayCount);
         },
         availableParentOptions() {
           if (!this.selectedPerson) return this.people;
@@ -207,7 +213,14 @@
           }
           this.pobFocus = false;
         },
-       async savePerson() {
+        onPobScroll(e) {
+          if (e.target.scrollTop + e.target.clientHeight >= e.target.scrollHeight - 5) {
+            if (this.pobDisplayCount < this.pobSuggestions.length) {
+              this.pobDisplayCount += 5;
+            }
+          }
+        },
+        async savePerson() {
          if (!this.selectedPerson) return;
          const payload = {
            firstName: this.selectedPerson.firstName,

@@ -107,6 +107,10 @@
         const relativesMode = ref('both');
         let relativesRoot = null;
         const placeSuggestions = ref([]);
+        const placeDisplayCount = ref(5);
+        function visiblePlaceSuggestions() {
+          return placeSuggestions.value.slice(0, placeDisplayCount.value);
+        }
         const placeFocus = ref(false);
         const filters = ref({
           missingParents: false,
@@ -825,7 +829,7 @@
         let placeController = null;
         const fetchPlaces = debounce(async (val) => {
           if (placeController) placeController.abort();
-          if (!val) { placeSuggestions.value = []; return; }
+          if (!val) { placeSuggestions.value = []; placeDisplayCount.value = 5; return; }
           placeController = new AbortController();
           const lang = I18nGlobal.getLang ? I18nGlobal.getLang().toLowerCase() : 'en';
           try {
@@ -834,6 +838,7 @@
               { signal: placeController.signal },
             );
             placeSuggestions.value = res.ok ? await res.json() : [];
+            placeDisplayCount.value = 5;
           } catch (e) {
             if (e.name !== 'AbortError') placeSuggestions.value = [];
           }
@@ -859,6 +864,14 @@
             selected.value.placeOfBirth = (selected.value.placeOfBirth || '').trim();
           }
           placeFocus.value = false;
+        }
+
+        function onPlaceScroll(e) {
+          if (e.target.scrollTop + e.target.clientHeight >= e.target.scrollHeight - 5) {
+            if (placeDisplayCount.value < placeSuggestions.value.length) {
+              placeDisplayCount.value += 5;
+            }
+          }
         }
 
         watch(editing, (val, oldVal) => {
@@ -1810,11 +1823,13 @@
         gotoPerson,
         personName,
         placeSuggestions,
+        visiblePlaceSuggestions,
         placeFocus,
         onPlaceInput,
         hidePlaceDropdown,
         applyPlace,
         useTypedPlace,
+        onPlaceScroll,
         showDeleteAllButton,
         I18n: I18nGlobal,
       };
@@ -2189,8 +2204,8 @@
                     <div class="col mb-2 position-relative">
                       <label class="small" data-i18n="placeOfBirth">Place of Birth</label>
                       <input class="form-control" v-model="selected.placeOfBirth" placeholder="City or town" title="Place of birth" data-i18n-placeholder="placeOfBirth" @focus="placeFocus=true; onPlaceInput($event)" @blur="hidePlaceDropdown" @input="onPlaceInput" />
-                      <ul v-if="placeFocus && placeSuggestions.length" class="list-group position-absolute" style="top:100%; left:0; right:0; z-index:1000; max-height:150px; overflow-y:auto;">
-                        <li v-for="s in placeSuggestions" :key="s.geonameId" class="list-group-item list-group-item-action" @mousedown.prevent="applyPlace(s)">{{ s.name }}<span v-if="s.adminName1">, {{ s.adminName1 }}</span> {{ s.countryCode }}</li>
+                      <ul v-if="placeFocus && placeSuggestions.length" class="list-group position-absolute" style="top:100%; left:0; right:0; z-index:1000; max-height:150px; overflow-y:auto;" @scroll="onPlaceScroll">
+                        <li v-for="s in visiblePlaceSuggestions()" :key="s.geonameId" class="list-group-item list-group-item-action" @mousedown.prevent="applyPlace(s)">{{ s.name }}<span v-if="s.adminName1">, {{ s.adminName1 }}</span> {{ s.countryCode }}</li>
                         <li class="list-group-item list-group-item-action" @mousedown.prevent="useTypedPlace" data-i18n="useExactly">Use Exactly</li>
                       </ul>
                     </div>
