@@ -114,17 +114,72 @@ describe('People API', () => {
   });
 
   test('place suggestions route returns data', async () => {
-    global.fetch = jest.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        geonames: [
-          { geonameId: 1, name: 'Test', adminName1: 'X', countryCode: 'US', lat: '0', lng: '0', score: 1, fcode: 'PPL' },
-        ],
-      }),
-    });
-    const res = await request(app).get('/places/suggest?q=Test');
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          geonames: [
+            {
+              geonameId: 1,
+              name: 'Test',
+              adminName1: 'X',
+              countryCode: 'US',
+              lat: '0',
+              lng: '0',
+              score: 1,
+              fcode: 'PPL',
+            },
+          ],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ postalCodes: [{ postalCode: '12345' }] }),
+      });
+    const res = await request(app).get('/places/suggest?q=Dup');
     expect(res.statusCode).toBe(200);
     expect(res.body[0].name).toBe('Test');
+    expect(res.body[0].postalCode).toBe('12345');
+  });
+
+  test('place suggestions deduplicate identical entries', async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          geonames: [
+            {
+              geonameId: 1,
+              name: 'Test',
+              adminName1: 'X',
+              countryCode: 'US',
+              lat: '0',
+              lng: '0',
+              score: 1,
+              fcode: 'PPL',
+            },
+            {
+              geonameId: 1,
+              name: 'Test',
+              adminName1: 'X',
+              countryCode: 'US',
+              lat: '0',
+              lng: '0',
+              score: 1,
+              fcode: 'PPL',
+            },
+          ],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ postalCodes: [{ postalCode: '12345' }] }),
+      });
+    const res = await request(app).get('/places/suggest?q=Test');
+    expect(res.statusCode).toBe(200);
+    expect(res.body.length).toBe(1);
   });
 
   test('place suggestions normalize dash characters', async () => {
