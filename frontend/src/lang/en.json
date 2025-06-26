@@ -65,6 +65,7 @@
   "copyGedcom": "Copy GEDCOM",
   "avatar": "Avatar",
   "useExactly": "Use Exactly",
+  "geoStored": "GeoNames place stored",
   "showRelatives": "Show Relatives",
   "relativeView": "Relatives View",
   "ancestorsOnly": "Ancestors",

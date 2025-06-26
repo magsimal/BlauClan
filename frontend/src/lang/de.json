@@ -65,6 +65,7 @@
   "copyGedcom": "GEDCOM kopieren",
   "avatar": "Avatar",
   "useExactly": "Eingabe verwenden",
+  "geoStored": "GeoNames-Ort gespeichert",
   "showRelatives": "Verwandte anzeigen",
   "relativeView": "Verwandtschaft",
   "ancestorsOnly": "Vorfahren",

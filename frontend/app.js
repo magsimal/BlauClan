@@ -203,13 +203,17 @@
           setTimeout(() => { this.pobFocus = false; }, 150);
         },
         applyPob(s) {
-          if (this.selectedPerson) this.selectedPerson.placeOfBirth = s.name;
+          if (this.selectedPerson) {
+            this.selectedPerson.placeOfBirth = s.name;
+            this.selectedPerson.geonameId = s.geonameId;
+          }
           this.pobSuggestions = [];
           this.pobFocus = false;
         },
         useTypedPob() {
           if (this.selectedPerson) {
             this.selectedPerson.placeOfBirth = (this.selectedPerson.placeOfBirth || '').trim();
+            this.selectedPerson.geonameId = null;
           }
           this.pobFocus = false;
         },
@@ -232,6 +236,7 @@
             dateOfDeath: this.selectedPerson.dateOfDeath || null,
             deathApprox: this.selectedPerson.deathApprox || null,
             placeOfBirth: this.selectedPerson.placeOfBirth || '',
+            geonameId: this.selectedPerson.geonameId || null,
             fatherId: this.selectedPerson.fatherId || null,
             motherId: this.selectedPerson.motherId || null,
             notes: this.selectedPerson.notes || '',

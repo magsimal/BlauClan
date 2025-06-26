@@ -69,6 +69,16 @@ describe('People API', () => {
     expect(getRes.body.birthApprox).toBe('ABT 1900');
   });
 
+  test('stores geoname ID', async () => {
+    const res = await request(app)
+      .post('/api/people')
+      .send({ firstName: 'Geo', lastName: 'Test', geonameId: 42, placeOfBirth: 'Munich' });
+    expect(res.statusCode).toBe(201);
+    expect(res.body.geonameId).toBe(42);
+    const getRes = await request(app).get(`/api/people/${res.body.id}`);
+    expect(getRes.body.geonameId).toBe(42);
+  });
+
   test('rejects invalid spouse relationships', async () => {
     await sequelize.sync({ force: true });
     await request(app).post('/api/people').send({ firstName: 'A', lastName: 'B' });

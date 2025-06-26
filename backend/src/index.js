@@ -14,7 +14,7 @@ app.get('/api/people', async (_req, res) => {
 
 function normalizeParentIds(data) {
   const updates = { ...data };
-  ['fatherId', 'motherId', 'birthApprox', 'deathApprox'].forEach((field) => {
+  ['fatherId', 'motherId', 'birthApprox', 'deathApprox', 'geonameId'].forEach((field) => {
     if (updates[field] === '') updates[field] = null;
   });
   return updates;
