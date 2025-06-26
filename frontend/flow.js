@@ -5,7 +5,7 @@
     global.FlowApp = factory();
   }
 })(this, function () {
-  /* global html2canvas, d3, GenerationLayout, AppConfig, I18n */
+  /* global d3, GenerationLayout, AppConfig, I18n */
   const GedcomUtil = typeof require === 'function'
     ? (() => { try { return require('./src/utils/gedcom'); } catch (e) { return {}; } })()
     : (typeof window !== 'undefined' ? (window.Gedcom || {}) : {});
@@ -976,15 +976,6 @@
           });
         }
 
-        function resetFilters() {
-          filters.value = {
-            missingParents: false,
-            missingBirth: false,
-            missingDeath: false,
-            missingMaiden: false,
-          };
-          applyFilters();
-        }
 
         watch(
           filters,
@@ -1021,60 +1012,6 @@
           try { localStorage.removeItem(TEMP_KEY); } catch (e) { /* ignore */ }
         }
 
-        async function downloadPng() {
-          fitView();
-          await nextTick();
-          const container = document.querySelector('#flow-app .vue-flow');
-          if (!container || typeof html2canvas === 'undefined') return;
-
-          const toolbar = document.getElementById('toolbar');
-          const originalDisplay = toolbar ? toolbar.style.display : '';
-          if (toolbar) toolbar.style.display = 'none';
-
-          const canvas = await html2canvas(container, { useCORS: true });
-
-          const rect = container.getBoundingClientRect();
-          const elements = container.querySelectorAll(
-            '.vue-flow__node, .vue-flow__edge-path'
-          );
-          let minX = Infinity;
-          let minY = Infinity;
-          let maxX = -Infinity;
-          let maxY = -Infinity;
-          elements.forEach((el) => {
-            const r = el.getBoundingClientRect();
-            const left = r.left - rect.left;
-            const top = r.top - rect.top;
-            const right = r.right - rect.left;
-            const bottom = r.bottom - rect.top;
-            if (left < minX) minX = left;
-            if (top < minY) minY = top;
-            if (right > maxX) maxX = right;
-            if (bottom > maxY) maxY = bottom;
-          });
-
-          const margin = 20;
-          minX = Math.max(minX - margin, 0);
-          minY = Math.max(minY - margin, 0);
-          maxX = Math.min(maxX + margin, canvas.width);
-          maxY = Math.min(maxY + margin, canvas.height);
-
-          const width = maxX - minX;
-          const height = maxY - minY;
-          const croppedCanvas = document.createElement('canvas');
-          croppedCanvas.width = width;
-          croppedCanvas.height = height;
-          const ctx = croppedCanvas.getContext('2d');
-          ctx.drawImage(canvas, minX, minY, width, height, 0, 0, width, height);
-
-          const url = croppedCanvas.toDataURL('image/png');
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = 'family-tree.png';
-          link.click();
-
-          if (toolbar) toolbar.style.display = originalDisplay;
-        }
 
         function buildHierarchy() {
           const map = {};
@@ -1834,7 +1771,6 @@
         saveLayout,
         loadLayout,
         fitView,
-        downloadPng,
         downloadSvg,
         toggleSnap,
         deleteAll,
@@ -1870,7 +1806,6 @@
         getSelectedNodes,
         openFilter,
         openRelatives,
-        resetFilters,
         showFilter,
         showRelatives,
         filters,
@@ -1910,50 +1845,34 @@
                 <path d="M19.36,2.72L20.78,4.14L15.06,9.85C16.13,11.39 16.28,13.24 15.38,14.44L9.06,8.12C10.26,7.22 12.11,7.37 13.65,8.44L19.36,2.72M5.93,17.57C3.92,15.56 2.69,13.16 2.35,10.92L7.23,8.83L14.67,16.27L12.58,21.15C10.34,20.81 7.94,19.58 5.93,17.57Z" />
               </svg>
             </button>
-            <button class="icon-button" @click="saveLayout" title="Save Layout" data-i18n-title="saveLayout">
-              <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2.25a.75.75 0 0 1 .75.75v11.69l3.22-3.22a.75.75 0 1 1 1.06 1.06l-4.5 4.5a.75.75 0 0 1-1.06 0l-4.5-4.5a.75.75 0 1 1 1.06-1.06l3.22 3.22V3a.75.75 0 0 1 .75-.75Zm-9 13.5a.75.75 0 0 1 .75.75v2.25a1.5 1.5 0 0 0 1.5 1.5h13.5a1.5 1.5 0 0 0 1.5-1.5V16.5a.75.75 0 0 1 1.5 0v2.25a3 3 0 0 1-3 3H5.25a3 3 0 0 1-3-3V16.5a.75.75 0 0 1 .75-.75Z" clip-rule="evenodd"/></svg>
-            </button>
             <button class="icon-button" @click="loadLayout" title="Reload Layout" data-i18n-title="loadLayout">
               <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M4.755 10.059a7.5 7.5 0 0 1 12.548-3.364l1.903 1.903h-3.183a.75.75 0 1 0 0 1.5h4.992a.75.75 0 0 0 .75-.75V4.356a.75.75 0 0 0-1.5 0v3.18l-1.9-1.9A9 9 0 0 0 3.306 9.67a.75.75 0 1 0 1.45.388Zm15.408 3.352a.75.75 0 0 0-.919.53 7.5 7.5 0 0 1-12.548 3.364l-1.902-1.903h3.183a.75.75 0 0 0 0-1.5H2.984a.75.75 0 0 0-.75.75v4.992a.75.75 0 0 0 1.5 0v-3.18l1.9 1.9a9 9 0 0 0 15.059-4.035.75.75 0 0 0-.53-.918Z" clip-rule="evenodd"/></svg>
             </button>
             <button class="icon-button" @click="fitView" title="Fit to Screen" data-i18n-title="fitToScreen">
               <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M15 3.75a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0V5.56l-3.97 3.97a.75.75 0 1 1-1.06-1.06l3.97-3.97h-2.69a.75.75 0 0 1-.75-.75Zm-12 0A.75.75 0 0 1 3.75 3h4.5a.75.75 0 0 1 0 1.5H5.56l3.97 3.97a.75.75 0 0 1-1.06 1.06L4.5 5.56v2.69a.75.75 0 0 1-1.5 0v-4.5Zm11.47 11.78a.75.75 0 1 1 1.06-1.06l3.97 3.97v-2.69a.75.75 0 0 1 1.5 0v4.5a.75.75 0 0 1-.75.75h-4.5a.75.75 0 0 1 0-1.5h2.69l-3.97-3.97Zm-4.94-1.06a.75.75 0 0 1 0 1.06L5.56 19.5h2.69a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1-.75-.75v-4.5a.75.75 0 0 1 1.5 0v2.69l3.97-3.97a.75.75 0 0 1 1.06 0Z" clip-rule="evenodd"/></svg>
             </button>
-            <button class="icon-button" @click="downloadPng" title="Download PNG" data-i18n-title="downloadPng">
-              <svg viewBox="0 0 24 24">
-                <path d="M12 9a3.75 3.75 0 1 0 0 7.5A3.75 3.75 0 0 0 12 9Z"/>
-                <path fill-rule="evenodd" d="M9.344 3.071a49.52 49.52 0 0 1 5.312 0c.967.052 1.83.585 2.332 1.39l.821 1.317c.24.383.645.643 1.11.71.386.054.77.113 1.152.177 1.432.239 2.429 1.493 2.429 2.909V18a3 3 0 0 1-3 3h-15a3 3 0 0 1-3-3V9.574c0-1.416.997-2.67 2.429-2.909.382-.064.766-.123 1.151-.178a1.56 1.56 0 0 0 1.11-.71l.822-1.315a2.942 2.942 0 0 1 2.332-1.39ZM6.75 12.75a5.25 5.25 0 1 1 10.5 0 5.25 5.25 0 0 1-10.5 0Zm12-1.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clip-rule="evenodd"/>
-              </svg>
-            </button>
-            <button class="icon-button" @click="downloadSvg" title="Download SVG" data-i18n-title="downloadSvg">
-              <svg viewBox="0 0 24 24">
-                <path d="M11.25 3h1.5v10.379l3.47-3.47 1.06 1.06-5 5a.75.75 0 0 1-1.06 0l-5-5 1.06-1.06 3.47 3.47V3z"/>
-                <path d="M4.5 18.75h15v1.5h-15z"/>
-              </svg>
-            </button>
+            
             <button class="icon-button" @click="openFilter" title="Filter Nodes" data-i18n-title="filterNodes">
               <svg viewBox="0 0 24 24">
                 <path d="M3 4h18L13 14v6l-2 2v-8L3 4z"/>
               </svg>
             </button>
-            <button class="icon-button" @click="resetFilters" title="Reset Filters" :disabled="!filterActive" data-i18n-title="resetFilters">
-              <svg viewBox="0 0 24 24" class="text-success">
-                <path d="M12 4v16M4 12h16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
-              </svg>
+          </div>
+          <div id="sidebar">
+            <button class="icon-button" @click="saveLayout" title="Save Layout" data-i18n-title="saveLayout">
+              <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2.25a.75.75 0 0 1 .75.75v11.69l3.22-3.22a.75.75 0 1 1 1.06 1.06l-4.5 4.5a.75.75 0 0 1-1.06 0l-4.5-4.5a.75.75 0 1 1 1.06-1.06l3.22 3.22V3a.75.75 0 0 1 .75-.75Zm-9 13.5a.75.75 0 0 1 .75.75v2.25a1.5 1.5 0 0 0 1.5 1.5h13.5a1.5 1.5 0 0 0 1.5-1.5V16.5a.75.75 0 0 1 1.5 0v2.25a3 3 0 0 1-3 3H5.25a3 3 0 0 1-3-3V16.5a.75.75 0 0 1 .75-.75Z" clip-rule="evenodd"/></svg>
             </button>
-            <button
-              class="icon-button"
-              @click="toggleSnap"
-              :class="{ active: snapToGrid }"
-              :title="snapToGrid ? I18n.t('disableSnap') : I18n.t('enableSnap')"
-              :data-i18n-title="snapToGrid ? 'disableSnap' : 'enableSnap'"
-            >
-              <svg viewBox="0 0 24 24">
-                <path d="M3 3h18v18H3V3m2 2v14h14V5H5Z" />
-              </svg>
+            <button class="icon-button" @click="downloadSvg" title="Download SVG" data-i18n-title="downloadSvg">
+              <svg viewBox="0 0 24 24"><path d="M11.25 3h1.5v10.379l3.47-3.47 1.06 1.06-5 5a.75.75 0 0 1-1.06 0l-5-5 1.06-1.06 3.47 3.47V3z"/><path d="M4.5 18.75h15v1.5h-15z"/></svg>
+            </button>
+            <button class="icon-button" @click="toggleSnap" :class="{ active: snapToGrid }" :title="snapToGrid ? I18n.t('disableSnap') : I18n.t('enableSnap')" :data-i18n-title="snapToGrid ? 'disableSnap' : 'enableSnap'">
+              <svg viewBox="0 0 24 24"><path d="M3 3h18v18H3V3m2 2v14h14V5H5Z" /></svg>
             </button>
             <button v-if="showDeleteAllButton" class="icon-button" @click="deleteAll" title="Delete All" style="border-color:#dc3545;color:#dc3545;" data-i18n-title="deleteAll">
               <svg viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-width="2" fill="none"/></svg>
+            </button>
+            <button class="icon-button" @click="openRelatives" title="View Bloodline" data-i18n-title="viewBloodline">
+              <svg viewBox="0 0 24 24"><path d="M5 3h14v2H5zm0 4h14v2H5zm0 4h14v2H5zm0 4h14v2H5z"/></svg>
             </button>
           </div>
           <button id="searchTrigger" class="icon-button" style="position:absolute;top:10px;right:10px;z-index:30;" @click="triggerSearch" data-i18n-title="search" title="Search">
