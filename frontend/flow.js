@@ -14,6 +14,7 @@
     : (typeof window !== 'undefined' ? (window.Dedupe || {}) : {});
   const parseGedcom = GedcomUtil.parseGedcom || function () { return []; };
   const findBestMatch = DedupeUtil.findBestMatch || function () { return { match: null, score: 0 }; };
+  const matchScore = DedupeUtil.matchScore || function () { return 0; };
   function debounce(fn, delay) {
     let t;
     return function (...args) {
@@ -1142,6 +1143,27 @@
           else await load(true);
         }
 
+        async function runDedup() {
+          const people = await FrontendApp.fetchPeople();
+          const conflictList = [];
+          const THRESHOLD = 4;
+          for (let i = 0; i < people.length; i += 1) {
+            for (let j = i + 1; j < people.length; j += 1) {
+              const score = matchScore(people[i], people[j]);
+              if (score >= THRESHOLD) {
+                conflictList.push({ existing: people[i], incoming: people[j] });
+              }
+            }
+          }
+          conflicts.value = conflictList;
+          conflictIndex.value = 0;
+          if (conflictList.length) {
+            showConflict.value = true;
+          } else {
+            window.alert('No duplicates found');
+          }
+        }
+
         async function resolveConflict(action) {
           const c = conflicts.value[conflictIndex.value];
           if (!c) return;
@@ -1171,6 +1193,12 @@
         }
 
         function applyConflict(action) {
+          if (action === 'skipAll') {
+            conflictIndex.value = conflicts.value.length;
+            showConflict.value = false;
+            load(true);
+            return;
+          }
           resolveConflict(action || conflictAction.value);
         }
 
@@ -1828,6 +1856,7 @@
         useTypedPlace,
         onPlaceScroll,
         showDeleteAllButton,
+        runDedup,
         I18n: I18nGlobal,
       };
       },
@@ -1873,6 +1902,9 @@
             </button>
             <button class="icon-button" @click="openRelatives" title="View Bloodline" data-i18n-title="viewBloodline">
               <svg viewBox="0 0 24 24"><path d="M5 3h14v2H5zm0 4h14v2H5zm0 4h14v2H5zm0 4h14v2H5z"/></svg>
+            </button>
+            <button class="icon-button" @click="runDedup" title="Deduplicate" data-i18n-title="deduplicate">
+              <svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3m10 10h8v8h-8v-8M7 7l10 10"/></svg>
             </button>
           </div>
           <button id="searchTrigger" class="icon-button" style="position:absolute;top:10px;right:10px;z-index:30;" @click="triggerSearch" data-i18n-title="search" title="Search">
@@ -2026,6 +2058,7 @@
         <div v-if="showConflict" class="modal">
             <div class="modal-content card p-3">
               <h4 data-i18n="duplicateDetected">Duplicate Detected</h4>
+              <div class="text-right small">{{ conflictIndex + 1 }} / {{ conflicts.length }}</div>
               <div class="d-flex justify-content-between small">
                 <div class="mr-1">
                   <strong data-i18n="existing">Existing:</strong>
@@ -2048,6 +2081,7 @@
               </div>
               <div class="text-right mt-2">
                 <button class="btn btn-sm btn-secondary mr-2" @click="applyConflict('skip')" data-i18n="skip">Skip</button>
+                <button class="btn btn-sm btn-secondary mr-2" @click="applyConflict('skipAll')" data-i18n="skipAll">Skip All</button>
                 <button class="btn btn-sm btn-primary" @click="applyConflict()" data-i18n="save">Save</button>
               </div>
             </div>

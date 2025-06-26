@@ -74,5 +74,7 @@
   "ancestorsOnly": "Ancestors",
   "descendantsOnly": "Descendants",
   "both": "Both",
-  "viewBloodline": "View Bloodline"
+  "viewBloodline": "View Bloodline",
+  "deduplicate": "Deduplicate",
+  "skipAll": "Skip All"
 }

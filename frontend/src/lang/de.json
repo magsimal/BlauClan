@@ -74,5 +74,7 @@
   "ancestorsOnly": "Vorfahren",
   "descendantsOnly": "Nachkommen",
   "both": "Beides",
-  "viewBloodline": "Gefilterten Baum anzeigen"
+  "viewBloodline": "Gefilterten Baum anzeigen",
+  "deduplicate": "Duplikate finden",
+  "skipAll": "Alle \u00fcberspringen"
 }
