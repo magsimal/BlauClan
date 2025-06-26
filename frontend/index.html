@@ -493,7 +493,7 @@
 
       FrontendApp.mountApp();
       FlowApp.mount();
-      window.gotoMe = () => { if (meNodeId) FlowApp.focusNode(meNodeId); };
+      window.gotoMe = () => { if (window.meNodeId) FlowApp.focusNode(window.meNodeId); };
       refreshUser();
       if (FlowApp.refreshMe) FlowApp.refreshMe();
       if (window.SearchApp) {

@@ -463,6 +463,7 @@
           });
           window.meNodeId = selected.value.id;
           if (window.FlowApp && window.FlowApp.refreshMe) window.FlowApp.refreshMe();
+          selected.value.me = true;
         }
 
         function handleKeydown(ev) {
