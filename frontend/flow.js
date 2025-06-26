@@ -2142,7 +2142,10 @@
                       <div v-if="selected.callName" class="h4 mb-0" :style="{ fontSize: selected.firstName && selected.firstName.length > 15 ? '1rem' : '1.25rem' }">({{ selected.firstName }})</div>
                       <div class="h4 mb-0" :style="{ fontSize: selected.lastName && selected.lastName.length > 15 ? '1rem' : '1.25rem' }">{{ selected.lastName }}</div>
                     </div>
-                    <span v-if="selected.me" style="position:absolute;top:-8px;right:-8px;color:#f39c12;">&#9733;</span>
+                    <span
+                      v-if="selected.me"
+                      style="position:absolute;top:-18px;right:-18px;color:#f39c12;font-size:28px;"
+                    >&#9733;</span>
                   </div>
                   <p v-if="selected.maidenName"><strong data-i18n="maidenNameLabel">Maiden Name:</strong> {{ selected.maidenName }}</p>
                   <p
