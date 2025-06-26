@@ -44,6 +44,8 @@ You can also tweak how tightly related nodes are drawn together by setting
 `RELATIVE_ATTRACTION` (0 = loose layout, 1 = very compact). It defaults to `0.5`.
 The bulk delete button is hidden by default. Set `SHOW_DELETE_ALL_BUTTON=true`
 if you want to display it in the toolbar.
+Authentication can be toggled with `LOGIN_ENABLED`. Set it to `true` to enable
+the login dialog and LDAP authentication. The default is `false`.
 
 ### Running with Prebuilt Images
 
