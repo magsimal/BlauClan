@@ -139,7 +139,7 @@
 .vue-flow__node-default,
 .vue-flow__node-input,
 .vue-flow__node-output {
-  border-width: 1px;
+  border-width: 0.5px;
   border-style: solid;
   border-color: #bbb;
 }
@@ -154,7 +154,7 @@
   .vue-flow__node-output:focus,
   .vue-flow__node-output:focus-visible {
      outline: none;
-     border: 1px solid #555;
+     border: 0.5px solid #555;
    }
 
 .vue-flow__node {
