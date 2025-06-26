@@ -101,7 +101,7 @@
           if (!c) return null;
           const existing = c.existing || {};
           const incoming = c.incoming || {};
-          if (conflictAction.value === 'keep') return incoming;
+          if (conflictAction.value === 'keep') return existing;
           if (conflictAction.value === 'overwrite') return { ...existing, ...incoming };
           if (conflictAction.value === 'merge') {
             const merged = { ...existing };
@@ -404,6 +404,26 @@
           if (p.dateOfBirth) parts.push('DoB: ' + p.dateOfBirth);
           if (p.placeOfBirth) parts.push('PoB: ' + p.placeOfBirth);
           if (p.dateOfDeath) parts.push('DoD: ' + p.dateOfDeath);
+          return parts.join(', ');
+        }
+
+        function shortInfoDiff(existing, result) {
+          if (!result) return '';
+          existing = existing || {};
+          function wrap(text, changed) {
+            return changed ? '<span class="text-success">' + text + '</span>' : text;
+          }
+          const parts = [];
+          if (result.callName) {
+            const txt = result.callName + (result.firstName ? ' (' + result.firstName + ')' : '');
+            parts.push(wrap(txt, result.callName !== existing.callName || result.firstName !== existing.firstName));
+          } else if (result.firstName) {
+            parts.push(wrap(result.firstName, result.firstName !== existing.firstName));
+          }
+          if (result.lastName) parts.push(wrap(result.lastName, result.lastName !== existing.lastName));
+          if (result.dateOfBirth) parts.push(wrap('DoB: ' + result.dateOfBirth, result.dateOfBirth !== existing.dateOfBirth));
+          if (result.placeOfBirth) parts.push(wrap('PoB: ' + result.placeOfBirth, result.placeOfBirth !== existing.placeOfBirth));
+          if (result.dateOfDeath) parts.push(wrap('DoD: ' + result.dateOfDeath, result.dateOfDeath !== existing.dateOfDeath));
           return parts.join(', ');
         }
 
@@ -1213,8 +1233,8 @@
           }
         }
 
-        function applyConflict() {
-          resolveConflict(conflictAction.value);
+        function applyConflict(action) {
+          resolveConflict(action || conflictAction.value);
         }
 
         async function onConnect(params) {
@@ -1863,6 +1883,7 @@
         gotoPerson,
         personName,
         shortInfo,
+        shortInfoDiff,
         placeSuggestions,
         visiblePlaceSuggestions,
         placeFocus,
@@ -2097,17 +2118,18 @@
                 </div>
                 <div>
                   <strong data-i18n="resulting">Resulting:</strong>
-                  <div>{{ shortInfo(resultPerson) }}</div>
+                  <div v-html="shortInfoDiff(conflicts[conflictIndex].existing, resultPerson)"></div>
                 </div>
               </div>
               <div class="mt-2">
-                <div class="form-check" v-for="act in ['keep','overwrite','merge','skip']" :key="act">
+                <div class="form-check" v-for="act in ['keep','overwrite','merge']" :key="act">
                   <input class="form-check-input" type="radio" :id="'act-' + act" :value="act" v-model="conflictAction">
                   <label class="form-check-label" :for="'act-' + act" :data-i18n="act">{{ act }}</label>
                 </div>
               </div>
               <div class="text-right mt-2">
-                <button class="btn btn-sm btn-primary" @click="applyConflict" data-i18n="save">Save</button>
+                <button class="btn btn-sm btn-secondary mr-2" @click="applyConflict('skip')" data-i18n="skip">Skip</button>
+                <button class="btn btn-sm btn-primary" @click="applyConflict()" data-i18n="save">Save</button>
               </div>
             </div>
           </div>
