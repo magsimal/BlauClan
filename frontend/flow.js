@@ -39,6 +39,14 @@
     });
   }
 
+  function refreshMe() {
+    if (!appState) return;
+    const { nodes } = appState;
+    nodes.value.forEach((n) => {
+      n.data.me = window.meNodeId && n.id === String(window.meNodeId);
+    });
+  }
+
   function mount() {
     const { createApp, ref, onMounted, onBeforeUnmount, watch, nextTick, computed } = Vue;
     const { VueFlow, MarkerType, Handle, useZoomPanHelper, useVueFlow } = window.VueFlow;
@@ -277,7 +285,7 @@
             id: String(p.id),
             type: 'person',
             position: existingPos[p.id] || positions[p.id],
-            data: { ...p },
+            data: { ...p, me: window.meNodeId && p.id === window.meNodeId },
           }));
 
           unions = {};
@@ -444,6 +452,17 @@
           deathExactBackup.value = selected.value.dateOfDeath || '';
           computeChildren(pid);
           showModal.value = true;
+        }
+
+        async function setMe() {
+          if (!selected.value) return;
+          await fetch('/api/me', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nodeId: selected.value.id })
+          });
+          window.meNodeId = selected.value.id;
+          if (window.FlowApp && window.FlowApp.refreshMe) window.FlowApp.refreshMe();
         }
 
         function handleKeydown(ev) {
@@ -825,6 +844,10 @@
          clearHighlights();
          contextMenuVisible.value = false;
        }
+
+        function gotoMe() {
+          if (window.gotoMe) window.gotoMe();
+        }
 
         function onEdgeClick(evt) {
           selectedEdge.value = evt.edge;
@@ -1844,6 +1867,8 @@
         triggerSearch,
         handleNodesChange,
         gotoPerson,
+        setMe,
+        gotoMe,
         personName,
         shortInfo,
         shortInfoDiff,
@@ -1879,6 +1904,9 @@
             </button>
             <button class="icon-button" @click="fitView" title="Fit to Screen" data-i18n-title="fitToScreen">
               <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M15 3.75a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0V5.56l-3.97 3.97a.75.75 0 1 1-1.06-1.06l3.97-3.97h-2.69a.75.75 0 0 1-.75-.75Zm-12 0A.75.75 0 0 1 3.75 3h4.5a.75.75 0 0 1 0 1.5H5.56l3.97 3.97a.75.75 0 0 1-1.06 1.06L4.5 5.56v2.69a.75.75 0 0 1-1.5 0v-4.5Zm11.47 11.78a.75.75 0 1 1 1.06-1.06l3.97 3.97v-2.69a.75.75 0 0 1 1.5 0v4.5a.75.75 0 0 1-.75.75h-4.5a.75.75 0 0 1 0-1.5h2.69l-3.97-3.97Zm-4.94-1.06a.75.75 0 0 1 0 1.06L5.56 19.5h2.69a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1-.75-.75v-4.5a.75.75 0 0 1 1.5 0v2.69l3.97-3.97a.75.75 0 0 1 1.06 0Z" clip-rule="evenodd"/></svg>
+            </button>
+            <button class="icon-button" @click="gotoMe" title="Go to Me" data-i18n-title="gotoMe">
+              <svg viewBox="0 0 24 24"><path d="M12 2l1.546 4.755H18l-4.023 2.923L15.545 14 12 11.077 8.455 14l1.568-4.322L6 6.755h4.454z"/></svg>
             </button>
             
             <button class="icon-button" @click="openFilter" title="Filter Nodes" data-i18n-title="filterNodes">
@@ -1940,6 +1968,7 @@
           >
             <template #node-person="{ data }">
               <div class="person-node" :class="{ 'highlight-node': data.highlight, 'faded-node': (selected || filterActive) && !data.highlight }" :style="{ borderColor: data.gender === 'female' ? '#f8c' : (data.gender === 'male' ? '#88f' : '#ccc') }">
+                <span v-if="data.me" style="position:absolute;top:-8px;right:-8px;color:#f39c12;">&#9733;</span>
                 <div class="header">
                   <img :src="avatarSrc(data.gender, 40)" class="avatar" data-i18n-alt="avatar" />
                   <div class="name-container">
@@ -2177,6 +2206,7 @@
                     </ul>
                   </div>
                   <div class="text-right mt-3">
+                    <button class="btn btn-primary btn-sm mr-2" @click="setMe" data-i18n="setAsMe">Set as Me</button>
                     <button class="btn btn-secondary btn-sm" @click="cancelModal" data-i18n="close">Close</button>
                   </div>
                 </template>
@@ -2283,5 +2313,5 @@
     return app.mount('#flow-app');
   }
 
-  return { mount, focusNode };
+  return { mount, focusNode, refreshMe };
 });

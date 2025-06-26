@@ -302,6 +302,9 @@
               <option value="EN">EN</option>
               <option value="DE">DE</option>
             </select>
+            <button id="loginBtn" class="btn btn-sm btn-secondary ml-2" style="display:none;" data-i18n="login">Login</button>
+            <button id="logoutBtn" class="btn btn-sm btn-secondary ml-2" style="display:none;" data-i18n="logout">Logout</button>
+            <span id="userLabel" class="ml-2"></span>
           </div>
         </div>
     </header>
@@ -372,6 +375,23 @@
     </div>
     <footer id="footer" class="text-center py-2">&copy; BlauCity 2025</footer>
   </div>
+  <div id="loginModal" class="modal" style="display:none;">
+    <div class="modal-content card p-3">
+      <h4 data-i18n="login">Login</h4>
+      <div class="form-group">
+        <label for="loginUser" data-i18n="username">Username</label>
+        <input id="loginUser" class="form-control" />
+      </div>
+      <div class="form-group">
+        <label for="loginPass" data-i18n="password">Password</label>
+        <input id="loginPass" type="password" class="form-control" />
+      </div>
+      <div class="text-right">
+        <button id="guestBtn" class="btn btn-secondary btn-sm mr-2" data-i18n="guest">Guest</button>
+        <button id="loginSubmit" class="btn btn-primary btn-sm" data-i18n="login">Login</button>
+      </div>
+    </div>
+  </div>
   <script src="assets/js/argon-design-system.min.js"></script>
   <script src="src/i18n.js"></script>
   <script src="app.js"></script>
@@ -409,8 +429,67 @@
       toggle.addEventListener('change', updateTheme);
       updateTheme();
 
+      let meNodeId = null;
+      const loginBtn = document.getElementById('loginBtn');
+      const logoutBtn = document.getElementById('logoutBtn');
+      const userLabel = document.getElementById('userLabel');
+      const loginModal = document.getElementById('loginModal');
+      const loginUser = document.getElementById('loginUser');
+      const loginPass = document.getElementById('loginPass');
+      const loginSubmit = document.getElementById('loginSubmit');
+      const guestBtn = document.getElementById('guestBtn');
+
+      async function refreshUser() {
+        try {
+          const res = await fetch('/api/me');
+          const data = await res.json();
+          meNodeId = data.nodeId;
+          window.meNodeId = meNodeId;
+          userLabel.textContent = data.username || '';
+          if (AppConfig.loginEnabled) {
+            loginBtn.style.display = data.username && data.username !== 'guest' ? 'none' : 'inline-block';
+            logoutBtn.style.display = data.username && data.username !== 'guest' ? 'inline-block' : 'none';
+          }
+        } catch (e) { /* ignore */ }
+      }
+
+      if (AppConfig.loginEnabled) {
+        loginBtn.style.display = 'inline-block';
+        loginBtn.addEventListener('click', () => { loginModal.style.display = 'flex'; });
+        loginSubmit.addEventListener('click', async () => {
+          await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: loginUser.value, password: loginPass.value })
+          });
+          loginModal.style.display = 'none';
+          loginUser.value = '';
+          loginPass.value = '';
+          refreshUser();
+          if (FlowApp.refreshMe) FlowApp.refreshMe();
+        });
+        guestBtn.addEventListener('click', async () => {
+          await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: 'guest' })
+          });
+          loginModal.style.display = 'none';
+          refreshUser();
+          if (FlowApp.refreshMe) FlowApp.refreshMe();
+        });
+        logoutBtn.addEventListener('click', async () => {
+          await fetch('/api/logout', { method: 'POST' });
+          refreshUser();
+          if (FlowApp.refreshMe) FlowApp.refreshMe();
+        });
+      }
+
       FrontendApp.mountApp();
       FlowApp.mount();
+      window.gotoMe = () => { if (meNodeId) FlowApp.focusNode(meNodeId); };
+      refreshUser();
+      if (FlowApp.refreshMe) FlowApp.refreshMe();
       if (window.SearchApp) {
         SearchApp.init();
       }

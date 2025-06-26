@@ -77,4 +77,11 @@
   "viewBloodline": "View Bloodline",
   "deduplicate": "Deduplicate",
   "skipAll": "Skip All"
+  ,"login": "Login"
+  ,"logout": "Logout"
+  ,"username": "Username"
+  ,"password": "Password"
+  ,"guest": "Guest"
+  ,"setAsMe": "Set as Me"
+  ,"gotoMe": "Go to Me"
 }

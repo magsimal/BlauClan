@@ -77,4 +77,11 @@
   "viewBloodline": "Gefilterten Baum anzeigen",
   "deduplicate": "Duplikate finden",
   "skipAll": "Alle \u00fcberspringen"
+  ,"login": "Anmelden"
+  ,"logout": "Abmelden"
+  ,"username": "Benutzername"
+  ,"password": "Passwort"
+  ,"guest": "Gast"
+  ,"setAsMe": "Als mich festlegen"
+  ,"gotoMe": "Zu mir"
 }

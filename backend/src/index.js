@@ -1,4 +1,6 @@
 const express = require('express');
+const session = require('express-session');
+const LdapAuth = require('ldapauth-fork');
 const crypto = require('crypto');
 const { sequelize, Person, Marriage, Layout } = require('./models');
 const { Op } = require('sequelize');
@@ -6,6 +8,55 @@ const cache = require('./cache');
 
 const app = express();
 app.use(express.json());
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || 'secret',
+    resave: false,
+    saveUninitialized: true,
+  })
+);
+
+let ldap;
+if (process.env.LDAP_URL) {
+  ldap = new LdapAuth({
+    url: process.env.LDAP_URL,
+    bindDN: process.env.LDAP_BIND_DN,
+    bindCredentials: process.env.LDAP_BIND_PASSWORD,
+    searchBase: process.env.LDAP_SEARCH_BASE,
+    searchFilter: process.env.LDAP_SEARCH_FILTER || '(uid={{username}})',
+  });
+}
+
+app.post('/api/login', (req, res) => {
+  const { username, password } = req.body;
+  if (!username) return res.status(400).json({ error: 'username required' });
+  if (username === 'guest') {
+    req.session.user = 'guest';
+    return res.json({ username: 'guest' });
+  }
+  if (!ldap) return res.status(500).json({ error: 'LDAP not configured' });
+  ldap.authenticate(username, password, (err, user) => {
+    if (err || !user) return res.status(401).json({ error: 'Invalid credentials' });
+    req.session.user = user.uid || username;
+    res.json({ username: req.session.user });
+  });
+});
+
+app.post('/api/logout', (req, res) => {
+  req.session.destroy(() => res.sendStatus(204));
+});
+
+app.get('/api/me', (req, res) => {
+  res.json({
+    username: req.session.user || 'guest',
+    nodeId: req.session.meNodeId || null,
+  });
+});
+
+app.post('/api/me', (req, res) => {
+  req.session.meNodeId = req.body.nodeId || null;
+  res.sendStatus(204);
+});
 
 app.get('/api/people', async (_req, res) => {
   const people = await Person.findAll();
