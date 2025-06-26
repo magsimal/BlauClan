@@ -786,7 +786,7 @@
             const payload = { ...selected.value };
             const spouseId = payload.spouseId;
             delete payload.spouseId;
-            ['maidenName', 'dateOfBirth', 'birthApprox', 'dateOfDeath', 'deathApprox', 'placeOfBirth', 'notes', 'fatherId', 'motherId'].forEach((f) => {
+            ['maidenName', 'dateOfBirth', 'birthApprox', 'dateOfDeath', 'deathApprox', 'placeOfBirth', 'geonameId', 'notes', 'fatherId', 'motherId'].forEach((f) => {
               if (payload[f] === '') payload[f] = null;
             });
             const updated = await FrontendApp.updatePerson(selected.value.id, payload);
@@ -862,6 +862,7 @@
         function useTypedPlace() {
           if (selected.value) {
             selected.value.placeOfBirth = (selected.value.placeOfBirth || '').trim();
+            selected.value.geonameId = null;
           }
           placeFocus.value = false;
         }
@@ -1361,7 +1362,7 @@
           const payload = { ...originalSelected };
           const spouseId = payload.spouseId;
           delete payload.spouseId;
-          ['maidenName', 'dateOfBirth', 'birthApprox', 'dateOfDeath', 'deathApprox', 'placeOfBirth', 'notes', 'fatherId', 'motherId'].forEach((f) => {
+          ['maidenName', 'dateOfBirth', 'birthApprox', 'dateOfDeath', 'deathApprox', 'placeOfBirth', 'geonameId', 'notes', 'fatherId', 'motherId'].forEach((f) => {
             if (payload[f] === '') payload[f] = null;
           });
           await FrontendApp.updatePerson(originalSelected.id, payload);
@@ -1571,6 +1572,7 @@
             dateOfDeath: selected.value.dateOfDeath || null,
             deathApprox: selected.value.deathApprox || null,
             placeOfBirth: selected.value.placeOfBirth || null,
+            geonameId: selected.value.geonameId || null,
             notes: selected.value.notes || null,
             gender: selected.value.gender,
             fatherId: selected.value.fatherId || null,
@@ -2107,7 +2109,9 @@
                       >{{ selected.dateOfDeath || selected.deathApprox }}</span
                     >
                   </p>
-                  <p v-if="selected.placeOfBirth"><strong data-i18n="placeOfBirthLabel">Place of Birth:</strong> {{ selected.placeOfBirth }}</p>
+                  <p v-if="selected.placeOfBirth"><strong data-i18n="placeOfBirthLabel">Place of Birth:</strong> {{ selected.placeOfBirth }}
+                    <span v-if="selected.geonameId" class="text-success" title="GeoNames match stored" data-i18n-title="geoStored">&#10003;</span>
+                  </p>
                   <p>
                     <strong data-i18n="fatherLabel">Father:</strong>
                     <template v-if="selected.fatherId">
@@ -2202,7 +2206,9 @@
                   </div>
                   <div class="form-row">
                     <div class="col mb-2 position-relative">
-                      <label class="small" data-i18n="placeOfBirth">Place of Birth</label>
+                      <label class="small" data-i18n="placeOfBirth">Place of Birth
+                        <span v-if="selected.geonameId" class="text-success" title="GeoNames match stored" data-i18n-title="geoStored">&#10003;</span>
+                      </label>
                       <input class="form-control" v-model="selected.placeOfBirth" placeholder="City or town" title="Place of birth" data-i18n-placeholder="placeOfBirth" @focus="placeFocus=true; onPlaceInput($event)" @blur="hidePlaceDropdown" @input="onPlaceInput" />
                       <ul v-if="placeFocus && placeSuggestions.length" class="list-group position-absolute" style="top:100%; left:0; right:0; z-index:1000; max-height:150px; overflow-y:auto;" @scroll="onPlaceScroll">
         <li v-for="s in visiblePlaceSuggestions()" :key="s.geonameId" class="list-group-item list-group-item-action" @mousedown.prevent="applyPlace(s)">{{ s.name }}<span v-if="s.postalCode"> ({{ s.postalCode }})</span><span v-if="s.adminName1">, {{ s.adminName1 }}</span> {{ s.countryCode }}</li>

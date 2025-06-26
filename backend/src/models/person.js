@@ -14,6 +14,7 @@ module.exports = (sequelize) => {
       birthApprox: DataTypes.STRING,
       deathApprox: DataTypes.STRING,
       placeOfBirth: DataTypes.STRING,
+      geonameId: DataTypes.INTEGER,
       notes: DataTypes.TEXT,
       avatarUrl: DataTypes.STRING,
       gedcomId: DataTypes.STRING,

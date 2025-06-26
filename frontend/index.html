@@ -326,7 +326,9 @@
         </div>
         <div class="form-row">
           <div class="col position-relative">
-            <label data-i18n="placeOfBirth">Place of Birth</label>
+            <label data-i18n="placeOfBirth">Place of Birth
+              <span v-if="selectedPerson.geonameId" class="text-success" title="GeoNames match stored" data-i18n-title="geoStored">&#10003;</span>
+            </label>
             <input class="form-control mb-2" v-model="selectedPerson.placeOfBirth" placeholder="Place of Birth" data-i18n-placeholder="placeOfBirth" @focus="pobFocus=true; onPobInput($event)" @blur="hidePobDropdown" @input="onPobInput">
             <ul v-if="pobFocus && pobSuggestions.length" class="list-group position-absolute" style="top:100%; left:0; right:0; z-index:1000; max-height:150px; overflow-y:auto;" @scroll="onPobScroll">
               <li v-for="s in visiblePobSuggestions" :key="s.geonameId" class="list-group-item list-group-item-action" @mousedown.prevent="applyPob(s)">{{ s.name }}<span v-if="s.postalCode"> ({{ s.postalCode }})</span><span v-if="s.adminName1">, {{ s.adminName1 }}</span> {{ s.countryCode }}</li>
