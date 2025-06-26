@@ -35,15 +35,29 @@ if (process.env.LDAP_URL) {
 
 app.post('/api/login', (req, res) => {
   const { username, password } = req.body;
-  if (!username) return res.status(400).json({ error: 'username required' });
+  if (!username) {
+    console.log('Login attempt missing username');
+    return res.status(400).json({ error: 'username required' });
+  }
+  console.log(`Login attempt for ${username}`);
   if (username === 'guest') {
     req.session.user = 'guest';
+    console.log('Guest login successful');
     return res.json({ username: 'guest' });
   }
-  if (!ldap) return res.status(500).json({ error: 'LDAP not configured' });
+  if (!ldap) {
+    console.log('LDAP not configured for login attempt');
+    return res.status(500).json({ error: 'LDAP not configured' });
+  }
   ldap.authenticate(username, password, (err, user) => {
-    if (err || !user) return res.status(401).json({ error: 'Invalid credentials' });
-    console.log(`LDAP user search returned ${user._groups ? user._groups.length : 0} group matches for ${username}`);
+    if (err || !user) {
+      console.warn(`Login failed for ${username}: ${err ? err.message : 'Invalid credentials'}`);
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    console.log(`Login successful for ${username}`);
+    console.log(
+      `LDAP user search returned ${user._groups ? user._groups.length : 0} group matches for ${username}`,
+    );
     req.session.user = user.uid || username;
     res.json({ username: req.session.user });
   });
@@ -217,6 +231,26 @@ async function verifyGeonames() {
     }
   }
   geonamesEnabled = false;
+}
+
+async function verifyLdap() {
+  if (!ldap) return;
+  const base = process.env.LDAP_SEARCH_BASE;
+  if (!base) {
+    console.log('LDAP_SEARCH_BASE not set, skipping LDAP check');
+    return;
+  }
+  const options = { filter: '(objectClass=*)', scope: 'sub' };
+  await new Promise((resolve) => {
+    ldap._search(base, options, (err, items) => {
+      if (err) {
+        console.warn(`LDAP startup search failed: ${err.message}`);
+      } else {
+        console.log(`LDAP startup search returned ${items.length} entries`);
+      }
+      resolve();
+    });
+  });
 }
 
 async function validatePlace(place) {
@@ -486,17 +520,18 @@ app.get('/api/layout', async (_req, res) => {
 
 const PORT = process.env.PORT || 3009;
 if (require.main === module) {
-
   // Use `alter: true` so new fields like `callName` are added automatically
   // to existing databases without dropping data. This keeps the schema in sync
   // when models change during development.
-  verifyGeonames().finally(() => {
-    sequelize.sync({ alter: true }).then(() => {
-      app.listen(PORT, () => {
-        console.log(`Server running on port ${PORT}`);
+  verifyGeonames()
+    .finally(() => verifyLdap())
+    .finally(() => {
+      sequelize.sync({ alter: true }).then(() => {
+        app.listen(PORT, () => {
+          console.log(`Server running on port ${PORT}`);
+        });
       });
     });
-  });
 }
 
 module.exports = app;
