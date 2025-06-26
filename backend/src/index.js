@@ -19,12 +19,14 @@ app.use(
 let ldap;
 if (process.env.LDAP_URL) {
   console.log(`Connecting to LDAP server ${process.env.LDAP_URL}`);
+  const userAttr = process.env.LDAP_USER_ATTRIBUTE || 'user_id';
   ldap = new LdapAuth({
     url: process.env.LDAP_URL,
     bindDN: process.env.LDAP_BIND_DN,
     bindCredentials: process.env.LDAP_BIND_PASSWORD,
     searchBase: process.env.LDAP_SEARCH_BASE,
-    searchFilter: process.env.LDAP_SEARCH_FILTER || '(uid={{username}})',
+    searchFilter:
+      process.env.LDAP_SEARCH_FILTER || `(${userAttr}={{username}})`,
   });
   if (ldap._adminClient) {
     ldap._adminClient.on('connect', () => {
@@ -49,6 +51,7 @@ app.post('/api/login', (req, res) => {
     console.log('LDAP not configured for login attempt');
     return res.status(500).json({ error: 'LDAP not configured' });
   }
+  const attr = process.env.LDAP_USER_ATTRIBUTE || 'user_id';
   ldap.authenticate(username, password, (err, user) => {
     if (err || !user) {
       console.warn(`Login failed for ${username}: ${err ? err.message : 'Invalid credentials'}`);
@@ -58,7 +61,7 @@ app.post('/api/login', (req, res) => {
     console.log(
       `LDAP user search returned ${user._groups ? user._groups.length : 0} group matches for ${username}`,
     );
-    req.session.user = user.uid || username;
+    req.session.user = user[attr] || user.uid || username;
     res.json({ username: req.session.user });
   });
 });
