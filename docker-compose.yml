@@ -44,6 +44,7 @@ services:
       BACKEND_PORT: ${BACKEND_PORT:-3009}
       RELATIVE_ATTRACTION: ${RELATIVE_ATTRACTION:-0.5}
       SHOW_DELETE_ALL_BUTTON: ${SHOW_DELETE_ALL_BUTTON:-false}
+      LOGIN_ENABLED: ${LOGIN_ENABLED:-false}
     ports:
       - '8080:80'
     depends_on:

@@ -456,10 +456,12 @@
         } catch (e) { /* ignore */ }
       }
 
+      // allow opening the login/profile modal when tapping the user label
+      userLabel.addEventListener('click', () => { loginModal.style.display = 'flex'; });
+
       if (AppConfig.loginEnabled) {
         loginBtn.style.display = 'inline-block';
         loginBtn.addEventListener('click', () => { loginModal.style.display = 'flex'; });
-        userLabel.addEventListener('click', () => { loginModal.style.display = 'flex'; });
         loginSubmit.addEventListener('click', async () => {
           await fetch('/api/login', {
             method: 'POST',
