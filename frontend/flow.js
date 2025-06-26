@@ -2135,13 +2135,14 @@
                   <span class="material-icons" style="font-size:16px;">content_copy</span>
                 </button>
                 <template v-if="!editing && !isNew">
-                  <div class="d-flex align-items-center mb-3">
+                  <div class="d-flex align-items-center mb-3" style="position:relative;">
                     <img :src="avatarSrc(selected.gender, 80)" class="avatar-placeholder mr-3" data-i18n-alt="avatar" />
                     <div class="name-container">
                       <div class="h4 mb-0" :style="{ fontSize: (selected.callName || selected.firstName) && (selected.callName || selected.firstName).length > 15 ? '1rem' : '1.25rem' }">{{ selected.callName || selected.firstName }}</div>
                       <div v-if="selected.callName" class="h4 mb-0" :style="{ fontSize: selected.firstName && selected.firstName.length > 15 ? '1rem' : '1.25rem' }">({{ selected.firstName }})</div>
                       <div class="h4 mb-0" :style="{ fontSize: selected.lastName && selected.lastName.length > 15 ? '1rem' : '1.25rem' }">{{ selected.lastName }}</div>
                     </div>
+                    <span v-if="selected.me" style="position:absolute;top:-8px;right:-8px;color:#f39c12;">&#9733;</span>
                   </div>
                   <p v-if="selected.maidenName"><strong data-i18n="maidenNameLabel">Maiden Name:</strong> {{ selected.maidenName }}</p>
                   <p
