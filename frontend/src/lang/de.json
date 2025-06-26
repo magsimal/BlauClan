@@ -73,5 +73,6 @@
   "relativeView": "Verwandtschaft",
   "ancestorsOnly": "Vorfahren",
   "descendantsOnly": "Nachkommen",
-  "both": "Beides"
+  "both": "Beides",
+  "viewBloodline": "Gefilterten Baum anzeigen"
 }

@@ -73,5 +73,6 @@
   "relativeView": "Relatives View",
   "ancestorsOnly": "Ancestors",
   "descendantsOnly": "Descendants",
-  "both": "Both"
+  "both": "Both",
+  "viewBloodline": "View Bloodline"
 }
