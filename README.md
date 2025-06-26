@@ -89,8 +89,14 @@ LDAP_URL=ldap://ldap:389
 LDAP_BIND_DN=uid=admin,ou=people,dc=example,dc=org
 LDAP_BIND_PASSWORD=secret
 LDAP_SEARCH_BASE=ou=people,dc=example,dc=org
-LDAP_SEARCH_FILTER=(uid={{username}})
+LDAP_SEARCH_FILTER=(user_id={{username}})
+# Optional override if your directory stores the login name under a different attribute
+LDAP_USER_ATTRIBUTE=user_id
 ```
+
+By default the backend expects the LDAP username attribute to be `user_id`.
+If your directory uses a different field (such as `uid`), set `LDAP_USER_ATTRIBUTE`
+to that attribute name and adjust `LDAP_SEARCH_FILTER` accordingly.
 
 `LDAP_URL` must include the protocol and port. If you run an LLDAP container on
 the default LDAP port `389`, the value would be `ldap://lldap:389` (or the
