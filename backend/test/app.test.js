@@ -149,6 +149,7 @@ describe('People API', () => {
       });
     const res = await request(app).get('/places/suggest?q=Dup');
     expect(res.statusCode).toBe(200);
+    expect(global.fetch.mock.calls[0][0]).toContain('name_startsWith=Dup');
     expect(res.body[0].name).toBe('Test');
     expect(res.body[0].postalCode).toBe('12345');
   });
@@ -189,6 +190,7 @@ describe('People API', () => {
       });
     const res = await request(app).get('/places/suggest?q=Test');
     expect(res.statusCode).toBe(200);
+    expect(global.fetch.mock.calls[0][0]).toContain('q=Test');
     expect(res.body.length).toBe(1);
   });
 
