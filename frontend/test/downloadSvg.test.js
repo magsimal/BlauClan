@@ -13,6 +13,7 @@ function mountFlow(windowExtras = {}) {
     Vue: {
       createApp(options) { return { mount() { return options.setup(); } }; },
       ref: (v) => ({ value: v }),
+      computed: (fn) => ({ value: fn() }),
       onMounted: () => {},
       onBeforeUnmount: () => {},
       watch: () => {},

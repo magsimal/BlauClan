@@ -39,7 +39,7 @@
   }
 
   function mount() {
-    const { createApp, ref, onMounted, onBeforeUnmount, watch, nextTick } = Vue;
+    const { createApp, ref, onMounted, onBeforeUnmount, watch, nextTick, computed } = Vue;
     const { VueFlow, MarkerType, Handle, useZoomPanHelper, useVueFlow } = window.VueFlow;
 
     const app = createApp({
@@ -95,6 +95,24 @@
         const conflicts = ref([]);
         const conflictIndex = ref(0);
         const showConflict = ref(false);
+        const conflictAction = ref('keep');
+        const resultPerson = computed(() => {
+          const c = conflicts.value[conflictIndex.value];
+          if (!c) return null;
+          const existing = c.existing || {};
+          const incoming = c.incoming || {};
+          if (conflictAction.value === 'keep') return incoming;
+          if (conflictAction.value === 'overwrite') return { ...existing, ...incoming };
+          if (conflictAction.value === 'merge') {
+            const merged = { ...existing };
+            Object.keys(incoming).forEach((k) => {
+              if (!merged[k] || merged[k] === null) merged[k] = incoming[k];
+            });
+            return merged;
+          }
+          // skip -> keep existing
+          return existing;
+        });
         const useBirthApprox = ref(false);
         const useDeathApprox = ref(false);
         const birthExactBackup = ref('');
@@ -375,6 +393,18 @@
           if (!pNode) return '';
           const p = pNode.data;
           return (p.callName ? p.callName + ' (' + p.firstName + ')' : p.firstName) + ' ' + p.lastName;
+        }
+
+        function shortInfo(p) {
+          if (!p) return '';
+          const parts = [];
+          if (p.callName) parts.push(p.callName + (p.firstName ? ' (' + p.firstName + ')' : ''));
+          else if (p.firstName) parts.push(p.firstName);
+          if (p.lastName) parts.push(p.lastName);
+          if (p.dateOfBirth) parts.push('DoB: ' + p.dateOfBirth);
+          if (p.placeOfBirth) parts.push('PoB: ' + p.placeOfBirth);
+          if (p.dateOfDeath) parts.push('DoD: ' + p.dateOfDeath);
+          return parts.join(', ');
         }
 
         async function gotoPerson(pid) {
@@ -1158,10 +1188,8 @@
         async function resolveConflict(action) {
           const c = conflicts.value[conflictIndex.value];
           if (!c) return;
-          if (action === 'keepBoth') {
+          if (action === 'keep') {
             await FrontendApp.createPerson(c.incoming);
-          } else if (action === 'keepExisting') {
-            // do nothing, keep existing as is
           } else if (action === 'overwrite') {
             await FrontendApp.updatePerson(c.existing.id, c.incoming);
           } else if (action === 'merge') {
@@ -1169,17 +1197,24 @@
             Object.keys(c.incoming).forEach((k) => {
               if (!c.existing[k]) updates[k] = c.incoming[k];
             });
-            if (Object.keys(updates).length)
+            if (Object.keys(updates).length) {
               await FrontendApp.updatePerson(c.existing.id, {
                 ...c.existing,
                 ...updates,
               });
+            }
+          } else if (action === 'skip') {
+            // do nothing
           }
           conflictIndex.value += 1;
           if (conflictIndex.value >= conflicts.value.length) {
             showConflict.value = false;
             await load(true);
           }
+        }
+
+        function applyConflict() {
+          resolveConflict(conflictAction.value);
         }
 
         async function onConnect(params) {
@@ -1802,7 +1837,10 @@
         showConflict,
         conflicts,
         conflictIndex,
+        conflictAction,
+        resultPerson,
         resolveConflict,
+        applyConflict,
         menuAdd,
         menuTidy,
         menuFit,
@@ -1824,6 +1862,7 @@
         handleNodesChange,
         gotoPerson,
         personName,
+        shortInfo,
         placeSuggestions,
         visiblePlaceSuggestions,
         placeFocus,
@@ -2047,13 +2086,28 @@
         <div v-if="showConflict" class="modal">
             <div class="modal-content card p-3">
               <h4 data-i18n="duplicateDetected">Duplicate Detected</h4>
-              <p><strong data-i18n="existing">Existing:</strong> {{ conflicts[conflictIndex].existing.firstName }} {{ conflicts[conflictIndex].existing.lastName }}</p>
-              <p><strong data-i18n="incoming">Incoming:</strong> {{ conflicts[conflictIndex].incoming.firstName }} {{ conflicts[conflictIndex].incoming.lastName }}</p>
-              <div class="text-right">
-                <button class="btn btn-sm btn-info mr-2" @click="resolveConflict('keepBoth')" data-i18n="keepBoth">Keep Both</button>
-                <button class="btn btn-sm btn-info mr-2" @click="resolveConflict('keepExisting')" data-i18n="keepExisting">Keep Existing</button>
-                <button class="btn btn-sm btn-warning mr-2" @click="resolveConflict('overwrite')" data-i18n="overwrite">Overwrite</button>
-                <button class="btn btn-sm btn-success" @click="resolveConflict('merge')" data-i18n="merge">Merge</button>
+              <div class="d-flex justify-content-between small">
+                <div class="mr-1">
+                  <strong data-i18n="existing">Existing:</strong>
+                  <div>{{ shortInfo(conflicts[conflictIndex].existing) }}</div>
+                </div>
+                <div class="mr-1">
+                  <strong data-i18n="incoming">Incoming:</strong>
+                  <div>{{ shortInfo(conflicts[conflictIndex].incoming) }}</div>
+                </div>
+                <div>
+                  <strong data-i18n="resulting">Resulting:</strong>
+                  <div>{{ shortInfo(resultPerson) }}</div>
+                </div>
+              </div>
+              <div class="mt-2">
+                <div class="form-check" v-for="act in ['keep','overwrite','merge','skip']" :key="act">
+                  <input class="form-check-input" type="radio" :id="'act-' + act" :value="act" v-model="conflictAction">
+                  <label class="form-check-label" :for="'act-' + act" :data-i18n="act">{{ act }}</label>
+                </div>
+              </div>
+              <div class="text-right mt-2">
+                <button class="btn btn-sm btn-primary" @click="applyConflict" data-i18n="save">Save</button>
               </div>
             </div>
           </div>
