@@ -76,6 +76,24 @@ cd backend && npm run seed
 This will insert a couple of people and a marriage so that the UI has something
 to display.
 
+### LDAP Configuration
+
+The backend can optionally authenticate users against an external LDAP server
+such as [LLDAP](https://github.com/lldap/lldap). To enable this, define the
+following environment variables (shown here with example values):
+
+```bash
+LDAP_URL=ldap://ldap:389
+LDAP_BIND_DN=uid=admin,ou=people,dc=example,dc=org
+LDAP_BIND_PASSWORD=secret
+LDAP_SEARCH_BASE=ou=people,dc=example,dc=org
+LDAP_SEARCH_FILTER=(uid={{username}})
+```
+
+`LDAP_URL` must include the protocol and port. If you run an LLDAP container on
+the default LDAP port `389`, the value would be `ldap://lldap:389` (or the
+appropriate IP address) so the backend can reach it.
+
 ### API Endpoints
 
 - `GET /api/people`
