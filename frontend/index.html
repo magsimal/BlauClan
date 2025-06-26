@@ -260,6 +260,9 @@
     #themeToggleContainer {
       margin-right: 0.5rem;
     }
+    #userLabel {
+      cursor: pointer;
+    }
     .context-menu {
       position: absolute;
       background: #fff;
@@ -456,6 +459,7 @@
       if (AppConfig.loginEnabled) {
         loginBtn.style.display = 'inline-block';
         loginBtn.addEventListener('click', () => { loginModal.style.display = 'flex'; });
+        userLabel.addEventListener('click', () => { loginModal.style.display = 'flex'; });
         loginSubmit.addEventListener('click', async () => {
           await fetch('/api/login', {
             method: 'POST',
