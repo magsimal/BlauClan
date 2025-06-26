@@ -44,6 +44,9 @@ app.post('/api/login', (req, res) => {
   console.log(`Login attempt for ${username}`);
   if (username === 'guest') {
     req.session.user = 'guest';
+    req.session.name = null;
+    req.session.email = null;
+    req.session.avatar = null;
     console.log('Guest login successful');
     return res.json({ username: 'guest' });
   }
@@ -62,6 +65,9 @@ app.post('/api/login', (req, res) => {
       `LDAP user search returned ${user._groups ? user._groups.length : 0} group matches for ${username}`,
     );
     req.session.user = user[attr] || user.uid || username;
+    req.session.name = user.displayName || user.cn || null;
+    req.session.email = user.mail || null;
+    req.session.avatar = user.thumbnailPhoto || user.jpegPhoto || null;
     res.json({ username: req.session.user });
   });
 });
@@ -73,6 +79,9 @@ app.post('/api/logout', (req, res) => {
 app.get('/api/me', (req, res) => {
   res.json({
     username: req.session.user || 'guest',
+    name: req.session.name || null,
+    email: req.session.email || null,
+    avatar: req.session.avatar || null,
     nodeId: req.session.meNodeId || null,
   });
 });

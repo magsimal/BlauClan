@@ -296,15 +296,6 @@
       <div class="d-flex justify-content-between align-items-center">
         <h1 class="h4 mb-0 brand-title">Tree of Life</h1>
           <div class="d-flex align-items-center">
-            <div id="themeToggleContainer" class="custom-control custom-switch mb-0 mr-2">
-              <input type="checkbox" class="custom-control-input" id="themeToggle">
-              <label id="themeIcon" for="themeToggle" class="custom-control-label">&#9728;</label>
-            </div>
-            <span id="langIcon" class="material-icons mr-1">language</span>
-            <select id="langSelect" class="custom-select custom-select-sm" style="width:auto;">
-              <option value="EN">EN</option>
-              <option value="DE">DE</option>
-            </select>
             <button id="loginBtn" class="btn btn-sm btn-secondary ml-2" style="display:none;" data-i18n="login">Login</button>
             <button id="logoutBtn" class="btn btn-sm btn-secondary ml-2" style="display:none;" data-i18n="logout">Logout</button>
             <span id="userLabel" class="ml-2"></span>
@@ -383,15 +374,36 @@
       <h4 data-i18n="login">Login</h4>
       <div class="form-group">
         <label for="loginUser" data-i18n="username">Username</label>
-        <input id="loginUser" class="form-control" />
+        <input id="loginUser" name="username" autocomplete="username" class="form-control" />
       </div>
       <div class="form-group">
         <label for="loginPass" data-i18n="password">Password</label>
-        <input id="loginPass" type="password" class="form-control" />
+        <input id="loginPass" name="password" autocomplete="current-password" type="password" class="form-control" />
       </div>
       <div class="text-right">
         <button id="guestBtn" class="btn btn-secondary btn-sm mr-2" data-i18n="guest">Guest</button>
         <button id="loginSubmit" class="btn btn-primary btn-sm" data-i18n="login">Login</button>
+      </div>
+    </div>
+  </div>
+  <div id="profileModal" class="modal" style="display:none;">
+    <div class="modal-content card p-3 text-center">
+      <img id="profileAvatar" class="rounded-circle mb-2" style="width:96px;height:96px;object-fit:cover;display:none;" />
+      <h4 data-i18n="profile" id="profileTitle">Profile</h4>
+      <p id="profileUsername" class="mb-1"></p>
+      <p id="profileName" class="mb-1"></p>
+      <p id="profileEmail" class="mb-1"></p>
+      <p id="profileNode" class="mb-2"></p>
+      <div class="d-flex justify-content-center align-items-center mb-2">
+        <div id="themeToggleContainer" class="custom-control custom-switch mb-0 mr-2">
+          <input type="checkbox" class="custom-control-input" id="themeToggle">
+          <label id="themeIcon" for="themeToggle" class="custom-control-label">&#9728;</label>
+        </div>
+        <span id="langIcon" class="material-icons mr-1">language</span>
+        <select id="langSelect" class="custom-select custom-select-sm" style="width:auto;">
+          <option value="EN">EN</option>
+          <option value="DE">DE</option>
+        </select>
       </div>
     </div>
   </div>
@@ -437,6 +449,12 @@
       const logoutBtn = document.getElementById('logoutBtn');
       const userLabel = document.getElementById('userLabel');
       const loginModal = document.getElementById('loginModal');
+      const profileModal = document.getElementById('profileModal');
+      const profileAvatar = document.getElementById('profileAvatar');
+      const profileUsername = document.getElementById('profileUsername');
+      const profileName = document.getElementById('profileName');
+      const profileEmail = document.getElementById('profileEmail');
+      const profileNode = document.getElementById('profileNode');
       const loginUser = document.getElementById('loginUser');
       const loginPass = document.getElementById('loginPass');
       const loginSubmit = document.getElementById('loginSubmit');
@@ -449,6 +467,16 @@
           meNodeId = data.nodeId;
           window.meNodeId = meNodeId;
           userLabel.textContent = data.username || '';
+          profileUsername.textContent = data.username || '';
+          profileName.textContent = data.name ? `${I18n.t('name')}: ${data.name}` : '';
+          profileEmail.textContent = data.email ? `${I18n.t('email')}: ${data.email}` : '';
+          profileNode.textContent = data.nodeId ? `${I18n.t('myNode')}: ${data.nodeId}` : '';
+          if (data.avatar) {
+            profileAvatar.src = data.avatar;
+            profileAvatar.style.display = 'block';
+          } else {
+            profileAvatar.style.display = 'none';
+          }
           if (AppConfig.loginEnabled) {
             loginBtn.style.display = data.username && data.username !== 'guest' ? 'none' : 'inline-block';
             logoutBtn.style.display = data.username && data.username !== 'guest' ? 'inline-block' : 'none';
@@ -457,7 +485,13 @@
       }
 
       // allow opening the login/profile modal when tapping the user label
-      userLabel.addEventListener('click', () => { loginModal.style.display = 'flex'; });
+      userLabel.addEventListener('click', () => {
+        if (loginBtn.style.display === 'none') {
+          profileModal.style.display = 'flex';
+        } else {
+          loginModal.style.display = 'flex';
+        }
+      });
 
       if (AppConfig.loginEnabled) {
         loginBtn.style.display = 'inline-block';
@@ -490,6 +524,20 @@
           if (FlowApp.refreshMe) FlowApp.refreshMe();
         });
       }
+
+      function closeModals() {
+        loginModal.style.display = 'none';
+        profileModal.style.display = 'none';
+      }
+
+      loginModal.addEventListener('click', (e) => { if (e.target === loginModal) closeModals(); });
+      profileModal.addEventListener('click', (e) => { if (e.target === profileModal) closeModals(); });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeModals();
+      });
+      loginModal.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') loginSubmit.click();
+      });
 
       FrontendApp.mountApp();
       FlowApp.mount();
