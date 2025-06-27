@@ -82,6 +82,7 @@
   ,"username": "Username"
   ,"password": "Password"
   ,"guest": "Guest"
+  ,"loginError": "Invalid username or password"
   ,"setAsMe": "Set as Me"
   ,"gotoMe": "Go to Me"
   ,"profile": "Profile"
