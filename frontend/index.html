@@ -584,7 +584,7 @@
             loginUser.value = '';
             loginPass.value = '';
             loginError.style.display = 'none';
-            refreshUser();
+            await refreshUser();
             if (FlowApp.updatePrivileges) FlowApp.updatePrivileges();
             if (FlowApp.refreshMe) FlowApp.refreshMe();
           } catch (e) {
@@ -599,13 +599,13 @@
           });
           loginModal.style.display = 'none';
           loginError.style.display = 'none';
-          refreshUser();
+          await refreshUser();
           if (FlowApp.updatePrivileges) FlowApp.updatePrivileges();
           if (FlowApp.refreshMe) FlowApp.refreshMe();
         });
         logoutBtn.addEventListener('click', async () => {
           await fetch('/api/logout', { method: 'POST' });
-          refreshUser();
+          await refreshUser();
           if (FlowApp.updatePrivileges) FlowApp.updatePrivileges();
           if (FlowApp.refreshMe) FlowApp.refreshMe();
         });
@@ -632,9 +632,10 @@
         if (FlowApp.updatePrivileges) FlowApp.updatePrivileges();
       });
       window.gotoMe = () => { if (window.meNodeId) FlowApp.focusNode(window.meNodeId); };
-      refreshUser();
-      if (FlowApp.updatePrivileges) FlowApp.updatePrivileges();
-      if (FlowApp.refreshMe) FlowApp.refreshMe();
+        refreshUser().then(() => {
+          if (FlowApp.updatePrivileges) FlowApp.updatePrivileges();
+          if (FlowApp.refreshMe) FlowApp.refreshMe();
+        });
       if (window.SearchApp) {
         SearchApp.init();
       }
