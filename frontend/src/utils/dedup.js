@@ -65,6 +65,24 @@
     return score;
   }
 
+  function attributeMatchCount(p, e) {
+    let count = 0;
+    const ln = (p.lastName || '').toLowerCase();
+    const ln2 = (e.lastName || '').toLowerCase();
+    const mn2 = (e.maidenName || '').toLowerCase();
+    if ((ln && ln2 && ln === ln2) || (ln && mn2 && ln === mn2)) count += 1;
+
+    if (similarity(p.firstName, e.firstName) >= 0.8) count += 1;
+
+    const yearP = getYear(p.dateOfBirth || p.birthApprox);
+    const yearE = getYear(e.dateOfBirth || e.birthApprox);
+    if (yearP && yearE && Math.abs(yearP - yearE) <= 1) count += 1;
+
+    if (similarity(p.placeOfBirth, e.placeOfBirth) >= 0.8) count += 1;
+
+    return count;
+  }
+
   function findBestMatch(person, existing) {
     let best = null;
     let bestScore = 0;
@@ -73,6 +91,8 @@
         return { match: e, score: 100 };
       }
       const sc = matchScore(person, e);
+      const matches = attributeMatchCount(person, e);
+      if (matches <= 1) continue;
       if (sc > bestScore) {
         best = e;
         bestScore = sc;

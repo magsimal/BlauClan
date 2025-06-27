@@ -17,4 +17,13 @@ describe('deduplication utils', () => {
     const c = { firstName: 'Beth', lastName: 'Jones', dateOfBirth: '1880-01-01' };
     expect(matchScore(a, b)).toBeGreaterThan(matchScore(a, c));
   });
+
+  test('single fuzzy attribute does not trigger match', () => {
+    const existing = [
+      { id: 1, firstName: 'John', lastName: 'Smith', dateOfBirth: '1900-01-01', placeOfBirth: 'Berlin' },
+    ];
+    const person = { firstName: 'Jon', lastName: 'Doe' };
+    const { match } = findBestMatch(person, existing);
+    expect(match).toBe(null);
+  });
 });
