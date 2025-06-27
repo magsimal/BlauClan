@@ -17,14 +17,19 @@
   <link rel="stylesheet" href="assets/css/argon-design-system.min.css">
   <link rel="stylesheet" href="assets/vendor/flatpickr.min.css">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter&display=swap">
   <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
   <script src="assets/vendor/flatpickr.min.js"></script>
   <style>
     html, body { height: 100%; }
+    body { font-family: "Inter", sans-serif; }
     #page-wrapper { display: flex; flex-direction: column; min-height: 100vh; }
     #main-content { flex: 1; }
-    #top-bar { background-color: #5e72e4; color: #fff; }
-    #footer { background-color: #5e72e4; color: #fff; }
+    #top-bar, #footer {
+      background-color: rgba(59,130,246,0.8);
+      color: #fff;
+      backdrop-filter: blur(8px);
+    }
     .brand-title { font-family: "Montserrat", sans-serif; font-weight: 700; }
     #menu { width: 250px; float: left; }
     .edit-section { border: 1px solid #69b3a2; padding: 10px; border-radius: 6px; margin-top: 10px; }
@@ -48,9 +53,12 @@
       background-size: 30px 30px;
     }
     body.bright-theme #flow-app {
-      background-color: #FAFBFC;
-      background-image: radial-gradient(#E8E8E8 1px, transparent 1px);
-      background-size: 30px 30px;
+      background-image:
+        linear-gradient(#f8fafc, #e2e8f0),
+        radial-gradient(#d1d5db 1px, transparent 1px);
+      background-size:
+        100% 100%,
+        30px 30px;
     }
     @media (max-width: 768px) {
       #flow-app {
@@ -62,9 +70,9 @@
     }
     .person-node {
       padding: 6px;
-      border-radius: 8px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.4);
-      transition: border-color 0.2s;
+      border-radius: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      transition: border-color 0.2s, transform 0.2s ease-in-out;
       display: flex;
       flex-direction: column;
     }
@@ -80,9 +88,10 @@
     }
     .person-node:hover {
       border-color: #888;
+      transform: scale(1.02);
     }
     .person-node.active {
-      box-shadow: 0 0 0 2px #00B8D9;
+      box-shadow: 0 0 0 2px #3b82f6;
     }
     .vue-flow__handle {
       width: 10px;
@@ -98,11 +107,11 @@
       border: 2px solid #bbb;
     }
     .vue-flow__handle:hover {
-      background: #00B8D9;
-      border-color: #00B8D9;
+      background: #3b82f6;
+      border-color: #3b82f6;
     }
     .vue-flow__edge:hover .vue-flow__edge-path {
-      stroke: #00B8D9;
+      stroke: #3b82f6;
     }
     .helper-node { width: 0; height: 0; }
     .highlight-node { border-color: #f00 !important; }
@@ -111,7 +120,7 @@
       stroke-width: 2px;
     }
     .selected-edge .vue-flow__edge-path {
-      stroke: #00B8D9;
+      stroke: #3b82f6;
       stroke-width: 2px;
     }
     .faded-node {
@@ -172,15 +181,18 @@
       max-width: 500px;
     }
     #search-overlay li.active {
-      background-color: #5e72e4;
+      background-color: #3b82f6;
       color: #fff;
     }
     .avatar-placeholder {
       width: 80px;
       height: 80px;
       border-radius: 50%;
-      object-fit: cover;
-      display: inline-block;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: bold;
     }
     .person-node .header {
       display: flex;
@@ -195,8 +207,12 @@
       width: 40px;
       height: 40px;
       border-radius: 50%;
-      object-fit: cover;
       margin-right: 4px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: bold;
     }
     #toolbar {
       display: flex;
@@ -240,11 +256,11 @@
       color: #ffffff;
     }
     .icon-button:hover {
-      border-color: #00B8D9;
+      border-color: #3b82f6;
     }
     .icon-button.active {
-      border-color: #00B8D9;
-      box-shadow: 0 0 5px #00B8D9;
+      border-color: #3b82f6;
+      box-shadow: 0 0 5px #3b82f6;
     }
     .icon-button svg {
       width: 16px;
@@ -260,7 +276,7 @@
       height: 28px;
     }
     .copy-btn:hover {
-      background-color: #00B8D9;
+      background-color: #3b82f6;
       color: #fff;
     }
     .edit-btn {
@@ -271,7 +287,7 @@
       height: 28px;
     }
     .edit-btn:hover {
-      background-color: #00B8D9;
+      background-color: #3b82f6;
       color: #fff;
     }
     #top-bar {
