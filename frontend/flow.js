@@ -2056,7 +2056,7 @@
             >Copy GEDCOM</li>
           </ul>
 
-          <div v-if="showImport" class="modal">
+        <div v-if="showImport" class="modal" @click.self="showImport = false">
             <div class="modal-content card p-3">
               <h4 data-i18n="importGedcom">Import GEDCOM</h4>
               <textarea class="form-control mb-2" rows="10" v-model="gedcomText" placeholder="Paste GEDCOM text" data-i18n-placeholder="pasteGedcom"></textarea>
@@ -2067,7 +2067,7 @@
           </div>
         </div>
 
-        <div v-if="showFilter" class="modal">
+        <div v-if="showFilter" class="modal" @click.self="showFilter = false">
           <div class="modal-content card p-3">
             <h4 data-i18n="filterNodes">Filter Nodes</h4>
             <div class="form-check">
@@ -2092,7 +2092,7 @@
           </div>
         </div>
 
-        <div v-if="showRelatives" class="modal">
+        <div v-if="showRelatives" class="modal" @click.self="showRelatives = false">
           <div class="modal-content card p-3" style="max-width:90%;">
             <h4 data-i18n="relativeView">Relatives View</h4>
             <div class="form-group">
@@ -2121,7 +2121,7 @@
           </div>
         </div>
 
-        <div v-if="showScores" class="modal">
+        <div v-if="showScores" class="modal" @click.self="showScores = false">
           <div class="modal-content card p-3">
             <h4 data-i18n="leaderboard">Leaderboard</h4>
             <table class="table table-sm">
@@ -2140,7 +2140,7 @@
           </div>
         </div>
 
-        <div v-if="showConflict" class="modal">
+        <div v-if="showConflict" class="modal" @click.self="showConflict = false">
             <div class="modal-content card p-3">
               <h4 data-i18n="duplicateDetected">Duplicate Detected</h4>
               <div class="text-right small">{{ conflictIndex + 1 }} / {{ conflicts.length }}</div>
