@@ -82,6 +82,7 @@
   ,"username": "Benutzername"
   ,"password": "Passwort"
   ,"guest": "Gast"
+  ,"loginError": "Ung\u00fcltiger Benutzername oder Passwort"
   ,"setAsMe": "Als mich festlegen"
   ,"gotoMe": "Zu mir"
   ,"profile": "Profil"

@@ -82,6 +82,7 @@
   ,"username": "Nazwa uzytkownika"
   ,"password": "Haslo"
   ,"guest": "Gosc"
+  ,"loginError": "Nieprawid\u0142owa nazwa u\u017cytkownika lub has\u0142o"
   ,"setAsMe": "Ustaw jako mnie"
   ,"gotoMe": "Idz do mnie"
   ,"profile": "Profil"
