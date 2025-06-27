@@ -50,6 +50,7 @@
   }
 
   function updatePrivileges() {
+    if (!loggedIn || !admin) return;
     loggedIn.value = window.currentUser && window.currentUser !== 'guest';
     admin.value = !!window.isAdmin;
   }
