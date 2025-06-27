@@ -244,8 +244,9 @@
             dateOfDeath: this.selectedPerson.dateOfDeath || null,
             deathApprox: this.selectedPerson.deathApprox || null,
             placeOfBirth: this.selectedPerson.placeOfBirth || '',
-            geonameId: this.selectedPerson.geonameId || null,
-            fatherId: this.selectedPerson.fatherId || null,
+           geonameId: this.selectedPerson.geonameId || null,
+           gender: this.selectedPerson.gender || '',
+           fatherId: this.selectedPerson.fatherId || null,
             motherId: this.selectedPerson.motherId || null,
             notes: this.selectedPerson.notes || '',
           };
