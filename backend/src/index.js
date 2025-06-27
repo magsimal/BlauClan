@@ -31,6 +31,8 @@ const sessionStore = new SequelizeStore({
   db: sequelize,
 });
 
+const LOGIN_ENABLED = process.env.LOGIN_ENABLED === 'true';
+
 app.use(
   session({
     secret: process.env.SESSION_SECRET || 'secret',
@@ -57,6 +59,20 @@ if (process.env.LDAP_URL) {
       console.log('LDAP connection established');
     });
   }
+}
+
+function requireAuth(req, res, next) {
+  if (LOGIN_ENABLED && (!req.session.user || req.session.user === 'guest')) {
+    return res.status(401).json({ error: 'login required' });
+  }
+  next();
+}
+
+function requireAdmin(req, res, next) {
+  if (LOGIN_ENABLED && !req.session.isAdmin) {
+    return res.status(403).json({ error: 'admin required' });
+  }
+  next();
 }
 
 app.post('/api/login', (req, res) => {
@@ -92,7 +108,23 @@ app.post('/api/login', (req, res) => {
     req.session.name = user.displayName || user.cn || null;
     req.session.email = user.mail || null;
     req.session.avatar = user.thumbnailPhoto || user.jpegPhoto || null;
-    res.json({ username: req.session.user });
+    req.session.isAdmin = false;
+    const adminFilter = process.env.LDAP_ADMIN_FILTER;
+    if (adminFilter) {
+      const base = process.env.LDAP_SEARCH_BASE;
+      const filter = adminFilter.replace(
+        '{{username}}',
+        user[attr] || user.uid || username,
+      );
+      ldap._search(base, { filter, scope: 'sub' }, (e, items) => {
+        if (!e && items && items.length) {
+          req.session.isAdmin = true;
+        }
+        res.json({ username: req.session.user });
+      });
+    } else {
+      res.json({ username: req.session.user });
+    }
   });
 });
 
@@ -116,10 +148,11 @@ app.get('/api/me', async (req, res) => {
     email: req.session.email || null,
     avatar: req.session.avatar || null,
     nodeId,
+    admin: !!req.session.isAdmin,
   });
 });
 
-app.post('/api/me', async (req, res) => {
+app.post('/api/me', requireAuth, async (req, res) => {
   const nodeId = req.body.nodeId || null;
   req.session.meNodeId = nodeId;
   const username = req.session.user || 'guest';
@@ -146,7 +179,7 @@ app.get('/api/settings', async (req, res) => {
   res.json({ theme: row.theme, language: row.language, meNodeId: row.meNodeId });
 });
 
-app.post('/api/settings', async (req, res) => {
+app.post('/api/settings', requireAuth, async (req, res) => {
   const username = req.session.user || 'guest';
   if (username === 'guest') {
     return res.status(401).json({ error: 'Guest user cannot save settings' });
@@ -351,7 +384,7 @@ app.get('/places/suggest', async (req, res) => {
   res.json(suggestions);
 });
 
-app.post('/api/people', async (req, res) => {
+app.post('/api/people', requireAuth, async (req, res) => {
   try {
     const payload = normalizeParentIds(req.body);
     if (!(await validatePlace(payload.placeOfBirth))) {
@@ -377,7 +410,7 @@ app.get('/api/people/:id', async (req, res) => {
   res.json(person);
 });
 
-app.put('/api/people/:id', async (req, res) => {
+app.put('/api/people/:id', requireAuth, async (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
   const person = await Person.findByPk(id);
@@ -408,7 +441,7 @@ app.put('/api/people/:id', async (req, res) => {
   res.json(person);
 });
 
-app.delete('/api/people/:id', async (req, res) => {
+app.delete('/api/people/:id', requireAuth, async (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
   const person = await Person.findByPk(id);
@@ -443,7 +476,7 @@ app.get('/api/people/:id/spouses', async (req, res) => {
   res.json(result);
 });
 
-app.post('/api/people/:id/spouses', async (req, res) => {
+app.post('/api/people/:id/spouses', requireAuth, async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
@@ -488,7 +521,7 @@ app.post('/api/people/:id/spouses', async (req, res) => {
   }
 });
 
-app.delete('/api/people/:id/spouses/:marriageId', async (req, res) => {
+app.delete('/api/people/:id/spouses/:marriageId', requireAuth, async (req, res) => {
   const marriageId = parseInt(req.params.marriageId, 10);
   if (Number.isNaN(marriageId)) return res.status(400).json({ error: 'Invalid marriageId' });
   const marriage = await Marriage.findByPk(marriageId);
@@ -591,7 +624,7 @@ app.get('/api/export/db', async (_req, res) => {
   res.json({ people, marriages, layouts });
 });
 
-app.post('/api/import/db', async (req, res) => {
+app.post('/api/import/db', requireAdmin, async (req, res) => {
   try {
     const { people = [], marriages = [], layouts = [] } = req.body;
     await sequelize.transaction(async (t) => {
@@ -609,7 +642,7 @@ app.post('/api/import/db', async (req, res) => {
 });
 
 // Layout endpoints
-app.post('/api/layout', async (req, res) => {
+app.post('/api/layout', requireAuth, async (req, res) => {
   try {
     const layout = await Layout.create({ data: req.body });
     res.status(201).json(layout);

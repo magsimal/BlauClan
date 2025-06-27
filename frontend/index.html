@@ -531,6 +531,7 @@
           const data = await res.json();
           currentUser = data.username || 'guest';
           window.currentUser = currentUser;
+          window.isAdmin = !!data.admin;
           meNodeId = data.nodeId;
           if (currentUser === 'guest') {
             const stored = (() => { try { return localStorage.getItem(ME_NODE_KEY); } catch (e) { return null; } })();
@@ -584,6 +585,7 @@
             loginPass.value = '';
             loginError.style.display = 'none';
             refreshUser();
+            if (FlowApp.updatePrivileges) FlowApp.updatePrivileges();
             if (FlowApp.refreshMe) FlowApp.refreshMe();
           } catch (e) {
             loginError.style.display = 'block';
@@ -598,11 +600,13 @@
           loginModal.style.display = 'none';
           loginError.style.display = 'none';
           refreshUser();
+          if (FlowApp.updatePrivileges) FlowApp.updatePrivileges();
           if (FlowApp.refreshMe) FlowApp.refreshMe();
         });
         logoutBtn.addEventListener('click', async () => {
           await fetch('/api/logout', { method: 'POST' });
           refreshUser();
+          if (FlowApp.updatePrivileges) FlowApp.updatePrivileges();
           if (FlowApp.refreshMe) FlowApp.refreshMe();
         });
       }
@@ -625,9 +629,11 @@
       const vm = FrontendApp.mountApp();
       Vue.nextTick(() => {
         FlowApp.mount();
+        if (FlowApp.updatePrivileges) FlowApp.updatePrivileges();
       });
       window.gotoMe = () => { if (window.meNodeId) FlowApp.focusNode(window.meNodeId); };
       refreshUser();
+      if (FlowApp.updatePrivileges) FlowApp.updatePrivileges();
       if (FlowApp.refreshMe) FlowApp.refreshMe();
       if (window.SearchApp) {
         SearchApp.init();

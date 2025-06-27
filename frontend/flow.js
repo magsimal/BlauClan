@@ -24,6 +24,8 @@
   }
 
   let appState = null;
+  let loggedIn;
+  let admin;
 
   function focusNode(pid) {
     if (!appState) return;
@@ -45,6 +47,11 @@
     nodes.value.forEach((n) => {
       n.data.me = window.meNodeId && n.id === String(window.meNodeId);
     });
+  }
+
+  function updatePrivileges() {
+    loggedIn.value = window.currentUser && window.currentUser !== 'guest';
+    admin.value = !!window.isAdmin;
   }
 
   function mount() {
@@ -92,8 +99,13 @@
             (typeof AppConfig.relativeAttraction !== 'undefined'
               ? parseFloat(AppConfig.relativeAttraction)
               : null)) || 0.5;
-        const showDeleteAllButton =
-          !!(window.AppConfig && AppConfig.showDeleteAllButton);
+        loggedIn = ref(window.currentUser && window.currentUser !== 'guest');
+        admin = ref(window.isAdmin || false);
+        const showDeleteAllButton = computed(
+          () =>
+            !!(window.AppConfig && AppConfig.showDeleteAllButton) &&
+            admin.value,
+        );
         const loadingEl = document.getElementById('loadingOverlay');
         function setLoading(v) { if (loadingEl) loadingEl.style.display = v ? 'flex' : 'none'; }
         const selected = ref(null);
@@ -577,6 +589,7 @@
           fitView();
           snapGrid.value = [horizontalGridSize, verticalGridSize];
           snapToGrid.value = true;
+          updatePrivileges();
           updateGridSize(viewport.value.zoom || 1);
           watch(
             viewport,
@@ -1968,10 +1981,10 @@
       template: `
         <div style="width: 100%; height: 100%" @click="contextMenuVisible = false">
           <div id="toolbar">
-          <button class="icon-button" @click="addPerson" title="Add Person" data-i18n-title="addPerson">
+          <button v-if="loggedIn" class="icon-button" @click="addPerson" title="Add Person" data-i18n-title="addPerson">
             <svg viewBox="0 0 24 24"><path d="M5.25 6.375a4.125 4.125 0 1 1 8.25 0 4.125 4.125 0 0 1-8.25 0ZM2.25 19.125a7.125 7.125 0 0 1 14.25 0v.003l-.001.119a.75.75 0 0 1-.363.63 13.067 13.067 0 0 1-6.761 1.873c-2.472 0-4.786-.684-6.76-1.873a.75.75 0 0 1-.364-.63l-.001-.122ZM18.75 7.5a.75.75 0 0 0-1.5 0v2.25H15a.75.75 0 0 0 0 1.5h2.25v2.25a.75.75 0 0 0 1.5 0v-2.25H21a.75.75 0 0 0 0-1.5h-2.25V7.5Z"/></svg>
           </button>
-          <button class="icon-button" @click="openImport" title="Import GEDCOM" data-i18n-title="importGedcom">
+          <button v-if="loggedIn" class="icon-button" @click="openImport" title="Import GEDCOM" data-i18n-title="importGedcom">
             <svg viewBox="0 0 24 24"><path d="M4 4h16v2H4zm0 4h10v2H4zm0 4h16v2H4zm0 4h10v2H4z"/></svg>
           </button>
           <button class="icon-button" @click="tidyUpLayout" title="Tidy Up" data-i18n-title="tidyUp">
@@ -1996,7 +2009,7 @@
             </button>
           </div>
           <div id="sidebar">
-            <button class="icon-button" @click="saveLayout" title="Save Layout" data-i18n-title="saveLayout">
+            <button v-if="loggedIn" class="icon-button" @click="saveLayout" title="Save Layout" data-i18n-title="saveLayout">
               <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2.25a.75.75 0 0 1 .75.75v11.69l3.22-3.22a.75.75 0 1 1 1.06 1.06l-4.5 4.5a.75.75 0 0 1-1.06 0l-4.5-4.5a.75.75 0 1 1 1.06-1.06l3.22 3.22V3a.75.75 0 0 1 .75-.75Zm-9 13.5a.75.75 0 0 1 .75.75v2.25a1.5 1.5 0 0 0 1.5 1.5h13.5a1.5 1.5 0 0 0 1.5-1.5V16.5a.75.75 0 0 1 1.5 0v2.25a3 3 0 0 1-3 3H5.25a3 3 0 0 1-3-3V16.5a.75.75 0 0 1 .75-.75Z" clip-rule="evenodd"/></svg>
             </button>
             <button class="icon-button" @click="downloadSvg" title="Download SVG" data-i18n-title="downloadSvg">
@@ -2089,7 +2102,7 @@
             class="context-menu"
             :style="{ left: contextX + 'px', top: contextY + 'px' }"
           >
-            <li @click="menuAdd">Add New</li>
+            <li v-if="loggedIn" @click="menuAdd">Add New</li>
             <li @click="menuTidy">Tidy Up</li>
             <li @click="menuFit">Zoom to Fit</li>
             <li
@@ -2421,5 +2434,5 @@
     return app.mount('#flow-app');
   }
 
-  return { mount, focusNode, refreshMe };
+  return { mount, focusNode, refreshMe, updatePrivileges };
 });
