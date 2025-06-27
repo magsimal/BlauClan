@@ -1740,7 +1740,19 @@
         if (!selected.value) return;
         const text = personToGedcom(selected.value);
         try {
-          await navigator.clipboard.writeText(text);
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(text);
+          } else {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.top = '-1000px';
+            document.body.appendChild(ta);
+            ta.focus();
+            ta.select();
+            document.execCommand('copy');
+            ta.remove();
+          }
         } catch (e) {
           console.error('Copy failed', e);
         }
@@ -1787,7 +1799,19 @@
         });
         const text = parts.join('\n');
         try {
-          await navigator.clipboard.writeText(text);
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(text);
+          } else {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.top = '-1000px';
+            document.body.appendChild(ta);
+            ta.focus();
+            ta.select();
+            document.execCommand('copy');
+            ta.remove();
+          }
         } catch (e) {
           console.error('Copy failed', e);
         }

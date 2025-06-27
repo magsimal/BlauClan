@@ -131,7 +131,12 @@
   }
 
   function show() {
-    const overlay = document.getElementById(overlayId);
+    let overlay = document.getElementById(overlayId);
+    if (!overlay) {
+      // ensure DOM elements exist even if init() wasn't called yet
+      setupDom();
+      overlay = document.getElementById(overlayId);
+    }
     if (!overlay) return;
     overlay.style.display = 'flex';
     const input = overlay.querySelector('#search-input');
