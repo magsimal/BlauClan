@@ -46,6 +46,8 @@ The bulk delete button is hidden by default. Set `SHOW_DELETE_ALL_BUTTON=true`
 if you want to display it in the toolbar.
 Authentication can be toggled with `LOGIN_ENABLED`. Set it to `true` to enable
 the login dialog and LDAP authentication. The default is `false`.
+If `LDAP_ADMIN_FILTER` is set, users matching that filter are treated as admins
+and can perform bulk delete operations.
 
 ### Running with Prebuilt Images
 
@@ -90,6 +92,8 @@ LDAP_BIND_DN=uid=admin,ou=people,dc=example,dc=org
 LDAP_BIND_PASSWORD=secret
 LDAP_SEARCH_BASE=ou=people,dc=example,dc=org
 LDAP_SEARCH_FILTER=(user_id={{username}})
+# Optional filter to mark admin accounts
+LDAP_ADMIN_FILTER=(memberOf=cn=admins,ou=groups,dc=example,dc=org)
 # Optional override if your directory stores the login name under a different attribute
 LDAP_USER_ATTRIBUTE=user_id
 ```
