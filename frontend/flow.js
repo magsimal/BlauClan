@@ -601,6 +601,13 @@
           );
           window.addEventListener('keydown', handleKeydown);
           window.addEventListener('keyup', handleKeyup);
+          const flowEl = document.getElementById('flow-app');
+          if (flowEl) {
+            flowEl.addEventListener('contextmenu', handleContextMenu);
+            flowEl.addEventListener('touchstart', handleTouchStart);
+            flowEl.addEventListener('touchend', handleTouchEnd);
+            flowEl.addEventListener('touchcancel', handleTouchEnd);
+          }
           fetchScore();
           scoreTimer = setInterval(fetchScore, 10000);
         });
@@ -608,6 +615,13 @@
         onBeforeUnmount(() => {
           window.removeEventListener('keydown', handleKeydown);
           window.removeEventListener('keyup', handleKeyup);
+          const flowEl = document.getElementById('flow-app');
+          if (flowEl) {
+            flowEl.removeEventListener('contextmenu', handleContextMenu);
+            flowEl.removeEventListener('touchstart', handleTouchStart);
+            flowEl.removeEventListener('touchend', handleTouchEnd);
+            flowEl.removeEventListener('touchcancel', handleTouchEnd);
+          }
           if (scoreTimer) clearInterval(scoreTimer);
         });
         const editing = ref(false);
