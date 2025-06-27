@@ -5,7 +5,7 @@
     global.FlowApp = factory();
   }
 })(this, function () {
-  /* global d3, GenerationLayout, AppConfig, I18n */
+  /* global d3, GenerationLayout, AppConfig, I18n, $ */
   const GedcomUtil = typeof require === 'function'
     ? (() => { try { return require('./src/utils/gedcom'); } catch (e) { return {}; } })()
     : (typeof window !== 'undefined' ? (window.Gedcom || {}) : {});
@@ -192,6 +192,23 @@
             return 'https://placehold.net/avatar-2.png';
           }
           return 'https://placehold.net/avatar.png';
+        }
+
+        function initials(person) {
+          const f = (person.firstName || '').charAt(0);
+          const l = (person.lastName || '').charAt(0);
+          return (f + l).toUpperCase();
+        }
+
+        function avatarStyle(gender, size) {
+          const g = (gender || '').toString().toLowerCase();
+          const bg = g === 'female' || g === 'f' ? '#f9a8d4' : '#93c5fd';
+          return {
+            backgroundColor: bg,
+            width: `${size}px`,
+            height: `${size}px`,
+            lineHeight: `${size}px`,
+          };
         }
 
         function spouseHandles(n1, n2) {
@@ -1927,7 +1944,9 @@
         editing,
         cancelEdit,
         avatarSrc,
-         tidyUpLayout,
+        initials,
+        avatarStyle,
+        tidyUpLayout,
         saveLayout,
         loadLayout,
         fitView,
@@ -2001,54 +2020,54 @@
       template: `
         <div style="width: 100%; height: 100%" @click="contextMenuVisible = false">
           <div id="toolbar">
-          <button v-if="loggedIn" class="icon-button" @click="addPerson" title="Add Person" data-i18n-title="addPerson">
+          <button v-if="loggedIn" class="icon-button" @click="addPerson" v-tooltip="I18n.t('addPerson')">
             <svg viewBox="0 0 24 24"><path d="M5.25 6.375a4.125 4.125 0 1 1 8.25 0 4.125 4.125 0 0 1-8.25 0ZM2.25 19.125a7.125 7.125 0 0 1 14.25 0v.003l-.001.119a.75.75 0 0 1-.363.63 13.067 13.067 0 0 1-6.761 1.873c-2.472 0-4.786-.684-6.76-1.873a.75.75 0 0 1-.364-.63l-.001-.122ZM18.75 7.5a.75.75 0 0 0-1.5 0v2.25H15a.75.75 0 0 0 0 1.5h2.25v2.25a.75.75 0 0 0 1.5 0v-2.25H21a.75.75 0 0 0 0-1.5h-2.25V7.5Z"/></svg>
           </button>
-          <button v-if="loggedIn" class="icon-button" @click="openImport" title="Import GEDCOM" data-i18n-title="importGedcom">
+          <button v-if="loggedIn" class="icon-button" @click="openImport" v-tooltip="I18n.t('importGedcom')">
             <svg viewBox="0 0 24 24"><path d="M4 4h16v2H4zm0 4h10v2H4zm0 4h16v2H4zm0 4h10v2H4z"/></svg>
           </button>
-          <button class="icon-button" @click="tidyUpLayout" title="Tidy Up" data-i18n-title="tidyUp">
+          <button class="icon-button" @click="tidyUpLayout" v-tooltip="I18n.t('tidyUp')">
               <svg viewBox="0 0 24 24">
                 <path d="M19.36,2.72L20.78,4.14L15.06,9.85C16.13,11.39 16.28,13.24 15.38,14.44L9.06,8.12C10.26,7.22 12.11,7.37 13.65,8.44L19.36,2.72M5.93,17.57C3.92,15.56 2.69,13.16 2.35,10.92L7.23,8.83L14.67,16.27L12.58,21.15C10.34,20.81 7.94,19.58 5.93,17.57Z" />
               </svg>
             </button>
-            <button class="icon-button" @click="loadLayout" title="Reload Layout" data-i18n-title="loadLayout">
+            <button class="icon-button" @click="loadLayout" v-tooltip="I18n.t('loadLayout')">
               <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M4.755 10.059a7.5 7.5 0 0 1 12.548-3.364l1.903 1.903h-3.183a.75.75 0 1 0 0 1.5h4.992a.75.75 0 0 0 .75-.75V4.356a.75.75 0 0 0-1.5 0v3.18l-1.9-1.9A9 9 0 0 0 3.306 9.67a.75.75 0 1 0 1.45.388Zm15.408 3.352a.75.75 0 0 0-.919.53 7.5 7.5 0 0 1-12.548 3.364l-1.902-1.903h3.183a.75.75 0 0 0 0-1.5H2.984a.75.75 0 0 0-.75.75v4.992a.75.75 0 0 0 1.5 0v-3.18l1.9 1.9a9 9 0 0 0 15.059-4.035.75.75 0 0 0-.53-.918Z" clip-rule="evenodd"/></svg>
             </button>
-            <button class="icon-button" @click="fitView" title="Fit to Screen" data-i18n-title="fitToScreen">
+            <button class="icon-button" @click="fitView" v-tooltip="I18n.t('fitToScreen')">
               <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M15 3.75a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0V5.56l-3.97 3.97a.75.75 0 1 1-1.06-1.06l3.97-3.97h-2.69a.75.75 0 0 1-.75-.75Zm-12 0A.75.75 0 0 1 3.75 3h4.5a.75.75 0 0 1 0 1.5H5.56l3.97 3.97a.75.75 0 0 1-1.06 1.06L4.5 5.56v2.69a.75.75 0 0 1-1.5 0v-4.5Zm11.47 11.78a.75.75 0 1 1 1.06-1.06l3.97 3.97v-2.69a.75.75 0 0 1 1.5 0v4.5a.75.75 0 0 1-.75.75h-4.5a.75.75 0 0 1 0-1.5h2.69l-3.97-3.97Zm-4.94-1.06a.75.75 0 0 1 0 1.06L5.56 19.5h2.69a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1-.75-.75v-4.5a.75.75 0 0 1 1.5 0v2.69l3.97-3.97a.75.75 0 0 1 1.06 0Z" clip-rule="evenodd"/></svg>
             </button>
-            <button class="icon-button" @click="gotoMe" title="Go to Me" data-i18n-title="gotoMe">
+            <button class="icon-button" @click="gotoMe" v-tooltip="I18n.t('gotoMe')">
               <svg viewBox="0 0 24 24"><path d="M12 2l1.546 4.755H18l-4.023 2.923L15.545 14 12 11.077 8.455 14l1.568-4.322L6 6.755h4.454z"/></svg>
             </button>
             
-            <button class="icon-button" @click="openFilter" title="Filter Nodes" data-i18n-title="filterNodes">
+            <button class="icon-button" @click="openFilter" v-tooltip="I18n.t('filterNodes')">
               <svg viewBox="0 0 24 24">
                 <path d="M3 4h18L13 14v6l-2 2v-8L3 4z"/>
               </svg>
             </button>
           </div>
           <div id="sidebar">
-            <button v-if="loggedIn" class="icon-button" @click="saveLayout" title="Save Layout" data-i18n-title="saveLayout">
+            <button v-if="loggedIn" class="icon-button" @click="saveLayout" v-tooltip="I18n.t('saveLayout')">
               <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2.25a.75.75 0 0 1 .75.75v11.69l3.22-3.22a.75.75 0 1 1 1.06 1.06l-4.5 4.5a.75.75 0 0 1-1.06 0l-4.5-4.5a.75.75 0 1 1 1.06-1.06l3.22 3.22V3a.75.75 0 0 1 .75-.75Zm-9 13.5a.75.75 0 0 1 .75.75v2.25a1.5 1.5 0 0 0 1.5 1.5h13.5a1.5 1.5 0 0 0 1.5-1.5V16.5a.75.75 0 0 1 1.5 0v2.25a3 3 0 0 1-3 3H5.25a3 3 0 0 1-3-3V16.5a.75.75 0 0 1 .75-.75Z" clip-rule="evenodd"/></svg>
             </button>
-            <button class="icon-button" @click="downloadSvg" title="Download SVG" data-i18n-title="downloadSvg">
+            <button class="icon-button" @click="downloadSvg" v-tooltip="I18n.t('downloadSvg')">
               <svg viewBox="0 0 24 24"><path d="M11.25 3h1.5v10.379l3.47-3.47 1.06 1.06-5 5a.75.75 0 0 1-1.06 0l-5-5 1.06-1.06 3.47 3.47V3z"/><path d="M4.5 18.75h15v1.5h-15z"/></svg>
             </button>
-            <button class="icon-button" @click="toggleSnap" :class="{ active: snapToGrid }" :title="snapToGrid ? I18n.t('disableSnap') : I18n.t('enableSnap')" :data-i18n-title="snapToGrid ? 'disableSnap' : 'enableSnap'">
+            <button class="icon-button" @click="toggleSnap" :class="{ active: snapToGrid }" v-tooltip="snapToGrid ? I18n.t('disableSnap') : I18n.t('enableSnap')">
               <svg viewBox="0 0 24 24"><path d="M3 3h18v18H3V3m2 2v14h14V5H5Z" /></svg>
             </button>
-            <button v-if="showDeleteAllButton" class="icon-button" @click="deleteAll" title="Delete All" style="border-color:#dc3545;color:#dc3545;" data-i18n-title="deleteAll">
+            <button v-if="showDeleteAllButton" class="icon-button" @click="deleteAll" style="border-color:#dc3545;color:#dc3545;" v-tooltip="I18n.t('deleteAll')">
               <svg viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-width="2" fill="none"/></svg>
             </button>
-            <button class="icon-button" @click="openRelatives" title="View Bloodline" data-i18n-title="viewBloodline">
+            <button class="icon-button" @click="openRelatives" v-tooltip="I18n.t('viewBloodline')">
               <svg viewBox="0 0 24 24"><path d="M5 3h14v2H5zm0 4h14v2H5zm0 4h14v2H5zm0 4h14v2H5z"/></svg>
             </button>
-            <button class="icon-button" @click="runDedup" title="Deduplicate" data-i18n-title="deduplicate">
+            <button class="icon-button" @click="runDedup" v-tooltip="I18n.t('deduplicate')">
               <svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3m10 10h8v8h-8v-8M7 7l10 10"/></svg>
             </button>
           </div>
-          <button id="searchTrigger" class="icon-button" style="position:absolute;top:10px;right:10px;z-index:30;" @click="triggerSearch" data-i18n-title="search" title="Search">
+          <button id="searchTrigger" class="icon-button" style="position:absolute;top:10px;right:10px;z-index:30;" @click="triggerSearch" v-tooltip="I18n.t('search')">
             <svg viewBox="0 0 24 24">
               <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM10.5 14a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/>
             </svg>
@@ -2083,7 +2102,7 @@
               <div class="person-node" :class="{ 'highlight-node': data.highlight, 'faded-node': (selected || filterActive) && !data.highlight }" :style="{ borderColor: data.gender === 'female' ? '#f8c' : (data.gender === 'male' ? '#88f' : '#ccc') }">
                 <span v-if="data.me" style="position:absolute;top:-8px;right:-8px;color:#f39c12;">&#9733;</span>
                 <div class="header">
-                  <img :src="avatarSrc(data.gender, 40)" class="avatar" data-i18n-alt="avatar" />
+                  <div class="avatar" :style="avatarStyle(data.gender, 40)">{{ initials(data) }}</div>
                   <div class="name-container">
                     <span :style="{ fontSize: (data.callName || data.firstName) && (data.callName || data.firstName).length > 12 ? '0.7rem' : '0.8rem', fontWeight: 'bold' }">{{ data.callName || data.firstName }}</span>
                     <span v-if="data.callName" :style="{ fontSize: data.firstName && data.firstName.length > 12 ? '0.7rem' : '0.8rem' }"> ({{ data.firstName }})</span>
@@ -2260,15 +2279,15 @@
               }"
             >
               <div class="card-body p-3" style="position:relative;max-height: 80vh; overflow-y: auto;">
-                <button class="icon-button edit-btn" @click="editing = true" title="Edit" data-i18n-title="edit" v-if="!editing && !isNew">
+                <button class="icon-button edit-btn" @click="editing = true" v-tooltip="I18n.t('edit')" v-if="!editing && !isNew">
                   <span class="material-icons" style="font-size:16px;">edit</span>
                 </button>
-                <button class="icon-button copy-btn" @click="copyGedcom" title="Copy GEDCOM" data-i18n-title="copyGedcom">
+                <button class="icon-button copy-btn" @click="copyGedcom" v-tooltip="I18n.t('copyGedcom')">
                   <span class="material-icons" style="font-size:16px;">content_copy</span>
                 </button>
                 <template v-if="!editing && !isNew">
                   <div class="d-flex align-items-center mb-3" style="position:relative;">
-                    <img :src="avatarSrc(selected.gender, 80)" class="avatar-placeholder mr-3" data-i18n-alt="avatar" />
+                    <div class="avatar-placeholder mr-3" :style="avatarStyle(selected.gender, 80)">{{ initials(selected) }}</div>
                     <span
                       v-if="selected.me"
                       class="mx-1"
@@ -2447,6 +2466,29 @@
       `,
     });
 
+    if (app && typeof app.directive === 'function') {
+      app.directive('tooltip', {
+        mounted(el, binding) {
+          if (typeof $ !== 'undefined' && $.fn.tooltip) {
+            $(el).tooltip({ title: binding.value, placement: 'top' });
+          } else {
+            el.title = binding.value;
+          }
+        },
+        updated(el, binding) {
+          if (typeof $ !== 'undefined' && $.fn.tooltip) {
+            $(el).attr('data-original-title', binding.value).tooltip('update');
+          } else {
+            el.title = binding.value;
+          }
+        },
+        unmounted(el) {
+          if (typeof $ !== 'undefined' && $.fn.tooltip) {
+            $(el).tooltip('dispose');
+          }
+        },
+      });
+    }
     return app.mount('#flow-app');
   }
 
