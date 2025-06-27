@@ -208,14 +208,14 @@
             this.selectedPerson.geonameId = s.geonameId;
           }
           this.pobSuggestions = [];
-          this.pobFocus = false;
+          this.$nextTick(() => { this.pobFocus = false; });
         },
         useTypedPob() {
           if (this.selectedPerson) {
             this.selectedPerson.placeOfBirth = (this.selectedPerson.placeOfBirth || '').trim();
             this.selectedPerson.geonameId = null;
           }
-          this.pobFocus = false;
+          this.$nextTick(() => { this.pobFocus = false; });
         },
         onPobScroll(e) {
           if (e.target.scrollTop + e.target.clientHeight >= e.target.scrollHeight - 5) {

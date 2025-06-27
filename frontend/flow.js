@@ -946,7 +946,7 @@
           if (!selected.value) return;
           selected.value.placeOfBirth = s.name;
           selected.value.geonameId = s.geonameId;
-          placeFocus.value = false;
+          nextTick(() => { placeFocus.value = false; });
         }
 
         function useTypedPlace() {
@@ -954,7 +954,7 @@
             selected.value.placeOfBirth = (selected.value.placeOfBirth || '').trim();
             selected.value.geonameId = null;
           }
-          placeFocus.value = false;
+          nextTick(() => { placeFocus.value = false; });
         }
 
         function onPlaceScroll(e) {
