@@ -5,6 +5,7 @@
     global.SearchApp = factory();
   }
 })(this, function () {
+  /* global Fuse */
   let people = [];
   let fuse = null;
   const root = typeof globalThis !== 'undefined'
