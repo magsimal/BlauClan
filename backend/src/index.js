@@ -1,5 +1,6 @@
 const express = require('express');
 const session = require('express-session');
+const SequelizeStore = require('connect-session-sequelize')(session.Store);
 const LdapAuth = require('ldapauth-fork');
 const crypto = require('crypto');
 const {
@@ -26,11 +27,16 @@ async function addPoints(username, delta, description) {
 
 const app = express();
 app.use(express.json());
+const sessionStore = new SequelizeStore({
+  db: sequelize,
+});
+
 app.use(
   session({
     secret: process.env.SESSION_SECRET || 'secret',
+    store: sessionStore,
     resave: false,
-    saveUninitialized: true,
+    saveUninitialized: false,
   })
 );
 
@@ -642,7 +648,8 @@ if (require.main === module) {
   verifyGeonames()
     .finally(() => verifyLdap())
     .finally(() => {
-      sequelize.sync({ alter: true }).then(() => {
+      sequelize.sync({ alter: true }).then(async () => {
+        await sessionStore.sync();
         app.listen(PORT, () => {
           console.log(`Server running on port ${PORT}`);
         });
@@ -650,4 +657,5 @@ if (require.main === module) {
     });
 }
 
+app.sessionStore = sessionStore;
 module.exports = app;
