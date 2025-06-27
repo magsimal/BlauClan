@@ -1817,15 +1817,19 @@
         }
       }
 
-      function openContextMenu(ev) {
+      function openContextMenuAt(x, y) {
         clearTimeout(longPressTimer);
-        const point = ev.touches ? ev.touches[0] : ev;
         const rect = document
           .getElementById('flow-app')
           .getBoundingClientRect();
-        contextX.value = point.clientX - rect.left;
-        contextY.value = point.clientY - rect.top;
+        contextX.value = x - rect.left;
+        contextY.value = y - rect.top;
         contextMenuVisible.value = true;
+      }
+
+      function openContextMenu(ev) {
+        const point = ev.touches ? ev.touches[0] : ev;
+        openContextMenuAt(point.clientX, point.clientY);
       }
 
        function handleContextMenu(ev) {
@@ -1833,11 +1837,14 @@
          openContextMenu(ev);
        }
 
-       function handleTouchStart(ev) {
-         longPressTimer = setTimeout(() => {
-           openContextMenu(ev);
-         }, 500);
-       }
+      function handleTouchStart(ev) {
+        const point = ev.touches ? ev.touches[0] : ev;
+        const x = point.clientX;
+        const y = point.clientY;
+        longPressTimer = setTimeout(() => {
+          openContextMenuAt(x, y);
+        }, 500);
+      }
 
        function handleTouchEnd() {
          clearTimeout(longPressTimer);
