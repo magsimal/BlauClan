@@ -32,6 +32,13 @@ const sessionStore = new SequelizeStore({
 });
 
 const LOGIN_ENABLED = process.env.LOGIN_ENABLED === 'true';
+const USE_PROXY_AUTH = process.env.USE_PROXY_AUTH === 'true';
+
+function isTrustedProxy(req) {
+  const ips = process.env.TRUSTED_PROXY_IPS?.split(',').map((ip) => ip.trim());
+  const realIp = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+  return Array.isArray(ips) && ips.includes(realIp);
+}
 
 app.use(
   session({
@@ -41,6 +48,27 @@ app.use(
     saveUninitialized: false,
   })
 );
+
+if (USE_PROXY_AUTH) {
+  app.use((req, res, next) => {
+    const remoteUser = req.headers['x-remote-user'];
+    if (remoteUser && isTrustedProxy(req)) {
+      req.user = {
+        username: remoteUser,
+        groups: req.headers['x-remote-groups']
+          ? req.headers['x-remote-groups'].split(',').map((g) => g.trim())
+          : [],
+        email: req.headers['x-remote-email'] || '',
+        authedVia: 'proxy',
+      };
+      req.session.user = req.user.username;
+      req.session.name = null;
+      req.session.email = req.user.email || null;
+      req.session.avatar = null;
+    }
+    next();
+  });
+}
 
 let ldap;
 if (process.env.LDAP_URL) {
@@ -62,14 +90,18 @@ if (process.env.LDAP_URL) {
 }
 
 function requireAuth(req, res, next) {
-  if (LOGIN_ENABLED && (!req.session.user || req.session.user === 'guest')) {
+  if (
+    LOGIN_ENABLED &&
+    !req.user &&
+    (!req.session.user || req.session.user === 'guest')
+  ) {
     return res.status(401).json({ error: 'login required' });
   }
   next();
 }
 
 function requireAdmin(req, res, next) {
-  if (LOGIN_ENABLED && !req.session.isAdmin) {
+  if (LOGIN_ENABLED && !req.user && !req.session.isAdmin) {
     return res.status(403).json({ error: 'admin required' });
   }
   next();
@@ -133,6 +165,9 @@ app.post('/api/logout', (req, res) => {
 });
 
 app.get('/api/me', async (req, res) => {
+  if (req.user) {
+    return res.json(req.user);
+  }
   const username = req.session.user || 'guest';
   let nodeId = req.session.meNodeId || null;
   if (username !== 'guest' && !nodeId) {

@@ -49,6 +49,12 @@ the login dialog and LDAP authentication. The default is `false`.
 If `LDAP_ADMIN_FILTER` is set, users matching that filter are treated as admins
 and can perform bulk delete operations.
 
+To integrate with an external SSO proxy such as Authelia, set
+`USE_PROXY_AUTH=true` and list the proxy IPs in `TRUSTED_PROXY_IPS`
+(comma-separated). When a request from a trusted IP includes the
+`X-Remote-User` header, the backend automatically creates a session for that
+user. Otherwise the standard LDAP login form is shown.
+
 ### Running with Prebuilt Images
 
 After Docker images are published to GitHub Container Registry you can run the stack with:
