@@ -317,8 +317,11 @@
         <h1 class="h4 mb-0 brand-title">Tree of Life</h1>
           <div class="d-flex align-items-center">
             <button id="loginBtn" class="btn btn-sm btn-secondary ml-2" style="display:none;" data-i18n="login">Login</button>
-            <button id="logoutBtn" class="btn btn-sm btn-secondary ml-2" style="display:none;" data-i18n="logout">Logout</button>
             <span id="userLabel" class="ml-2"></span>
+            <button id="scoreTrigger" class="icon-button d-flex align-items-center ml-2" data-i18n-title="leaderboard" title="Leaderboard">
+              <span class="material-icons" style="color:#f0ad4e;font-size:18px;">emoji_events</span>
+              <span id="scoreValue" class="ml-1" style="font-size:0.8rem;"></span>
+            </button>
           </div>
         </div>
     </header>
@@ -432,6 +435,7 @@
           <option value="PL">PL</option>
         </select>
       </div>
+      <button id="logoutBtn" class="btn btn-sm btn-secondary" style="display:none;" data-i18n="logout">Logout</button>
     </div>
   </div>
   <script src="assets/js/argon-design-system.min.js"></script>
@@ -512,6 +516,8 @@
       const loginBtn = document.getElementById('loginBtn');
       const logoutBtn = document.getElementById('logoutBtn');
       const userLabel = document.getElementById('userLabel');
+      const scoreTrigger = document.getElementById('scoreTrigger');
+      const scoreValue = document.getElementById('scoreValue');
       const loginModal = document.getElementById('loginModal');
       const profileModal = document.getElementById('profileModal');
       const profileAvatar = document.getElementById('profileAvatar');
@@ -524,6 +530,11 @@
       const loginSubmit = document.getElementById('loginSubmit');
       const loginError = document.getElementById('loginError');
       const guestBtn = document.getElementById('guestBtn');
+      if (scoreTrigger) {
+        scoreTrigger.addEventListener('click', () => {
+          if (FlowApp.openScores) FlowApp.openScores();
+        });
+      }
 
       async function refreshUser() {
         try {

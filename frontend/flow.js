@@ -15,6 +15,7 @@
   const parseGedcom = GedcomUtil.parseGedcom || function () { return []; };
   const findBestMatch = DedupeUtil.findBestMatch || function () { return { match: null, score: 0 }; };
   const matchScore = DedupeUtil.matchScore || function () { return 0; };
+  let openScoresFn = null;
   function debounce(fn, delay) {
     let t;
     return function (...args) {
@@ -1139,6 +1140,8 @@
             if (res.ok) {
               const data = await res.json();
               myScore.value = data.points;
+              const el = document.getElementById('scoreValue');
+              if (el) el.textContent = data.points;
             }
           } catch (e) { /* ignore */ }
         }
@@ -1150,6 +1153,8 @@
           } catch (e) { leaderboard.value = []; }
           showScores.value = true;
         }
+
+        openScoresFn = openScores;
 
         function triggerSearch() {
           if (window.SearchApp && typeof window.SearchApp.show === 'function') {
@@ -2029,10 +2034,6 @@
               <svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3m10 10h8v8h-8v-8M7 7l10 10"/></svg>
             </button>
           </div>
-          <button id="scoreTrigger" class="icon-button d-flex align-items-center" style="position:absolute;top:10px;right:50px;z-index:30;" @click="openScores" data-i18n-title="leaderboard" title="Leaderboard">
-            <span class="material-icons" style="color:#f0ad4e;font-size:18px;">emoji_events</span>
-            <span class="ml-1" style="font-size:0.8rem;">{{ myScore }}</span>
-          </button>
           <button id="searchTrigger" class="icon-button" style="position:absolute;top:10px;right:10px;z-index:30;" @click="triggerSearch" data-i18n-title="search" title="Search">
             <svg viewBox="0 0 24 24">
               <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM10.5 14a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/>
@@ -2435,5 +2436,11 @@
     return app.mount('#flow-app');
   }
 
-  return { mount, focusNode, refreshMe, updatePrivileges };
+  return {
+    mount,
+    focusNode,
+    refreshMe,
+    updatePrivileges,
+    openScores: () => { if (openScoresFn) openScoresFn(); }
+  };
 });
