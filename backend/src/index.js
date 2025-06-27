@@ -317,7 +317,7 @@ async function geonamesSuggest(query, lang = 'en', cc = '') {
     const data = await resp.json();
     let res = Array.isArray(data.geonames) ? data.geonames : [];
     if (!/County|Province|District/i.test(q)) {
-      res = res.filter((r) => ['PPL', 'PPLA', 'PPLC'].includes(r.fcode));
+      res = res.filter((r) => r.fcode && r.fcode.startsWith('PPL'));
     }
     res.sort((a, b) => {
       const pa = regionPriority(a.countryCode);
