@@ -560,8 +560,10 @@
         if (e.key === 'Enter') loginSubmit.click();
       });
 
-      FrontendApp.mountApp();
-      FlowApp.mount();
+      const vm = FrontendApp.mountApp();
+      Vue.nextTick(() => {
+        FlowApp.mount();
+      });
       window.gotoMe = () => { if (window.meNodeId) FlowApp.focusNode(window.meNodeId); };
       refreshUser();
       if (FlowApp.refreshMe) FlowApp.refreshMe();
