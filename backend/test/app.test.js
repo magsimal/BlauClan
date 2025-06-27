@@ -7,6 +7,7 @@ const { sequelize } = require('../src/models');
 
 beforeAll(async () => {
   await sequelize.sync({ force: true });
+  await app.sessionStore.sync();
 });
 
 afterAll(async () => {
