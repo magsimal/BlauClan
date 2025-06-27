@@ -129,10 +129,13 @@
         let originalSelected = null;
         const showFilter = ref(false);
         const showRelatives = ref(false);
+        const showScores = ref(false);
         const relativesNodes = ref([]);
         const relativesEdges = ref([]);
         const relativesMode = ref('both');
         let relativesRoot = null;
+        const myScore = ref(0);
+        const leaderboard = ref([]);
         const placeSuggestions = ref([]);
         const placeDisplayCount = ref(5);
         function visiblePlaceSuggestions() {
@@ -150,6 +153,7 @@
         const UNION_Y_OFFSET = 20;
         let unions = {};
         let newNodePos = null;
+        let scoreTimer = null;
 
         function addClass(edge, cls) {
           const parts = (edge.class || '').split(' ').filter(Boolean);
@@ -576,11 +580,14 @@
           );
           window.addEventListener('keydown', handleKeydown);
           window.addEventListener('keyup', handleKeyup);
+          fetchScore();
+          scoreTimer = setInterval(fetchScore, 10000);
         });
 
         onBeforeUnmount(() => {
           window.removeEventListener('keydown', handleKeydown);
           window.removeEventListener('keyup', handleKeyup);
+          if (scoreTimer) clearInterval(scoreTimer);
         });
         const editing = ref(false);
 
@@ -871,6 +878,7 @@
             }
               await load(true);
               computeChildren(updated.id);
+              fetchScore();
           }, 200);
 
         watch(
@@ -976,6 +984,7 @@
         watch(showFilter, (v) => v && refreshI18n());
         watch(showConflict, (v) => v && refreshI18n());
         watch(showRelatives, (v) => v && refreshI18n());
+        watch(showScores, (v) => v && refreshI18n());
 
         function applyFilters() {
           const f = filters.value;
@@ -1092,6 +1101,24 @@
           relativesMode.value = 'both';
           computeRelatives();
           showRelatives.value = true;
+        }
+
+        async function fetchScore() {
+          try {
+            const res = await fetch('/api/score');
+            if (res.ok) {
+              const data = await res.json();
+              myScore.value = data.points;
+            }
+          } catch (e) { /* ignore */ }
+        }
+
+        async function openScores() {
+          try {
+            const res = await fetch('/api/scores');
+            leaderboard.value = res.ok ? await res.json() : [];
+          } catch (e) { leaderboard.value = []; }
+          showScores.value = true;
         }
 
         function triggerSearch() {
@@ -1640,14 +1667,15 @@
             if (node) {
               node.position = { ...newNodePos };
             }
-            await saveLayout();
-            refreshUnions();
-            newNodePos = null;
-          }
-          showModal.value = false;
-          isNew.value = false;
-          selected.value = null;
+          await saveLayout();
+          refreshUnions();
+          newNodePos = null;
         }
+        showModal.value = false;
+        fetchScore();
+        isNew.value = false;
+        selected.value = null;
+      }
 
        function cancelModal() {
          showModal.value = false;
@@ -1883,6 +1911,10 @@
         onPlaceScroll,
         showDeleteAllButton,
         runDedup,
+        openScores,
+        showScores,
+        myScore,
+        leaderboard,
         I18n: I18nGlobal,
       };
       },
@@ -1936,6 +1968,10 @@
               <svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3m10 10h8v8h-8v-8M7 7l10 10"/></svg>
             </button>
           </div>
+          <button id="scoreTrigger" class="icon-button d-flex align-items-center" style="position:absolute;top:10px;right:50px;z-index:30;" @click="openScores" data-i18n-title="leaderboard" title="Leaderboard">
+            <span class="material-icons" style="color:#f0ad4e;font-size:18px;">emoji_events</span>
+            <span class="ml-1" style="font-size:0.8rem;">{{ myScore }}</span>
+          </button>
           <button id="searchTrigger" class="icon-button" style="position:absolute;top:10px;right:10px;z-index:30;" @click="triggerSearch" data-i18n-title="search" title="Search">
             <svg viewBox="0 0 24 24">
               <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM10.5 14a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/>
@@ -2081,6 +2117,25 @@
             </div>
             <div class="text-right mt-2">
               <button class="btn btn-primary btn-sm mr-2" @click="showRelatives = false" data-i18n="close">Close</button>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="showScores" class="modal">
+          <div class="modal-content card p-3">
+            <h4 data-i18n="leaderboard">Leaderboard</h4>
+            <table class="table table-sm">
+              <thead>
+                <tr><th data-i18n="rank">Rank</th><th data-i18n="name">Name</th><th data-i18n="points">Points</th></tr>
+              </thead>
+              <tbody>
+                <tr v-for="(s, idx) in leaderboard" :key="s.username">
+                  <td>{{ idx + 1 }}</td><td>{{ s.username }}</td><td>{{ s.points }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="text-right mt-2">
+              <button class="btn btn-primary btn-sm mr-2" @click="showScores = false" data-i18n="close">Close</button>
             </div>
           </div>
         </div>
