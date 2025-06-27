@@ -94,6 +94,8 @@
               : null)) || 0.5;
         const showDeleteAllButton =
           !!(window.AppConfig && AppConfig.showDeleteAllButton);
+        const loadingEl = document.getElementById('loadingOverlay');
+        function setLoading(v) { if (loadingEl) loadingEl.style.display = v ? 'flex' : 'none'; }
         const selected = ref(null);
         const showModal = ref(false);
         const contextMenuVisible = ref(false);
@@ -237,6 +239,7 @@
         }
 
         async function load(preservePositions = false) {
+          setLoading(true);
           const existingPos = {};
           if (preservePositions) {
             nodes.value.forEach((n) => {
@@ -391,6 +394,7 @@
           refreshUnions();
           saveTempLayout();
           applyFilters();
+          setLoading(false);
         }
 
         const children = ref([]);

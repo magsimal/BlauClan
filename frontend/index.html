@@ -130,6 +130,21 @@
     body.multi-select-active #flow-app {
       cursor: crosshair;
     }
+    #loadingOverlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(255,255,255,0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 15;
+    }
+    body.dark-theme #loadingOverlay {
+      background: rgba(0,0,0,0.8);
+    }
     #multiIndicator {
       position: absolute;
       top: 10px;
@@ -363,6 +378,11 @@
       </div>
     </div>
         <div id="flow-app" style="touch-action: none; overflow: hidden;">
+          <div id="loadingOverlay" style="display:flex;">
+            <div class="spinner-border text-primary" role="status">
+              <span class="sr-only" data-i18n="loading">Loading...</span>
+            </div>
+          </div>
           <div id="multiIndicator" data-i18n="multiSelect">Multi-select</div>
         </div>
       </div>
