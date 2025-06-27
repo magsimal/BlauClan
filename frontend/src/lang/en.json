@@ -88,4 +88,7 @@
   ,"name": "Name"
   ,"email": "Email"
   ,"myNode": "My node"
+  ,"leaderboard": "Leaderboard"
+  ,"points": "Points"
+  ,"rank": "Rank"
 }

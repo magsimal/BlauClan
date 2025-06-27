@@ -2,9 +2,16 @@ const express = require('express');
 const session = require('express-session');
 const LdapAuth = require('ldapauth-fork');
 const crypto = require('crypto');
-const { sequelize, Person, Marriage, Layout } = require('./models');
+const { sequelize, Person, Marriage, Layout, Score } = require('./models');
 const { Op } = require('sequelize');
 const cache = require('./cache');
+
+async function addPoints(username, delta) {
+  if (!username) return;
+  const [row] = await Score.findOrCreate({ where: { username }, defaults: { points: 0 } });
+  row.points += delta;
+  await row.save();
+}
 
 const app = express();
 app.use(express.json());
@@ -287,6 +294,7 @@ app.post('/api/people', async (req, res) => {
       return res.status(400).json({ error: 'Invalid placeOfBirth' });
     }
     const person = await Person.create(payload);
+    await addPoints(req.session.user || 'guest', 5);
     res.status(201).json(person);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -310,7 +318,18 @@ app.put('/api/people/:id', async (req, res) => {
   if (!(await validatePlace(updates.placeOfBirth))) {
     return res.status(400).json({ error: 'Invalid placeOfBirth' });
   }
+  const before = person.toJSON();
   await person.update(updates);
+  let delta = 0;
+  for (const [k, val] of Object.entries(updates)) {
+    if (val === before[k]) continue;
+    if ((before[k] === null || before[k] === '' || typeof before[k] === 'undefined') && val) {
+      delta += 2;
+    } else {
+      delta += 1;
+    }
+  }
+  if (delta) await addPoints(req.session.user || 'guest', delta);
   res.json(person);
 });
 
@@ -528,6 +547,17 @@ app.get('/api/layout', async (_req, res) => {
   const layout = await Layout.findOne({ order: [['createdAt', 'DESC']] });
   if (!layout) return res.json(null);
   res.json(layout.data);
+});
+
+app.get('/api/score', async (req, res) => {
+  const username = req.session.user || 'guest';
+  const row = await Score.findOne({ where: { username } });
+  res.json({ username, points: row ? row.points : 0 });
+});
+
+app.get('/api/scores', async (_req, res) => {
+  const scores = await Score.findAll({ order: [['points', 'DESC']] });
+  res.json(scores);
 });
 
 const PORT = process.env.PORT || 3009;
