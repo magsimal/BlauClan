@@ -944,9 +944,18 @@
 
         function applyPlace(s) {
           if (!selected.value) return;
-          selected.value.placeOfBirth = s.name;
+          const full =
+            s.name
+            + (s.postalCode ? ` (${s.postalCode})` : '')
+            + (s.adminName1 ? `, ${s.adminName1}` : '')
+            + ` ${s.countryCode}`;
+          selected.value.placeOfBirth = full;
           selected.value.geonameId = s.geonameId;
-          nextTick(() => { placeFocus.value = false; });
+          placeSuggestions.value = [];
+          nextTick(() => {
+            placeFocus.value = false;
+            if (document.activeElement) document.activeElement.blur();
+          });
         }
 
         function useTypedPlace() {

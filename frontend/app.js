@@ -204,11 +204,19 @@
         },
         applyPob(s) {
           if (this.selectedPerson) {
-            this.selectedPerson.placeOfBirth = s.name;
+            const full =
+              s.name
+              + (s.postalCode ? ` (${s.postalCode})` : '')
+              + (s.adminName1 ? `, ${s.adminName1}` : '')
+              + ` ${s.countryCode}`;
+            this.selectedPerson.placeOfBirth = full;
             this.selectedPerson.geonameId = s.geonameId;
           }
           this.pobSuggestions = [];
-          this.$nextTick(() => { this.pobFocus = false; });
+          this.$nextTick(() => {
+            this.pobFocus = false;
+            if (document.activeElement) document.activeElement.blur();
+          });
         },
         useTypedPob() {
           if (this.selectedPerson) {
