@@ -470,6 +470,9 @@
             body: JSON.stringify({ nodeId: selected.value.id })
           });
           window.meNodeId = selected.value.id;
+          if (window.currentUser === 'guest') {
+            try { localStorage.setItem('meNodeId', String(selected.value.id)); } catch (e) { /* ignore */ }
+          }
           if (window.FlowApp && window.FlowApp.refreshMe) window.FlowApp.refreshMe();
           selected.value.me = true;
         }

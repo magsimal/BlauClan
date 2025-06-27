@@ -443,27 +443,64 @@
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       const THEME_KEY = 'preferredTheme';
+      const ME_NODE_KEY = 'meNodeId';
       const toggle = document.getElementById('themeToggle');
       const icon = document.getElementById('themeIcon');
       const langSelect = document.getElementById('langSelect');
+      let currentUser = 'guest';
+      window.currentUser = currentUser;
 
-      const savedTheme = (() => {
-        try { return localStorage.getItem(THEME_KEY); } catch (e) { return null; }
-      })();
-      if (savedTheme) toggle.checked = savedTheme === 'dark';
+      async function loadSettings() {
+        if (currentUser === 'guest') {
+          const savedTheme = (() => { try { return localStorage.getItem(THEME_KEY); } catch (e) { return null; } })();
+          if (savedTheme) toggle.checked = savedTheme === 'dark';
+          langSelect.value = I18n.getLang();
+          await I18n.setLang(langSelect.value);
+          updateTheme(false);
+          return;
+        }
+        try {
+          const res = await fetch('/api/settings');
+          const data = await res.json();
+          if (data) {
+            if (data.theme) { toggle.checked = data.theme === 'dark'; }
+            if (data.language) { langSelect.value = data.language; await I18n.setLang(data.language); }
+          }
+          updateTheme(false);
+        } catch (e) { /* ignore */ }
+      }
 
-      const savedLang = I18n.getLang();
-      langSelect.value = savedLang;
+      async function saveSetting(obj) {
+        if (obj.language) {
+          await I18n.setLang(obj.language);
+        }
+        if (currentUser === 'guest') {
+          if (obj.theme) {
+            try { localStorage.setItem(THEME_KEY, obj.theme); } catch (e) { /* ignore */ }
+          }
+          if (obj.language) {
+            try { localStorage.setItem('preferredLang', obj.language); } catch (e) { /* ignore */ }
+          }
+          return;
+        }
+        try {
+          await fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(obj),
+          });
+        } catch (e) { /* ignore */ }
+      }
 
-      function updateTheme() {
+      function updateTheme(save = true) {
         document.body.classList.toggle('dark-theme', toggle.checked);
         document.body.classList.toggle('bright-theme', !toggle.checked);
         icon.textContent = toggle.checked ? '\u263D' : '\u2600';
-        try { localStorage.setItem(THEME_KEY, toggle.checked ? 'dark' : 'light'); } catch (e) { /* ignore */ }
+        if (save) saveSetting({ theme: toggle.checked ? 'dark' : 'light' });
       }
 
-      toggle.addEventListener('change', updateTheme);
-      updateTheme();
+      toggle.addEventListener('change', () => updateTheme(true));
+      loadSettings();
 
       let meNodeId = null;
       const loginBtn = document.getElementById('loginBtn');
@@ -485,13 +522,19 @@
         try {
           const res = await fetch('/api/me');
           const data = await res.json();
+          currentUser = data.username || 'guest';
+          window.currentUser = currentUser;
           meNodeId = data.nodeId;
+          if (currentUser === 'guest') {
+            const stored = (() => { try { return localStorage.getItem(ME_NODE_KEY); } catch (e) { return null; } })();
+            if (stored) meNodeId = parseInt(stored, 10);
+          }
           window.meNodeId = meNodeId;
           userLabel.textContent = data.username || '';
           profileUsername.textContent = data.username || '';
           profileName.textContent = data.name ? `${I18n.t('name')}: ${data.name}` : '';
           profileEmail.textContent = data.email ? `${I18n.t('email')}: ${data.email}` : '';
-          profileNode.textContent = data.nodeId ? `${I18n.t('myNode')}: ${data.nodeId}` : '';
+          profileNode.textContent = meNodeId ? `${I18n.t('myNode')}: ${meNodeId}` : '';
           if (data.avatar) {
             profileAvatar.src = data.avatar;
             profileAvatar.style.display = 'block';
@@ -502,6 +545,7 @@
             loginBtn.style.display = data.username && data.username !== 'guest' ? 'none' : 'inline-block';
             logoutBtn.style.display = data.username && data.username !== 'guest' ? 'inline-block' : 'none';
           }
+          await loadSettings();
         } catch (e) { /* ignore */ }
       }
 
@@ -571,8 +615,9 @@
         SearchApp.init();
       }
 
-      langSelect.addEventListener('change', () => I18n.setLang(langSelect.value));
-      I18n.load(langSelect.value).then(() => I18n.updateDom());
+      langSelect.addEventListener('change', () => {
+        saveSetting({ language: langSelect.value });
+      });
     });
   </script>
 </body>
