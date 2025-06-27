@@ -2,15 +2,26 @@ const express = require('express');
 const session = require('express-session');
 const LdapAuth = require('ldapauth-fork');
 const crypto = require('crypto');
-const { sequelize, Person, Marriage, Layout, Score, Setting } = require('./models');
+const {
+  sequelize,
+  Person,
+  Marriage,
+  Layout,
+  Score,
+  Setting,
+  Activity,
+} = require('./models');
 const { Op } = require('sequelize');
 const cache = require('./cache');
 
-async function addPoints(username, delta) {
+async function addPoints(username, delta, description) {
   if (!username) return;
   const [row] = await Score.findOrCreate({ where: { username }, defaults: { points: 0 } });
   row.points += delta;
   await row.save();
+  if (description) {
+    await Activity.create({ username, description, points: delta });
+  }
 }
 
 const app = express();
@@ -341,7 +352,11 @@ app.post('/api/people', async (req, res) => {
       return res.status(400).json({ error: 'Invalid placeOfBirth' });
     }
     const person = await Person.create(payload);
-    await addPoints(req.session.user || 'guest', 5);
+    await addPoints(
+      req.session.user || 'guest',
+      5,
+      `Created person ${person.id}`,
+    );
     res.status(201).json(person);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -368,6 +383,7 @@ app.put('/api/people/:id', async (req, res) => {
   const before = person.toJSON();
   await person.update(updates);
   let delta = 0;
+  const changed = [];
   for (const [k, val] of Object.entries(updates)) {
     if (val === before[k]) continue;
     if ((before[k] === null || before[k] === '' || typeof before[k] === 'undefined') && val) {
@@ -375,8 +391,14 @@ app.put('/api/people/:id', async (req, res) => {
     } else {
       delta += 1;
     }
+    changed.push(k);
   }
-  if (delta) await addPoints(req.session.user || 'guest', delta);
+  if (delta)
+    await addPoints(
+      req.session.user || 'guest',
+      delta,
+      `Updated person ${id}: ${changed.join(', ')}`,
+    );
   res.json(person);
 });
 
@@ -605,6 +627,11 @@ app.get('/api/score', async (req, res) => {
 app.get('/api/scores', async (_req, res) => {
   const scores = await Score.findAll({ order: [['points', 'DESC']] });
   res.json(scores);
+});
+
+app.get('/api/activity', async (_req, res) => {
+  const logs = await Activity.findAll({ order: [['createdAt', 'DESC']] });
+  res.json(logs);
 });
 
 const PORT = process.env.PORT || 3009;

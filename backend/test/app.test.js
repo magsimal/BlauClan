@@ -215,4 +215,15 @@ describe('People API', () => {
     expect(fetchMock).toHaveBeenCalled();
     expect(fetchMock.mock.calls[0][0]).toContain('q=M%C3%BCnchen');
   });
+
+  test('records activity with points', async () => {
+    await sequelize.sync({ force: true });
+    await request(app).post('/api/people').send({ firstName: 'Log', lastName: 'Test' });
+    await request(app).put('/api/people/1').send({ lastName: 'Updated' });
+    const res = await request(app).get('/api/activity');
+    expect(res.statusCode).toBe(200);
+    expect(res.body.length).toBe(2);
+    const points = res.body.map((r) => r.points).sort();
+    expect(points).toEqual([1, 5]);
+  });
 });
