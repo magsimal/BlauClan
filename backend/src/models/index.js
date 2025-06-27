@@ -26,6 +26,7 @@ const Marriage = require('./marriage')(sequelize);
 const Layout = require('./layout')(sequelize);
 const Score = require('./score')(sequelize);
 const Setting = require('./setting')(sequelize);
+const Activity = require('./activity')(sequelize);
 
 Person.belongsTo(Person, { as: 'father', foreignKey: 'fatherId' });
 Person.belongsTo(Person, { as: 'mother', foreignKey: 'motherId' });
@@ -42,4 +43,4 @@ Person.belongsToMany(Person, {
   otherKey: 'personId',
 });
 
-module.exports = { sequelize, Person, Marriage, Layout, Score, Setting };
+module.exports = { sequelize, Person, Marriage, Layout, Score, Setting, Activity };
