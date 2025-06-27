@@ -2,7 +2,7 @@ const express = require('express');
 const session = require('express-session');
 const LdapAuth = require('ldapauth-fork');
 const crypto = require('crypto');
-const { sequelize, Person, Marriage, Layout, Score } = require('./models');
+const { sequelize, Person, Marriage, Layout, Score, Setting } = require('./models');
 const { Op } = require('sequelize');
 const cache = require('./cache');
 
@@ -83,18 +83,65 @@ app.post('/api/logout', (req, res) => {
   req.session.destroy(() => res.sendStatus(204));
 });
 
-app.get('/api/me', (req, res) => {
+app.get('/api/me', async (req, res) => {
+  const username = req.session.user || 'guest';
+  let nodeId = req.session.meNodeId || null;
+  if (username !== 'guest' && !nodeId) {
+    const row = await Setting.findOne({ where: { username } });
+    if (row) {
+      nodeId = row.meNodeId || null;
+      req.session.meNodeId = nodeId;
+    }
+  }
   res.json({
-    username: req.session.user || 'guest',
+    username,
     name: req.session.name || null,
     email: req.session.email || null,
     avatar: req.session.avatar || null,
-    nodeId: req.session.meNodeId || null,
+    nodeId,
   });
 });
 
-app.post('/api/me', (req, res) => {
-  req.session.meNodeId = req.body.nodeId || null;
+app.post('/api/me', async (req, res) => {
+  const nodeId = req.body.nodeId || null;
+  req.session.meNodeId = nodeId;
+  const username = req.session.user || 'guest';
+  if (username !== 'guest') {
+    const [row] = await Setting.findOrCreate({
+      where: { username },
+      defaults: { theme: 'light', language: 'EN', meNodeId: nodeId },
+    });
+    row.meNodeId = nodeId;
+    await row.save();
+  }
+  res.sendStatus(204);
+});
+
+app.get('/api/settings', async (req, res) => {
+  const username = req.session.user || 'guest';
+  if (username === 'guest') {
+    return res.json(null);
+  }
+  const [row] = await Setting.findOrCreate({
+    where: { username },
+    defaults: { theme: 'light', language: 'EN', meNodeId: null },
+  });
+  res.json({ theme: row.theme, language: row.language, meNodeId: row.meNodeId });
+});
+
+app.post('/api/settings', async (req, res) => {
+  const username = req.session.user || 'guest';
+  if (username === 'guest') {
+    return res.status(401).json({ error: 'Guest user cannot save settings' });
+  }
+  const [row] = await Setting.findOrCreate({
+    where: { username },
+    defaults: { theme: 'light', language: 'EN', meNodeId: null },
+  });
+  if (typeof req.body.theme === 'string') row.theme = req.body.theme;
+  if (typeof req.body.language === 'string') row.language = req.body.language;
+  if (typeof req.body.meNodeId !== 'undefined') row.meNodeId = req.body.meNodeId;
+  await row.save();
   res.sendStatus(204);
 });
 
