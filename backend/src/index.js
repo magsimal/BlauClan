@@ -45,10 +45,24 @@ const sessionStore = new SequelizeStore({
 const LOGIN_ENABLED = process.env.LOGIN_ENABLED === 'true';
 const USE_PROXY_AUTH = process.env.USE_PROXY_AUTH === 'true';
 
+const trustedProxies = process.env.TRUSTED_PROXY_IPS
+  ? process.env.TRUSTED_PROXY_IPS.split(',').map((ip) => ip.trim())
+  : [];
+
+// Let Express parse X-Forwarded-For only from trusted proxies
+app.set('trust proxy', (addr) => trustedProxies.includes(addr));
+
+function getProxyIp(req) {
+  // right-most address is the direct connection to this app
+  const addr = req.ips.length
+    ? req.ips[req.ips.length - 1]
+    : req.socket.remoteAddress;
+  return addr ? addr.replace(/^::ffff:/, '') : '';
+}
+
 function isTrustedProxy(req) {
-  const ips = process.env.TRUSTED_PROXY_IPS?.split(',').map((ip) => ip.trim());
-  const realIp = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-  return Array.isArray(ips) && ips.includes(realIp);
+  const realIp = getProxyIp(req);
+  return trustedProxies.includes(realIp);
 }
 
 app.use(
@@ -64,8 +78,9 @@ if (USE_PROXY_AUTH) {
   app.use((req, res, next) => {
     const remoteUser =
       req.headers['remote-user'] || req.headers['x-remote-user'];
+    const proxyIp = getProxyIp(req);
     if (remoteUser && isTrustedProxy(req)) {
-      console.log(`Proxy auth success for ${remoteUser}`);
+      console.log(`Proxy auth success for ${remoteUser} from ${proxyIp}`);
       const remoteGroups =
         req.headers['remote-groups'] || req.headers['x-remote-groups'];
       const remoteEmail =
@@ -84,10 +99,10 @@ if (USE_PROXY_AUTH) {
       req.session.avatar = null;
     } else if (remoteUser) {
       console.log(
-        `Proxy auth rejected for ${remoteUser}: untrusted proxy or missing headers`,
+        `Proxy auth rejected for ${remoteUser} from ${proxyIp}: untrusted proxy or missing headers`,
       );
     } else {
-      console.log('Proxy auth skipped: no remote user header');
+      console.log(`Proxy auth skipped: no remote user header (IP ${proxyIp})`);
     }
     next();
   });
