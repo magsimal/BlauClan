@@ -24,7 +24,6 @@
     #page-wrapper { display: flex; flex-direction: column; min-height: 100vh; }
     #main-content { flex: 1; }
     #top-bar, #footer {
-      color: #fff;
       backdrop-filter: blur(8px);
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
       border: none;
@@ -33,11 +32,13 @@
     body.dark-theme #footer {
       background-color: rgba(30,30,30,0.6);
       box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+      color: #fff;
     }
     body.bright-theme #top-bar,
     body.bright-theme #footer {
       background-color: rgba(255,255,255,0.6);
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      color: #000;
     }
     body.dark-theme {
       background-color: #1e1e1e;
@@ -50,6 +51,8 @@
       background-attachment: fixed;
     }
     .brand-title { font-family: "Montserrat", sans-serif; font-weight: 700; }
+    body.dark-theme .brand-title { color: #fff; }
+    body.bright-theme .brand-title { color: #000; }
     #menu { width: 250px; float: left; }
     .edit-section { border: 1px solid #69b3a2; padding: 10px; border-radius: 6px; margin-top: 10px; }
     .card { border: 1px solid #ccc; padding: 8px; margin-top: 8px; border-radius: 6px; }
@@ -184,11 +187,30 @@
     }
     .modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; }
     .modal-content {
-      background: #fff;
       padding: 20px;
       border-radius: 8px;
       min-width: 350px;
       max-width: 500px;
+    }
+    body.dark-theme .modal { background: rgba(0,0,0,0.6); }
+    body.bright-theme .modal { background: rgba(0,0,0,0.3); }
+    body.dark-theme .modal-content {
+      background: #2a2a2a;
+      color: #eee;
+    }
+    body.bright-theme .modal-content {
+      background: #fff;
+      color: #000;
+    }
+    body.dark-theme .modal-content .btn-primary {
+      background-color: #3b82f6;
+      border-color: #3b82f6;
+      color: #fff;
+    }
+    body.dark-theme .modal-content .btn-secondary {
+      background-color: #555;
+      border-color: #555;
+      color: #fff;
     }
     #search-overlay li.active {
       background-color: #3b82f6;
