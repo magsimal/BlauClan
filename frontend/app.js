@@ -6,83 +6,39 @@
   }
 })(this, function () {
 
-  async function fetchPeople() {
-    const res = await fetch('/api/people');
-    return res.json();
+  async function requestJson(url, opts = {}, errMsg) {
+    const headers = opts.body
+      ? { 'Content-Type': 'application/json', ...(opts.headers || {}) }
+      : opts.headers;
+    const options = { ...opts };
+    if (headers && Object.keys(headers).length) options.headers = headers;
+    const res = await (Object.keys(options).length ? fetch(url, options) : fetch(url));
+    if ('ok' in res && !res.ok) throw new Error(errMsg || 'Request failed');
+    return res.status === 204 || typeof res.json !== 'function' ? null : res.json();
   }
 
-  async function createPerson(person) {
-    const res = await fetch('/api/people', {
+  const fetchPeople = () => requestJson('/api/people');
+  const createPerson = (p) =>
+    requestJson('/api/people', { method: 'POST', body: JSON.stringify(p) }, 'Failed to create person');
+  const updatePerson = (id, u) =>
+    requestJson(`/api/people/${id}`, { method: 'PUT', body: JSON.stringify(u) }, 'Failed to update person');
+  const deletePerson = (id) =>
+    requestJson(`/api/people/${id}`, { method: 'DELETE' }, 'Failed to delete person');
+  const linkSpouse = (personId, spouseId, options = {}) =>
+    requestJson(`/api/people/${personId}/spouses`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(person),
-    });
-    if (!res.ok) {
-      throw new Error('Failed to create person');
-    }
-    return res.json();
-  }
-
-  async function updatePerson(id, updates) {
-    const res = await fetch(`/api/people/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updates),
-    });
-    if (!res.ok) {
-      throw new Error('Failed to update person');
-    }
-    return res.json();
-  }
-
-  async function deletePerson(id) {
-    const res = await fetch(`/api/people/${id}`, { method: 'DELETE' });
-    if (!res.ok) {
-      throw new Error('Failed to delete person');
-    }
-  }
-
-  async function linkSpouse(personId, spouseId, options = {}) {
-    const res = await fetch(`/api/people/${personId}/spouses`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        spouseId,
-        dateOfMarriage: options.dateOfMarriage,
-        marriageApprox: options.marriageApprox,
-        placeOfMarriage: options.placeOfMarriage,
-      }),
-    });
-    if (!res.ok) {
-      throw new Error('Failed to link spouse');
-    }
-    return res.json();
-  }
-
-  async function fetchSpouses(personId) {
-    const res = await fetch(`/api/people/${personId}/spouses`);
-    if (!res.ok) {
-      throw new Error('Failed to fetch spouses');
-    }
-    return res.json();
-  }
-
-  async function deleteSpouse(personId, marriageId) {
-    const res = await fetch(`/api/people/${personId}/spouses/${marriageId}`, {
+      body: JSON.stringify({ spouseId, ...options }),
+    }, 'Failed to link spouse');
+  const fetchSpouses = (id) => requestJson(`/api/people/${id}/spouses`);
+  const deleteSpouse = (personId, marriageId) =>
+    requestJson(`/api/people/${personId}/spouses/${marriageId}`, {
       method: 'DELETE',
-    });
-    if (!res.ok) {
-      throw new Error('Failed to unlink spouse');
-    }
-  }
-
-  async function clearDatabase() {
-    await fetch('/api/import/db', {
+    }, 'Failed to unlink spouse');
+  const clearDatabase = () =>
+    requestJson('/api/import/db', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ people: [], marriages: [], layouts: [] }),
     });
-  }
 
   function parentName(id, people) {
     const p = people.find((x) => x.id === id);
