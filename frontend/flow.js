@@ -189,9 +189,9 @@
           void size; // size parameter kept for compatibility
           const g = (gender || '').toString().toLowerCase();
           if (g === 'male' || g === 'm') {
-            return 'https://placehold.net/avatar-2.png';
+            return "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='128'%20height='128'%3E%3Ccircle%20cx='64'%20cy='64'%20r='64'%20fill='%2393c5fd'/%3E%3C/svg%3E";
           }
-          return 'https://placehold.net/avatar.png';
+          return "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='128'%20height='128'%3E%3Ccircle%20cx='64'%20cy='64'%20r='64'%20fill='%23f9a8d4'/%3E%3C/svg%3E";
         }
 
         function initials(person) {
