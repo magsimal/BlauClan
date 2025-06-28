@@ -1923,8 +1923,10 @@
 
        return {
          nodes,
-         edges,
-         onNodeClick,
+        edges,
+        loggedIn,
+        admin,
+        onNodeClick,
          onPaneClick,
          onEdgeClick,
          onConnect,
