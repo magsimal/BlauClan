@@ -99,9 +99,9 @@ jobs:
           REF: ${{ github.ref_name }}
         run: |
           if [ "$REF" = "main" ]; then
-            curl -X POST "$WEBHOOK_PROD"
+            curl -X POST "$WEBHOOK_PROD" -H "X-GitHub-Token: ${{ secrets.HEADER_SECRET }}"
           elif [ "$REF" = "development" ]; then
-            curl -X POST "$WEBHOOK_DEV"
+            curl -X POST "$WEBHOOK_DEV" -H "X-GitHub-Token: ${{ secrets.HEADER_SECRET }}"
           else
             echo "No webhook configured for $REF"
           fi
