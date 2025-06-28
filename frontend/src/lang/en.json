@@ -92,5 +92,8 @@
   ,"leaderboard": "Leaderboard"
   ,"points": "Points"
   ,"rank": "Rank"
+  ,"roleAdmin": "Admin"
+  ,"roleUser": "User"
+  ,"resetScores": "Reset Scores"
   ,"loading": "Loading..."
 }

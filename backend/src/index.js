@@ -703,6 +703,11 @@ app.get('/api/scores', async (_req, res) => {
   res.json(scores);
 });
 
+app.post('/api/score/reset', requireAdmin, async (_req, res) => {
+  await Score.update({ points: 0 }, { where: {} });
+  res.sendStatus(204);
+});
+
 app.get('/api/activity', async (_req, res) => {
   const logs = await Activity.findAll({ order: [['createdAt', 'DESC']] });
   res.json(logs);
