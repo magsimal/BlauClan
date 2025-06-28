@@ -32,20 +32,22 @@
     body.dark-theme #top-bar,
     body.dark-theme #footer {
       background-color: rgba(30,30,30,0.6);
-      background-image: radial-gradient(#2f2f2f 1px, transparent 1px);
-      background-size: 30px 30px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.4);
     }
     body.bright-theme #top-bar,
     body.bright-theme #footer {
       background-color: rgba(255,255,255,0.6);
-      background-image:
-        linear-gradient(#f8fafc, #e2e8f0),
-        radial-gradient(#d1d5db 1px, transparent 1px);
-      background-size:
-        100% 100%,
-        30px 30px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    body.dark-theme {
+      background-color: #1e1e1e;
+      background-image: radial-gradient(circle at center, #2f2f2f, #1e1e1e);
+      background-attachment: fixed;
+    }
+    body.bright-theme {
+      background-color: #f8fafc;
+      background-image: radial-gradient(circle at center, #f8fafc, #e2e8f0);
+      background-attachment: fixed;
     }
     .brand-title { font-family: "Montserrat", sans-serif; font-weight: 700; }
     #menu { width: 250px; float: left; }
@@ -64,15 +66,9 @@
       height: calc(100vh - 90px);
       position: relative;
     }
-    body.dark-theme #flow-app {
-      background-color: transparent;
-      background-image: radial-gradient(#2f2f2f 1px, transparent 1px);
-      background-size: 30px 30px;
-    }
+    body.dark-theme #flow-app,
     body.bright-theme #flow-app {
       background-color: transparent;
-      background-image: radial-gradient(#e5e7eb 0.5px, transparent 0.5px);
-      background-size: 20px 20px;
     }
     @media (max-width: 768px) {
       #flow-app {
