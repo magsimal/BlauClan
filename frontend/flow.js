@@ -953,8 +953,8 @@
             + ` ${s.countryCode}`;
           selected.value.placeOfBirth = full;
           selected.value.geonameId = s.geonameId;
-          placeSuggestions.value = [];
           nextTick(() => {
+            placeSuggestions.value = [];
             placeFocus.value = false;
             if (document.activeElement) document.activeElement.blur();
           });
