@@ -27,6 +27,17 @@ async function addPoints(username, delta, description) {
 
 const app = express();
 app.use(express.json());
+
+// Log Authelia headers on every request for debugging
+app.use((req, _res, next) => {
+  console.log('Authelia headers:', {
+    'Remote-User': req.get('Remote-User'),
+    'Remote-Email': req.get('Remote-Email'),
+    'Remote-Groups': req.get('Remote-Groups'),
+    'Remote-Name': req.get('Remote-Name'),
+  });
+  next();
+});
 const sessionStore = new SequelizeStore({
   db: sequelize,
 });
@@ -54,6 +65,7 @@ if (USE_PROXY_AUTH) {
     const remoteUser =
       req.headers['remote-user'] || req.headers['x-remote-user'];
     if (remoteUser && isTrustedProxy(req)) {
+      console.log(`Proxy auth success for ${remoteUser}`);
       const remoteGroups =
         req.headers['remote-groups'] || req.headers['x-remote-groups'];
       const remoteEmail =
@@ -70,6 +82,12 @@ if (USE_PROXY_AUTH) {
       req.session.name = null;
       req.session.email = req.user.email || null;
       req.session.avatar = null;
+    } else if (remoteUser) {
+      console.log(
+        `Proxy auth rejected for ${remoteUser}: untrusted proxy or missing headers`,
+      );
+    } else {
+      console.log('Proxy auth skipped: no remote user header');
     }
     next();
   });
@@ -167,6 +185,16 @@ app.post('/api/login', (req, res) => {
 
 app.post('/api/logout', (req, res) => {
   req.session.destroy(() => res.sendStatus(204));
+});
+
+// Debug endpoint to inspect forwarded headers
+app.get('/debug/headers', (req, res) => {
+  res.json({
+    'Remote-User': req.get('Remote-User'),
+    'Remote-Email': req.get('Remote-Email'),
+    'Remote-Groups': req.get('Remote-Groups'),
+    'Remote-Name': req.get('Remote-Name'),
+  });
 });
 
 app.get('/api/me', async (req, res) => {
