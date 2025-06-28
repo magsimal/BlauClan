@@ -1141,6 +1141,11 @@
           showScores.value = true;
         }
 
+        async function resetScores() {
+          await fetch('/api/score/reset', { method: 'POST' });
+          openScores();
+        }
+
         openScoresFn = openScores;
 
         function triggerSearch() {
@@ -1969,6 +1974,7 @@
         showDeleteAllButton,
         runDedup,
         openScores,
+        resetScores,
         showScores,
         myScore,
         leaderboard,
@@ -2188,7 +2194,8 @@
               </tbody>
             </table>
             <div class="text-right mt-2">
-              <button class="btn btn-primary btn-sm mr-2" @click="showScores = false" data-i18n="close">Close</button>
+              <button v-if="admin" class="btn btn-danger btn-sm mr-2" @click="resetScores" data-i18n="resetScores">Reset</button>
+              <button class="btn btn-primary btn-sm" @click="showScores = false" data-i18n="close">Close</button>
             </div>
           </div>
         </div>

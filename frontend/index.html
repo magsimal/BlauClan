@@ -315,6 +315,9 @@
     #userLabel {
       cursor: pointer;
     }
+    #scoreTrigger {
+      cursor: pointer;
+    }
     .context-menu {
       position: absolute;
       background: #fff;
@@ -350,10 +353,10 @@
           <div class="d-flex align-items-center">
             <button id="loginBtn" class="btn btn-sm btn-secondary ml-2" style="display:none;" data-i18n="login">Login</button>
             <span id="userLabel" class="ml-2"></span>
-            <button id="scoreTrigger" class="icon-button d-flex align-items-center ml-2" data-i18n-title="leaderboard" title="Leaderboard">
+            <span id="scoreTrigger" class="d-flex align-items-center ml-2" data-i18n-title="leaderboard" title="Leaderboard" style="cursor:pointer;">
               <span class="material-icons" style="color:#f0ad4e;font-size:18px;">emoji_events</span>
               <span id="scoreValue" class="ml-1" style="font-size:0.8rem;"></span>
-            </button>
+            </span>
           </div>
         </div>
     </header>
@@ -452,6 +455,7 @@
       <img id="profileAvatar" class="rounded-circle mb-2" style="width:96px;height:96px;object-fit:cover;display:none;" alt="" data-i18n-alt="avatar" />
       <h4 data-i18n="profile" id="profileTitle">Profile</h4>
       <p id="profileUsername" class="mb-1"></p>
+      <p id="profileRole" class="mb-1"></p>
       <p id="profileName" class="mb-1"></p>
       <p id="profileEmail" class="mb-1"></p>
       <p id="profileNode" class="mb-2"></p>
@@ -554,6 +558,7 @@
       const profileModal = document.getElementById('profileModal');
       const profileAvatar = document.getElementById('profileAvatar');
       const profileUsername = document.getElementById('profileUsername');
+      const profileRole = document.getElementById('profileRole');
       const profileName = document.getElementById('profileName');
       const profileEmail = document.getElementById('profileEmail');
       const profileNode = document.getElementById('profileNode');
@@ -582,8 +587,14 @@
           }
           window.meNodeId = meNodeId;
           userLabel.textContent = data.username || '';
-          profileUsername.textContent = data.username || '';
-          profileName.textContent = data.name ? `${I18n.t('name')}: ${data.name}` : '';
+      profileUsername.textContent = data.username || '';
+          profileRole.textContent =
+            data.username && data.username !== 'guest'
+              ? data.admin
+                ? I18n.t('roleAdmin')
+                : I18n.t('roleUser')
+              : '';
+      profileName.textContent = data.name ? `${I18n.t('name')}: ${data.name}` : '';
           profileEmail.textContent = data.email ? `${I18n.t('email')}: ${data.email}` : '';
           profileNode.textContent = meNodeId ? `${I18n.t('myNode')}: ${meNodeId}` : '';
           if (data.avatar) {
