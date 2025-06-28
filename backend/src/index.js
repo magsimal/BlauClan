@@ -51,14 +51,19 @@ app.use(
 
 if (USE_PROXY_AUTH) {
   app.use((req, res, next) => {
-    const remoteUser = req.headers['x-remote-user'];
+    const remoteUser =
+      req.headers['remote-user'] || req.headers['x-remote-user'];
     if (remoteUser && isTrustedProxy(req)) {
+      const remoteGroups =
+        req.headers['remote-groups'] || req.headers['x-remote-groups'];
+      const remoteEmail =
+        req.headers['remote-email'] || req.headers['x-remote-email'];
       req.user = {
         username: remoteUser,
-        groups: req.headers['x-remote-groups']
-          ? req.headers['x-remote-groups'].split(',').map((g) => g.trim())
+        groups: remoteGroups
+          ? remoteGroups.split(',').map((g) => g.trim())
           : [],
-        email: req.headers['x-remote-email'] || '',
+        email: remoteEmail || '',
         authedVia: 'proxy',
       };
       req.session.user = req.user.username;
