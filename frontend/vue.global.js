@@ -10776,6 +10776,7 @@ Component that was made reactive: `,
       el.value = value == null ? "" : value;
     },
     beforeUpdate(el, { value, modifiers: { lazy, trim, number } }, vnode) {
+      if (!el) return;
       el[assignKey] = getModelAssigner(vnode);
       if (el.composing)
         return;
@@ -10831,6 +10832,7 @@ Component that was made reactive: `,
     // set initial checked on mount to wait for true-value/false-value
     mounted: setChecked,
     beforeUpdate(el, binding, vnode) {
+      if (!el) return;
       el[assignKey] = getModelAssigner(vnode);
       setChecked(el, binding, vnode);
     }
@@ -10854,6 +10856,7 @@ Component that was made reactive: `,
       });
     },
     beforeUpdate(el, { value, oldValue }, vnode) {
+      if (!el) return;
       el[assignKey] = getModelAssigner(vnode);
       if (value !== oldValue) {
         el.checked = looseEqual(value, vnode.props.value);
@@ -10885,6 +10888,7 @@ Component that was made reactive: `,
       setSelected(el, value, number);
     },
     beforeUpdate(el, _binding, vnode) {
+      if (!el) return;
       el[assignKey] = getModelAssigner(vnode);
     },
     updated(el, { value, modifiers: { number } }) {
@@ -10943,6 +10947,7 @@ Component that was made reactive: `,
       callModelHook(el, binding, vnode, null, "mounted");
     },
     beforeUpdate(el, binding, vnode, prevVNode) {
+      if (!el) return;
       callModelHook(el, binding, vnode, prevVNode, "beforeUpdate");
     },
     updated(el, binding, vnode, prevVNode) {
