@@ -33,21 +33,16 @@
   }
 
   function updateDom() {
-    document.querySelectorAll('[data-i18n]').forEach((el) => {
-      const k = el.getAttribute('data-i18n');
-      el.textContent = t(k);
-    });
-    document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => {
-      const k = el.getAttribute('data-i18n-placeholder');
-      el.setAttribute('placeholder', t(k));
-    });
-    document.querySelectorAll('[data-i18n-title]').forEach((el) => {
-      const k = el.getAttribute('data-i18n-title');
-      el.setAttribute('title', t(k));
-    });
-    document.querySelectorAll('[data-i18n-alt]').forEach((el) => {
-      const k = el.getAttribute('data-i18n-alt');
-      el.setAttribute('alt', t(k));
+    const map = {
+      'data-i18n': (el, k) => { el.textContent = t(k); },
+      'data-i18n-placeholder': (el, k) => el.setAttribute('placeholder', t(k)),
+      'data-i18n-title': (el, k) => el.setAttribute('title', t(k)),
+      'data-i18n-alt': (el, k) => el.setAttribute('alt', t(k)),
+    };
+    Object.entries(map).forEach(([attr, apply]) => {
+      document.querySelectorAll(`[${attr}]`).forEach((el) => {
+        apply(el, el.getAttribute(attr));
+      });
     });
   }
 

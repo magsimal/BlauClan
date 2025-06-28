@@ -5,26 +5,22 @@
     global.Dedupe = factory();
   }
 })(this, function () {
-  function levenshtein(a, b) {
-    a = a || '';
-    b = b || '';
-    const m = [];
-    for (let i = 0; i <= b.length; i++) {
-      m[i] = [i];
-    }
-    for (let j = 0; j <= a.length; j++) {
-      if (j === 0) m[0][j] = j;
-      else m[0][j] = j;
-    }
-    for (let i = 1; i <= b.length; i++) {
-      for (let j = 1; j <= a.length; j++) {
-        if (b.charAt(i - 1) === a.charAt(j - 1)) m[i][j] = m[i - 1][j - 1];
-        else m[i][j] = Math.min(m[i - 1][j - 1], m[i][j - 1], m[i - 1][j]) + 1;
+  function levenshtein(a = '', b = '') {
+    const dp = Array.from({ length: b.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= a.length; i++) {
+      let prev = i;
+      for (let j = 1; j <= b.length; j++) {
+        const tmp = dp[j];
+        dp[j] = Math.min(
+          dp[j] + 1,
+          prev + (a[i - 1] === b[j - 1] ? 0 : 1),
+          dp[j - 1] + 1,
+        );
+        prev = tmp;
       }
     }
-    return m[b.length][a.length];
+    return dp[b.length];
   }
-
   function similarity(a, b) {
     a = (a || '').toLowerCase();
     b = (b || '').toLowerCase();
@@ -34,13 +30,10 @@
     const maxLen = Math.max(a.length, b.length);
     return (maxLen - dist) / maxLen;
   }
-
-  function getYear(str) {
-    if (!str) return null;
-    const m = /^(\d{4})/.exec(str);
+  const getYear = (str) => {
+    const m = str && /^(\d{4})/.exec(str);
     return m ? parseInt(m[1], 10) : null;
-  }
-
+  };
   function matchScore(p, e) {
     let score = 0;
     const ln = (p.lastName || '').toLowerCase();
@@ -64,7 +57,6 @@
 
     return score;
   }
-
   function attributeMatchCount(p, e) {
     let count = 0;
     const ln = (p.lastName || '').toLowerCase();
@@ -82,7 +74,6 @@
 
     return count;
   }
-
   function findBestMatch(person, existing) {
     let best = null;
     let bestScore = 0;
@@ -100,6 +91,5 @@
     }
     return { match: best, score: bestScore };
   }
-
   return { findBestMatch, matchScore };
 });

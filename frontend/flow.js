@@ -23,7 +23,6 @@
       t = setTimeout(() => fn.apply(this, args), delay);
     };
   }
-
   let appState = null;
   let loggedIn;
   let admin;
@@ -41,7 +40,6 @@
       }, 800);
     });
   }
-
   function refreshMe() {
     if (!appState) return;
     const { nodes } = appState;
@@ -49,13 +47,11 @@
       n.data.me = window.meNodeId && n.id === String(window.meNodeId);
     });
   }
-
   function updatePrivileges() {
     if (!loggedIn || !admin) return;
     loggedIn.value = window.currentUser && window.currentUser !== 'guest';
     admin.value = !!window.isAdmin;
   }
-
   function mount() {
     const { createApp, ref, onMounted, onBeforeUnmount, watch, nextTick, computed } = Vue;
     const { VueFlow, MarkerType, Handle, useZoomPanHelper, useVueFlow } = window.VueFlow;
@@ -170,13 +166,11 @@
         let unions = {};
         let newNodePos = null;
         let scoreTimer = null;
-
         function addClass(edge, cls) {
           const parts = (edge.class || '').split(' ').filter(Boolean);
           if (!parts.includes(cls)) parts.push(cls);
           edge.class = parts.join(' ');
         }
-
         function removeClass(edge, cls) {
           if (!edge.class) return;
           edge.class = edge.class
@@ -184,7 +178,6 @@
             .filter((c) => c !== cls)
             .join(' ');
         }
-
         function avatarSrc(gender, size) {
           void size; // size parameter kept for compatibility
           const g = (gender || '').toString().toLowerCase();
@@ -193,13 +186,11 @@
           }
           return "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='128'%20height='128'%3E%3Ccircle%20cx='64'%20cy='64'%20r='64'%20fill='%23f9a8d4'/%3E%3C/svg%3E";
         }
-
         function initials(person) {
           const f = (person.firstName || '').charAt(0);
           const l = (person.lastName || '').charAt(0);
           return (f + l).toUpperCase();
         }
-
         function avatarStyle(gender, size) {
           const g = (gender || '').toString().toLowerCase();
           const bg = g === 'female' || g === 'f' ? '#f9a8d4' : '#93c5fd';
@@ -210,7 +201,6 @@
             lineHeight: `${size}px`,
           };
         }
-
         function spouseHandles(n1, n2) {
           if (!n1 || !n2) {
             return { source: 's-right', target: 't-left' };
@@ -219,7 +209,6 @@
             ? { source: 's-right', target: 't-left' }
             : { source: 's-left', target: 't-right' };
         }
-
         const TEMP_KEY = 'tempLayout';
 
         function saveTempLayout() {
@@ -281,33 +270,13 @@
           const idMap = {};
           people.forEach((p) => (idMap[p.id] = p));
 
-          // determine generation levels
-          const queue = [];
-          people.forEach((p) => {
-            p._gen = null;
-            if (!p.fatherId && !p.motherId) {
-              p._gen = 0;
-              queue.push(p);
-            }
-          });
-          while (queue.length) {
-            const cur = queue.shift();
-            const g = cur._gen || 0;
-            people.forEach((c) => {
-              if ((c.fatherId === cur.id || c.motherId === cur.id) && c._gen === null) {
-                c._gen = g + 1;
-                queue.push(c);
-              }
-            });
-          }
-          people.forEach((p) => {
-            if (p._gen === null) p._gen = 0;
-          });
-
+          // determine generation levels via helper
+          const genMap = GenerationLayout.assignGenerations(people);
           const layers = {};
           people.forEach((p) => {
-            layers[p._gen] = layers[p._gen] || [];
-            layers[p._gen].push(p);
+            const g = genMap.get(p.id) ?? 0;
+            layers[g] = layers[g] || [];
+            layers[g].push(p);
           });
 
           const positions = {};
@@ -330,53 +299,42 @@
           edges.value = [];
           selectedEdge.value = null;
 
-          function unionKey(f, m) {
-            return `${f}-${m}`;
-          }
-
+          const unionKey = (f, m) => `${f}-${m}`;
           people.forEach((child) => {
-            if (child.fatherId && child.motherId) {
-              const key = unionKey(child.fatherId, child.motherId);
-              if (!unions[key]) {
-                const id = `u-${key}`;
-                const midX =
-                  (positions[child.fatherId].x + positions[child.motherId].x) / 2;
-                const midY =
-                  (positions[child.fatherId].y + positions[child.motherId].y) /
-                    2 +
-                  UNION_Y_OFFSET;
-                const pos = {
-                  x: midX,
-                  y: midY,
-                };
-                unions[key] = {
-                  id,
-                  fatherId: child.fatherId,
-                  motherId: child.motherId,
-                  children: [],
-                };
-                nodes.value.push({
-                  id,
-                  type: 'helper',
-                  position: existingPos[id] || pos,
-                  data: { _gen: idMap[child.fatherId]._gen, helper: true },
-                  draggable: false,
-                  selectable: false,
-                });
-                positions[id] = pos;
-              }
-              unions[key].children.push(child.id);
+            if (!child.fatherId || !child.motherId) return;
+            const key = unionKey(child.fatherId, child.motherId);
+            const union =
+              unions[key] || (unions[key] = {
+                id: `u-${key}`,
+                fatherId: child.fatherId,
+                motherId: child.motherId,
+                children: [],
+              });
+            if (!positions[union.id]) {
+              const midX =
+                (positions[child.fatherId].x + positions[child.motherId].x) / 2;
+              const midY =
+                (positions[child.fatherId].y + positions[child.motherId].y) / 2 +
+                UNION_Y_OFFSET;
+              const pos = { x: midX, y: midY };
+              nodes.value.push({
+                id: union.id,
+                type: 'helper',
+                position: existingPos[union.id] || pos,
+                data: { _gen: idMap[child.fatherId]._gen, helper: true },
+                draggable: false,
+                selectable: false,
+              });
+              positions[union.id] = pos;
             }
+            union.children.push(child.id);
           });
 
-         Object.values(unions).forEach((m) => {
-            const fatherNode = nodes.value.find(
-              (n) => n.id === String(m.fatherId)
+          Object.values(unions).forEach((m) => {
+            const handles = spouseHandles(
+              nodes.value.find((n) => n.id === String(m.fatherId)),
+              nodes.value.find((n) => n.id === String(m.motherId)),
             );
-            const motherNode = nodes.value.find(
-              (n) => n.id === String(m.motherId)
-            );
-            const handles = spouseHandles(fatherNode, motherNode);
             edges.value.push({
               id: `spouse-line-${m.id}`,
               source: String(m.fatherId),
@@ -385,18 +343,16 @@
               sourceHandle: handles.source,
               targetHandle: handles.target,
             });
-
-            m.children.forEach((cid) => {
-                edges.value.push({
-                  id: `${m.id}-${cid}`,
-                  source: m.id,
-                  target: String(cid),
-                  type: 'default',
-                  markerEnd: MarkerType.ArrowClosed,
-                  sourceHandle: 's-bottom',
-                  targetHandle: 't-top',
-                });
-            });
+            m.children.forEach((cid) =>
+              edges.value.push({
+                id: `${m.id}-${cid}`,
+                source: m.id,
+                target: String(cid),
+                type: 'default',
+                markerEnd: MarkerType.ArrowClosed,
+                sourceHandle: 's-bottom',
+                targetHandle: 't-top',
+              }));
           });
 
           people.forEach((p) => {
