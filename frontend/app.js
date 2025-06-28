@@ -168,8 +168,8 @@
             this.selectedPerson.placeOfBirth = full;
             this.selectedPerson.geonameId = s.geonameId;
           }
-          this.pobSuggestions = [];
           this.$nextTick(() => {
+            this.pobSuggestions = [];
             this.pobFocus = false;
             if (document.activeElement) document.activeElement.blur();
           });
