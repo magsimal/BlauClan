@@ -60,8 +60,11 @@ user. Otherwise the standard LDAP login form is shown.
 After Docker images are published to GitHub Container Registry you can run the stack with:
 
 ```bash
-docker-compose -f docker-compose.deploy.yml up -d
+IMAGE_TAG=latest docker-compose -f docker-compose.deploy.yml up -d
 ```
+
+Set `IMAGE_TAG=experimental` to pull the development images instead of the
+stable ones.
 
 Replace `OWNER` in `docker-compose.deploy.yml` with your GitHub username or organisation.
 Ensure `docker-compose.deploy.yml` defines `GEONAMES_USER` so the backend can access GeoNames.

@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, development ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, development ]
 
 jobs:
   build:
@@ -56,19 +56,52 @@ jobs:
         id: vars
         run: |
           BACKEND_VERSION=$(jq -r .version backend/package.json)
+          FRONTEND_VERSION=$(jq -r .version frontend/package.json)
           echo "BACKEND_VERSION=$BACKEND_VERSION" >> "$GITHUB_OUTPUT"
-          echo "FRONTEND_VERSION=0.1.0" >> "$GITHUB_OUTPUT"
+          echo "FRONTEND_VERSION=$FRONTEND_VERSION" >> "$GITHUB_OUTPUT"
       - name: Build Docker images
+        env:
+          REF: ${{ github.ref_name }}
         run: |
-          docker build -t ghcr.io/${{ github.repository_owner }}/blauclan-backend:${{ steps.vars.outputs.BACKEND_VERSION }} \
-            -t ghcr.io/${{ github.repository_owner }}/blauclan-backend:latest ./backend
-          docker build -t ghcr.io/${{ github.repository_owner }}/blauclan-frontend:${{ steps.vars.outputs.FRONTEND_VERSION }} \
-            -t ghcr.io/${{ github.repository_owner }}/blauclan-frontend:latest ./frontend
+          if [ "$REF" = "development" ]; then
+            docker build -t ghcr.io/${{ github.repository_owner }}/blauclan-backend:${{ steps.vars.outputs.BACKEND_VERSION }}-experimental \
+              -t ghcr.io/${{ github.repository_owner }}/blauclan-backend:experimental ./backend
+            docker build -t ghcr.io/${{ github.repository_owner }}/blauclan-frontend:${{ steps.vars.outputs.FRONTEND_VERSION }}-experimental \
+              -t ghcr.io/${{ github.repository_owner }}/blauclan-frontend:experimental ./frontend
+          else
+            docker build -t ghcr.io/${{ github.repository_owner }}/blauclan-backend:${{ steps.vars.outputs.BACKEND_VERSION }} \
+              -t ghcr.io/${{ github.repository_owner }}/blauclan-backend:latest ./backend
+            docker build -t ghcr.io/${{ github.repository_owner }}/blauclan-frontend:${{ steps.vars.outputs.FRONTEND_VERSION }} \
+              -t ghcr.io/${{ github.repository_owner }}/blauclan-frontend:latest ./frontend
+          fi
       - name: Push Docker images
         if: github.event_name == 'push'
+        env:
+          REF: ${{ github.ref_name }}
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          docker push ghcr.io/${{ github.repository_owner }}/blauclan-backend:${{ steps.vars.outputs.BACKEND_VERSION }}
-          docker push ghcr.io/${{ github.repository_owner }}/blauclan-backend:latest
-          docker push ghcr.io/${{ github.repository_owner }}/blauclan-frontend:${{ steps.vars.outputs.FRONTEND_VERSION }}
-          docker push ghcr.io/${{ github.repository_owner }}/blauclan-frontend:latest
+          if [ "$REF" = "development" ]; then
+            docker push ghcr.io/${{ github.repository_owner }}/blauclan-backend:${{ steps.vars.outputs.BACKEND_VERSION }}-experimental
+            docker push ghcr.io/${{ github.repository_owner }}/blauclan-backend:experimental
+            docker push ghcr.io/${{ github.repository_owner }}/blauclan-frontend:${{ steps.vars.outputs.FRONTEND_VERSION }}-experimental
+            docker push ghcr.io/${{ github.repository_owner }}/blauclan-frontend:experimental
+          else
+            docker push ghcr.io/${{ github.repository_owner }}/blauclan-backend:${{ steps.vars.outputs.BACKEND_VERSION }}
+            docker push ghcr.io/${{ github.repository_owner }}/blauclan-backend:latest
+            docker push ghcr.io/${{ github.repository_owner }}/blauclan-frontend:${{ steps.vars.outputs.FRONTEND_VERSION }}
+            docker push ghcr.io/${{ github.repository_owner }}/blauclan-frontend:latest
+          fi
+      - name: Trigger Portainer Deploy
+        if: github.event_name == 'push'
+        env:
+          WEBHOOK_DEV: ${{ secrets.PORTAINER_WEBHOOK_DEV }}
+          WEBHOOK_PROD: ${{ secrets.PORTAINER_WEBHOOK_PROD }}
+          REF: ${{ github.ref_name }}
+        run: |
+          if [ "$REF" = "main" ]; then
+            curl -X POST "$WEBHOOK_PROD"
+          elif [ "$REF" = "development" ]; then
+            curl -X POST "$WEBHOOK_DEV"
+          else
+            echo "No webhook configured for $REF"
+          fi

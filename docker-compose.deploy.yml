@@ -15,7 +15,7 @@ services:
       retries: 5
     restart: unless-stopped
   backend:
-    image: ghcr.io/magsimal/blauclan-backend:latest
+    image: ghcr.io/magsimal/blauclan-backend:${IMAGE_TAG:-latest}
     environment:
       DB_NAME: familytree
       DB_USER: postgres
@@ -33,6 +33,7 @@ services:
       SESSION_SECRET: ${SESSION_SECRET}
       USE_PROXY_AUTH: ${USE_PROXY_AUTH:-false}
       TRUSTED_PROXY_IPS: ${TRUSTED_PROXY_IPS:-}
+      NODE_ENV: ${NODE_ENV:-production}
     ports:
       - '${BACKEND_PORT:-3009}:${BACKEND_PORT:-3009}'
     depends_on:
@@ -42,12 +43,13 @@ services:
         condition: service_started
     restart: unless-stopped
   frontend:
-    image: ghcr.io/magsimal/blauclan-frontend:latest
+    image: ghcr.io/magsimal/blauclan-frontend:${IMAGE_TAG:-latest}
     environment:
       BACKEND_PORT: ${BACKEND_PORT:-3009}
       RELATIVE_ATTRACTION: ${RELATIVE_ATTRACTION:-0.5}
       SHOW_DELETE_ALL_BUTTON: ${SHOW_DELETE_ALL_BUTTON:-false}
       LOGIN_ENABLED: ${LOGIN_ENABLED:-false}
+      NODE_ENV: ${NODE_ENV:-production}
     ports:
       - '${FRONTEND_PORT:-8080}:80'
     depends_on:
