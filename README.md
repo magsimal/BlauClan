@@ -52,8 +52,23 @@ and can perform bulk delete operations.
 To integrate with an external SSO proxy such as Authelia, set
 `USE_PROXY_AUTH=true` and list the proxy IPs in `TRUSTED_PROXY_IPS`
 (comma-separated). When a request from a trusted IP includes the
-`X-Remote-User` header, the backend automatically creates a session for that
-user. Otherwise the standard LDAP login form is shown.
+`Remote-User` header (or `X-Remote-User` for backward compatibility), the
+backend automatically creates a session for that user. You can also forward
+`Remote-Groups` and `Remote-Email` to pass group and email information. A
+minimal Nginx configuration with Authelia looks like:
+
+```nginx
+location / {
+  include /config/nginx/proxy.conf;
+  include /config/nginx/authelia-server.conf;
+  proxy_set_header Remote-User $remote_user;
+  proxy_set_header Remote-Groups $remote_groups;
+  proxy_set_header Remote-Email $remote_email;
+  proxy_pass http://blauclan:PORT;
+}
+```
+
+Otherwise the standard LDAP login form is shown.
 
 ### Running with Prebuilt Images
 

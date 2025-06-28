@@ -1,5 +1,7 @@
 process.env.DB_DIALECT = 'sqlite';
 process.env.DB_STORAGE = ':memory:';
+process.env.USE_PROXY_AUTH = 'true';
+process.env.TRUSTED_PROXY_IPS = '::1,127.0.0.1';
 
 const request = require('supertest');
 const app = require('../src/index');
@@ -226,5 +228,16 @@ describe('People API', () => {
     expect(res.body.length).toBe(2);
     const points = res.body.map((r) => r.points).sort();
     expect(points).toEqual([1, 5]);
+  });
+
+  test('creates session from proxy headers', async () => {
+    const res = await request(app)
+      .get('/api/me')
+      .set('X-Forwarded-For', '127.0.0.1')
+      .set('Remote-User', 'proxyUser')
+      .set('Remote-Email', 'proxy@example.com');
+    expect(res.statusCode).toBe(200);
+    expect(res.body.username).toBe('proxyUser');
+    expect(res.body.email).toBe('proxy@example.com');
   });
 });
