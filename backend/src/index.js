@@ -104,13 +104,22 @@ if (USE_PROXY_AUTH) {
         req.session.email = req.user.email || null;
         req.session.avatar = null;
         req.session.isAdmin = isAdmin;
+        console.log(
+          `Proxy auth successful for ${remoteUser} as ${
+            isAdmin ? 'admin' : 'user'
+          }`,
+        );
       } else {
         req.session.user = 'guest';
         req.session.isAdmin = false;
+        console.log(`Proxy auth groups not recognized for ${remoteUser}`);
       }
     } else if (remoteUser) {
       req.session.user = 'guest';
       req.session.isAdmin = false;
+      console.log(
+        `Proxy auth ignored for ${remoteUser} from untrusted IP ${getProxyIp(req)}`,
+      );
     }
 
     next();
@@ -148,7 +157,7 @@ function requireAuth(req, res, next) {
 }
 
 function requireAdmin(req, res, next) {
-  if (LOGIN_ENABLED && !req.user && !req.session.isAdmin) {
+  if (LOGIN_ENABLED && !req.session.isAdmin) {
     return res.status(403).json({ error: 'admin required' });
   }
   next();
