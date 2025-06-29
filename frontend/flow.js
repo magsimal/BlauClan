@@ -382,6 +382,8 @@
           refreshUnions();
           saveTempLayout();
           applyFilters();
+        } catch (err) {
+          console.error('load failed', err);
         } finally {
           setLoading(false);
         }
