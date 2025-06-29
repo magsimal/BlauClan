@@ -171,7 +171,6 @@
           this.$nextTick(() => {
             this.pobSuggestions = [];
             this.pobFocus = false;
-            if (document.activeElement) document.activeElement.blur();
           });
         },
         useTypedPob() {

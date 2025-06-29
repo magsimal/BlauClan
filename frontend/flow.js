@@ -956,7 +956,6 @@
           nextTick(() => {
             placeSuggestions.value = [];
             placeFocus.value = false;
-            if (document.activeElement) document.activeElement.blur();
           });
         }
 
