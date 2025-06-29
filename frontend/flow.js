@@ -945,15 +945,16 @@
         }
 
         function applyPlace(s) {
-          if (!selected.value) return;
           const full =
             s.name
             + (s.postalCode ? ` (${s.postalCode})` : '')
             + (s.adminName1 ? `, ${s.adminName1}` : '')
             + ` ${s.countryCode}`;
-          selected.value.placeOfBirth = full;
-          selected.value.geonameId = s.geonameId;
           nextTick(() => {
+            if (selected.value) {
+              selected.value.placeOfBirth = full;
+              selected.value.geonameId = s.geonameId;
+            }
             placeSuggestions.value = [];
             placeFocus.value = false;
             if (document.activeElement) document.activeElement.blur();
@@ -2391,8 +2392,8 @@
                       </label>
                       <input class="form-control" v-model="selected.placeOfBirth" placeholder="City or town" title="Place of birth" data-i18n-placeholder="placeOfBirth" @focus="placeFocus=true; onPlaceInput($event)" @blur="hidePlaceDropdown" @input="onPlaceInput" />
                       <ul v-if="placeFocus && placeSuggestions.length" class="list-group position-absolute" style="top:100%; left:0; right:0; z-index:1000; max-height:150px; overflow-y:auto;" @scroll="onPlaceScroll">
-        <li v-for="s in visiblePlaceSuggestions" :key="s.geonameId" class="list-group-item list-group-item-action" @click.prevent="applyPlace(s)">{{ s.name }}<span v-if="s.postalCode"> ({{ s.postalCode }})</span><span v-if="s.adminName1">, {{ s.adminName1 }}</span> {{ s.countryCode }}</li>
-                        <li class="list-group-item list-group-item-action" @click.prevent="useTypedPlace" data-i18n="useExactly">Use Exactly</li>
+        <li v-for="s in visiblePlaceSuggestions" :key="s.geonameId" class="list-group-item list-group-item-action" @mousedown.stop.prevent="applyPlace(s)">{{ s.name }}<span v-if="s.postalCode"> ({{ s.postalCode }})</span><span v-if="s.adminName1">, {{ s.adminName1 }}</span> {{ s.countryCode }}</li>
+                        <li class="list-group-item list-group-item-action" @mousedown.stop.prevent="useTypedPlace" data-i18n="useExactly">Use Exactly</li>
                       </ul>
                     </div>
                   </div>
