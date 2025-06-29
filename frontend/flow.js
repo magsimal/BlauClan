@@ -561,6 +561,7 @@
 
         onMounted(async () => {
           await load();
+          await nextTick();
           fitView();
           snapGrid.value = [horizontalGridSize, verticalGridSize];
           snapToGrid.value = true;
