@@ -8,7 +8,8 @@
   function levenshtein(a = '', b = '') {
     const dp = Array.from({ length: b.length + 1 }, (_, i) => i);
     for (let i = 1; i <= a.length; i++) {
-      let prev = i;
+      let prev = dp[0];
+      dp[0] = i;
       for (let j = 1; j <= b.length; j++) {
         const tmp = dp[j];
         dp[j] = Math.min(

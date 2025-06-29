@@ -104,8 +104,8 @@
             !!(window.AppConfig && AppConfig.showDeleteAllButton) &&
             admin.value,
         );
-        const loadingEl = document.getElementById('loadingOverlay');
-        function setLoading(v) { if (loadingEl) loadingEl.style.display = v ? 'flex' : 'none'; }
+        const isLoading = ref(true);
+        function setLoading(v) { isLoading.value = v; }
         const selected = ref(null);
         const showModal = ref(false);
         const contextMenuVisible = ref(false);
@@ -260,7 +260,8 @@
 
         async function load(preservePositions = false) {
           setLoading(true);
-          const existingPos = {};
+          try {
+            const existingPos = {};
           if (preservePositions) {
             nodes.value.forEach((n) => {
               existingPos[n.id] = { ...n.position };
@@ -381,7 +382,11 @@
           refreshUnions();
           saveTempLayout();
           applyFilters();
+        } catch (err) {
+          console.error('load failed', err);
+        } finally {
           setLoading(false);
+        }
         }
 
         const children = ref([]);
@@ -920,8 +925,14 @@
 
         let placeController = null;
         const fetchPlaces = debounce(async (val) => {
+          console.log('[fetchPlaces] query:', val);
           if (placeController) placeController.abort();
-          if (!val) { placeSuggestions.value = []; placeDisplayCount.value = 5; return; }
+          if (!val) {
+            placeSuggestions.value = [];
+            placeDisplayCount.value = 5;
+            console.log('[fetchPlaces] empty query - cleared suggestions');
+            return;
+          }
           placeController = new AbortController();
           const lang = I18nGlobal.getLang ? I18nGlobal.getLang().toLowerCase() : 'en';
           try {
@@ -931,34 +942,57 @@
             );
             placeSuggestions.value = res.ok ? await res.json() : [];
             placeDisplayCount.value = 5;
+            console.log('[fetchPlaces] results:', placeSuggestions.value.length);
           } catch (e) {
-            if (e.name !== 'AbortError') placeSuggestions.value = [];
+            if (e.name !== 'AbortError') {
+              console.error('[fetchPlaces] error', e);
+              placeSuggestions.value = [];
+            }
           }
         }, 250);
 
         function onPlaceInput(e) {
+          console.log('[onPlaceInput] value:', e.target.value);
           fetchPlaces(e.target.value);
         }
 
         function hidePlaceDropdown() {
+          console.log('[hidePlaceDropdown]');
           setTimeout(() => { placeFocus.value = false; }, 150);
         }
 
-        function applyPlace(s) {
+        async function applyPlace(s) {
+          console.log('[applyPlace] suggestion selected', s);
+          if (!selected.value) return;
           const full =
             s.name
             + (s.postalCode ? ` (${s.postalCode})` : '')
             + (s.adminName1 ? `, ${s.adminName1}` : '')
             + ` ${s.countryCode}`;
-          nextTick(() => {
-            if (selected.value) {
-              selected.value.placeOfBirth = full;
-              selected.value.geonameId = s.geonameId;
-            }
-            placeSuggestions.value = [];
-            placeFocus.value = false;
-            if (document.activeElement) document.activeElement.blur();
+          console.log('[applyPlace] computed full', full);
+          placeSuggestions.value = [];
+          console.log('[applyPlace] suggestions cleared');
+          placeFocus.value = false;
+          if (document.activeElement) document.activeElement.blur();
+          showModal.value = false;
+          await nextTick();
+          await FrontendApp.updatePerson(selected.value.id, {
+            placeOfBirth: full,
+            geonameId: s.geonameId,
           });
+          await load(true);
+          const node = nodes.value.find((n) => n.id === String(selected.value.id));
+          if (node) {
+            selected.value = { ...node.data, spouseId: '' };
+            useBirthApprox.value = !!selected.value.birthApprox;
+            useDeathApprox.value = !!selected.value.deathApprox;
+            birthExactBackup.value = selected.value.dateOfBirth || '';
+            deathExactBackup.value = selected.value.dateOfDeath || '';
+          }
+          editing.value = true;
+          showModal.value = true;
+          await nextTick();
+          console.log('[applyPlace] update complete');
         }
 
         function useTypedPlace() {
@@ -987,8 +1021,6 @@
 
         watch(shiftPressed, (val) => {
           document.body.classList.toggle('multi-select-active', val);
-          const ind = document.getElementById('multiIndicator');
-          if (ind) ind.style.display = val ? 'block' : 'none';
         });
 
         function refreshI18n() {
@@ -1004,6 +1036,13 @@
         watch(showConflict, (v) => v && refreshI18n());
         watch(showRelatives, (v) => v && refreshI18n());
         watch(showScores, (v) => v && refreshI18n());
+
+        watch(
+          () => selected.value && selected.value.placeOfBirth,
+          (newVal, oldVal) => {
+            console.log('[watch] placeOfBirth', oldVal, '=>', newVal);
+          },
+        );
 
         function applyFilters() {
           const f = filters.value;
@@ -1884,7 +1923,8 @@
       appState = { nodes, fitView, nextTick };
 
        return {
-         nodes,
+        nodes,
+        isLoading,
         edges,
         loggedIn,
         admin,
@@ -1984,6 +2024,12 @@
       },
       template: `
         <div style="width: 100%; height: 100%" @click="contextMenuVisible = false">
+          <div id="loadingOverlay" v-show="isLoading">
+            <div class="spinner-border text-primary" role="status">
+              <span class="sr-only" data-i18n="loading">Loading...</span>
+            </div>
+          </div>
+          <div id="multiIndicator" data-i18n="multiSelect" v-show="shiftPressed">Multi-select</div>
           <div id="toolbar">
           <button v-if="loggedIn" class="icon-button" @click="addPerson" v-tooltip="I18n.t('addPerson')">
             <svg viewBox="0 0 24 24"><path d="M5.25 6.375a4.125 4.125 0 1 1 8.25 0 4.125 4.125 0 0 1-8.25 0ZM2.25 19.125a7.125 7.125 0 0 1 14.25 0v.003l-.001.119a.75.75 0 0 1-.363.63 13.067 13.067 0 0 1-6.761 1.873c-2.472 0-4.786-.684-6.76-1.873a.75.75 0 0 1-.364-.63l-.001-.122ZM18.75 7.5a.75.75 0 0 0-1.5 0v2.25H15a.75.75 0 0 0 0 1.5h2.25v2.25a.75.75 0 0 0 1.5 0v-2.25H21a.75.75 0 0 0 0-1.5h-2.25V7.5Z"/></svg>

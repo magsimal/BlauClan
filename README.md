@@ -52,11 +52,14 @@ and can perform bulk delete operations.
 To integrate with an external SSO proxy such as Authelia, set
 `USE_PROXY_AUTH=true` and list the proxy IPs in `TRUSTED_PROXY_IPS`
 
-(comma-separated). For example:
+ (comma-separated). For example:
 `TRUSTED_PROXY_IPS=192.168.0.1,127.0.0.1,localhost`. When a request from a trusted IP includes the
 `Remote-User` header (or `X-Remote-User` for backward compatibility), the
-backend automatically creates a session for that user. You can also forward
-`Remote-Groups` and `Remote-Email` to pass group and email information. A
+backend automatically creates a session for that user. Requests from other IPs are
+ignored. You can also forward
+`Remote-Groups` and `Remote-Email` to pass group and email information. Only users
+belonging to either the configured admin or user group are logged in; others are
+treated as guests. A
 minimal Nginx configuration with Authelia looks like:
 
 ```nginx

@@ -43,11 +43,14 @@
       overlay.style.display = 'none';
       overlay.innerHTML = `
         <div class="modal-content card p-3" style="min-width: 300px;">
-          <input type="text" id="search-input" class="form-control mb-2" placeholder="Search..." />
+          <input type="text" id="search-input" class="form-control mb-2" data-i18n-placeholder="search" />
           <ul id="search-results" class="list-group" style="max-height:200px;overflow-y:auto"></ul>
         </div>`;
       overlay.addEventListener('click', (e) => { if (e.target === overlay) hide(); });
       document.body.appendChild(overlay);
+      if (root.I18n && typeof root.I18n.updateDom === 'function') {
+        root.I18n.updateDom();
+      }
     }
     const input = overlay.querySelector('#search-input');
     if (!input.dataset.bound) {
