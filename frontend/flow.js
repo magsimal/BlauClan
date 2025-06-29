@@ -104,8 +104,8 @@
             !!(window.AppConfig && AppConfig.showDeleteAllButton) &&
             admin.value,
         );
-        const loadingEl = document.getElementById('loadingOverlay');
-        function setLoading(v) { if (loadingEl) loadingEl.style.display = v ? 'flex' : 'none'; }
+        const isLoading = ref(true);
+        function setLoading(v) { isLoading.value = v; }
         const selected = ref(null);
         const showModal = ref(false);
         const contextMenuVisible = ref(false);
@@ -1005,8 +1005,6 @@
 
         watch(shiftPressed, (val) => {
           document.body.classList.toggle('multi-select-active', val);
-          const ind = document.getElementById('multiIndicator');
-          if (ind) ind.style.display = val ? 'block' : 'none';
         });
 
         function refreshI18n() {
@@ -1909,7 +1907,8 @@
       appState = { nodes, fitView, nextTick };
 
        return {
-         nodes,
+        nodes,
+        isLoading,
         edges,
         loggedIn,
         admin,
@@ -2009,6 +2008,12 @@
       },
       template: `
         <div style="width: 100%; height: 100%" @click="contextMenuVisible = false">
+          <div id="loadingOverlay" v-show="isLoading">
+            <div class="spinner-border text-primary" role="status">
+              <span class="sr-only" data-i18n="loading">Loading...</span>
+            </div>
+          </div>
+          <div id="multiIndicator" data-i18n="multiSelect" v-show="shiftPressed">Multi-select</div>
           <div id="toolbar">
           <button v-if="loggedIn" class="icon-button" @click="addPerson" v-tooltip="I18n.t('addPerson')">
             <svg viewBox="0 0 24 24"><path d="M5.25 6.375a4.125 4.125 0 1 1 8.25 0 4.125 4.125 0 0 1-8.25 0ZM2.25 19.125a7.125 7.125 0 0 1 14.25 0v.003l-.001.119a.75.75 0 0 1-.363.63 13.067 13.067 0 0 1-6.761 1.873c-2.472 0-4.786-.684-6.76-1.873a.75.75 0 0 1-.364-.63l-.001-.122ZM18.75 7.5a.75.75 0 0 0-1.5 0v2.25H15a.75.75 0 0 0 0 1.5h2.25v2.25a.75.75 0 0 0 1.5 0v-2.25H21a.75.75 0 0 0 0-1.5h-2.25V7.5Z"/></svg>
