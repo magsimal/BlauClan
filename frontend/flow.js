@@ -966,7 +966,7 @@
             selected.value.placeOfBirth = (selected.value.placeOfBirth || '').trim();
             selected.value.geonameId = null;
           }
-          nextTick(() => { placeFocus.value = false; });
+          placeFocus.value = false;
         }
 
         function onPlaceScroll(e) {

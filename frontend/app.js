@@ -179,7 +179,7 @@
             this.selectedPerson.placeOfBirth = (this.selectedPerson.placeOfBirth || '').trim();
             this.selectedPerson.geonameId = null;
           }
-          this.$nextTick(() => { this.pobFocus = false; });
+          this.pobFocus = false;
         },
         onPobScroll(e) {
           if (e.target.scrollTop + e.target.clientHeight >= e.target.scrollHeight - 5) {
