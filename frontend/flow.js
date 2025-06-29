@@ -945,12 +945,14 @@
         }
 
         function applyPlace(s) {
+          console.log('[applyPlace] suggestion selected', s);
           const full =
             s.name
             + (s.postalCode ? ` (${s.postalCode})` : '')
             + (s.adminName1 ? `, ${s.adminName1}` : '')
             + ` ${s.countryCode}`;
           nextTick(() => {
+            console.log('[applyPlace] updating selected person', selected.value);
             if (selected.value) {
               selected.value.placeOfBirth = full;
               selected.value.geonameId = s.geonameId;
@@ -958,6 +960,7 @@
             placeSuggestions.value = [];
             placeFocus.value = false;
             if (document.activeElement) document.activeElement.blur();
+            console.log('[applyPlace] update complete');
           });
         }
 
