@@ -260,7 +260,8 @@
 
         async function load(preservePositions = false) {
           setLoading(true);
-          const existingPos = {};
+          try {
+            const existingPos = {};
           if (preservePositions) {
             nodes.value.forEach((n) => {
               existingPos[n.id] = { ...n.position };
@@ -381,7 +382,9 @@
           refreshUnions();
           saveTempLayout();
           applyFilters();
+        } finally {
           setLoading(false);
+        }
         }
 
         const children = ref([]);
