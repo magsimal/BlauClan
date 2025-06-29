@@ -969,6 +969,8 @@
           console.log('[applyPlace] suggestions cleared');
           placeFocus.value = false;
           if (document.activeElement) document.activeElement.blur();
+          showModal.value = false;
+          await nextTick();
           await FrontendApp.updatePerson(selected.value.id, {
             placeOfBirth: full,
             geonameId: s.geonameId,
@@ -984,9 +986,8 @@
           }
           editing.value = true;
           showModal.value = true;
-          nextTick(() => {
-            console.log('[applyPlace] update complete');
-          });
+          await nextTick();
+          console.log('[applyPlace] update complete');
         }
 
         function useTypedPlace() {
