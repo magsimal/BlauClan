@@ -33,6 +33,8 @@ services:
       SESSION_SECRET: ${SESSION_SECRET}
       USE_PROXY_AUTH: ${USE_PROXY_AUTH:-false}
       TRUSTED_PROXY_IPS: ${TRUSTED_PROXY_IPS:-}
+      PROXY_ADMIN_GROUP: ${PROXY_ADMIN_GROUP:-familytree_admin}
+      PROXY_USER_GROUP: ${PROXY_USER_GROUP:-familytree_user}
       NODE_ENV: ${NODE_ENV:-development}
     ports:
       - '${BACKEND_PORT:-3009}:${BACKEND_PORT:-3009}'

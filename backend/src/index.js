@@ -33,6 +33,8 @@ const sessionStore = new SequelizeStore({
 
 const LOGIN_ENABLED = process.env.LOGIN_ENABLED === 'true';
 const USE_PROXY_AUTH = process.env.USE_PROXY_AUTH === 'true';
+const PROXY_ADMIN_GROUP = process.env.PROXY_ADMIN_GROUP || 'familytree_admin';
+const PROXY_USER_GROUP = process.env.PROXY_USER_GROUP || 'familytree_user';
 
 function isTrustedProxy(req) {
   const ips = process.env.TRUSTED_PROXY_IPS?.split(',').map((ip) => ip.trim());
@@ -53,18 +55,24 @@ if (USE_PROXY_AUTH) {
   app.use((req, res, next) => {
     const remoteUser = req.headers['x-remote-user'];
     if (remoteUser && isTrustedProxy(req)) {
-      req.user = {
-        username: remoteUser,
-        groups: req.headers['x-remote-groups']
-          ? req.headers['x-remote-groups'].split(',').map((g) => g.trim())
-          : [],
-        email: req.headers['x-remote-email'] || '',
-        authedVia: 'proxy',
-      };
-      req.session.user = req.user.username;
-      req.session.name = null;
-      req.session.email = req.user.email || null;
-      req.session.avatar = null;
+      const groups = req.headers['x-remote-groups']
+        ? req.headers['x-remote-groups'].split(',').map((g) => g.trim())
+        : [];
+      const isAdmin = groups.includes(PROXY_ADMIN_GROUP);
+      const isUser = groups.includes(PROXY_USER_GROUP);
+      if (isAdmin || isUser) {
+        req.user = {
+          username: remoteUser,
+          groups,
+          email: req.headers['x-remote-email'] || '',
+          authedVia: 'proxy',
+        };
+        req.session.user = req.user.username;
+        req.session.name = null;
+        req.session.email = req.user.email || null;
+        req.session.avatar = null;
+        req.session.isAdmin = isAdmin;
+      }
     }
     next();
   });
