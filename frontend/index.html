@@ -384,8 +384,8 @@
     </header>
     <div id="main-content">
       <div id="app">
-        <div id="menu">
-      <div v-if="selectedPerson" class="edit-section">
+        <div id="menu" v-if="selectedPerson">
+      <div class="edit-section">
         <h2 data-i18n="editPerson">Edit Person</h2>
         <div class="form-row">
           <div class="col">
