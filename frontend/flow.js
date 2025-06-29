@@ -920,8 +920,14 @@
 
         let placeController = null;
         const fetchPlaces = debounce(async (val) => {
+          console.log('[fetchPlaces] query:', val);
           if (placeController) placeController.abort();
-          if (!val) { placeSuggestions.value = []; placeDisplayCount.value = 5; return; }
+          if (!val) {
+            placeSuggestions.value = [];
+            placeDisplayCount.value = 5;
+            console.log('[fetchPlaces] empty query - cleared suggestions');
+            return;
+          }
           placeController = new AbortController();
           const lang = I18nGlobal.getLang ? I18nGlobal.getLang().toLowerCase() : 'en';
           try {
@@ -931,16 +937,22 @@
             );
             placeSuggestions.value = res.ok ? await res.json() : [];
             placeDisplayCount.value = 5;
+            console.log('[fetchPlaces] results:', placeSuggestions.value.length);
           } catch (e) {
-            if (e.name !== 'AbortError') placeSuggestions.value = [];
+            if (e.name !== 'AbortError') {
+              console.error('[fetchPlaces] error', e);
+              placeSuggestions.value = [];
+            }
           }
         }, 250);
 
         function onPlaceInput(e) {
+          console.log('[onPlaceInput] value:', e.target.value);
           fetchPlaces(e.target.value);
         }
 
         function hidePlaceDropdown() {
+          console.log('[hidePlaceDropdown]');
           setTimeout(() => { placeFocus.value = false; }, 150);
         }
 
@@ -951,13 +963,16 @@
             + (s.postalCode ? ` (${s.postalCode})` : '')
             + (s.adminName1 ? `, ${s.adminName1}` : '')
             + ` ${s.countryCode}`;
+          console.log('[applyPlace] computed full', full);
           nextTick(() => {
             console.log('[applyPlace] updating selected person', selected.value);
             if (selected.value) {
               selected.value.placeOfBirth = full;
               selected.value.geonameId = s.geonameId;
+              console.log('[applyPlace] new placeOfBirth', selected.value.placeOfBirth);
             }
             placeSuggestions.value = [];
+            console.log('[applyPlace] suggestions cleared');
             placeFocus.value = false;
             if (document.activeElement) document.activeElement.blur();
             console.log('[applyPlace] update complete');
@@ -1007,6 +1022,13 @@
         watch(showConflict, (v) => v && refreshI18n());
         watch(showRelatives, (v) => v && refreshI18n());
         watch(showScores, (v) => v && refreshI18n());
+
+        watch(
+          () => selected.value && selected.value.placeOfBirth,
+          (newVal, oldVal) => {
+            console.log('[watch] placeOfBirth', oldVal, '=>', newVal);
+          },
+        );
 
         function applyFilters() {
           const f = filters.value;
