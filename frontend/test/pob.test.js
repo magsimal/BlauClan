@@ -23,8 +23,8 @@ describe('place of birth suggestions', () => {
           <input id="pobInput" v-model="selectedPerson.placeOfBirth"
             @focus="pobFocus=true" @blur="hidePobDropdown" @input="onPobInput">
           <ul v-if="pobFocus && pobSuggestions.length">
-            <li v-for="s in visiblePobSuggestions" :key="s.geonameId" class="list-group-item list-group-item-action" @mousedown.prevent="applyPob(s)">{{ s.name }}</li>
-            <li class="list-group-item list-group-item-action" @mousedown.prevent="useTypedPob">Use Exactly</li>
+            <li v-for="s in visiblePobSuggestions" :key="s.geonameId" class="list-group-item list-group-item-action" @pointerdown.stop.prevent="applyPob(s)">{{ s.name }}</li>
+            <li class="list-group-item list-group-item-action" @pointerdown.stop.prevent="useTypedPob">Use Exactly</li>
           </ul>
         </div>
       </div>`;
@@ -37,7 +37,7 @@ describe('place of birth suggestions', () => {
 
   afterEach(() => {
     delete global.Vue;
-    jest.resetAllMocks();
+    jest.restoreAllMocks();
   });
 
   test('selecting suggestion updates person', async () => {
@@ -45,10 +45,14 @@ describe('place of birth suggestions', () => {
     vmApp.pobFocus = true;
     await Vue.nextTick();
     const item = document.querySelector('li.list-group-item');
-    item.dispatchEvent(new Event('mousedown', { bubbles: true }));
+    const errSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    item.dispatchEvent(new Event('pointerdown', { bubbles: true }));
     await Vue.nextTick();
     expect(vmApp.selectedPerson.placeOfBirth).toContain('Foo');
     expect(vmApp.selectedPerson.geonameId).toBe(7);
     expect(vmApp.pobSuggestions.length).toBe(0);
+    expect(errSpy).not.toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 });
