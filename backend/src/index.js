@@ -231,9 +231,6 @@ app.get('/debug/headers', (req, res) => {
 });
 
 app.get('/api/me', async (req, res) => {
-  if (req.user) {
-    return res.json(req.user);
-  }
   const username = req.session.user || 'guest';
   let nodeId = req.session.meNodeId || null;
   if (username !== 'guest' && !nodeId) {
