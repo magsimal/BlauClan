@@ -51,6 +51,7 @@ and can perform bulk delete operations.
 
 To integrate with an external SSO proxy such as Authelia, set
 `USE_PROXY_AUTH=true` and list the proxy IPs in `TRUSTED_PROXY_IPS`
+
 (comma-separated). For example:
 `TRUSTED_PROXY_IPS=192.168.0.1,127.0.0.1,localhost`. When a request from a trusted IP includes the
 `Remote-User` header (or `X-Remote-User` for backward compatibility), the
@@ -69,7 +70,9 @@ location / {
 }
 ```
 
-Otherwise the standard LDAP login form is shown.
+Set `PROXY_ADMIN_GROUP` and `PROXY_USER_GROUP` if your SSO solution uses
+different group names than the defaults of `familytree_admin` and
+`familytree_user`.
 
 ### Running with Prebuilt Images
 

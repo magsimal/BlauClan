@@ -44,6 +44,8 @@ const sessionStore = new SequelizeStore({
 
 const LOGIN_ENABLED = process.env.LOGIN_ENABLED === 'true';
 const USE_PROXY_AUTH = process.env.USE_PROXY_AUTH === 'true';
+const PROXY_ADMIN_GROUP = process.env.PROXY_ADMIN_GROUP || 'familytree_admin';
+const PROXY_USER_GROUP = process.env.PROXY_USER_GROUP || 'familytree_user';
 
 const trustedProxies = process.env.TRUSTED_PROXY_IPS
   ? process.env.TRUSTED_PROXY_IPS.split(',').map((ip) => ip.trim())
@@ -80,29 +82,24 @@ if (USE_PROXY_AUTH) {
       req.headers['remote-user'] || req.headers['x-remote-user'];
     const proxyIp = getProxyIp(req);
     if (remoteUser && isTrustedProxy(req)) {
-      console.log(`Proxy auth success for ${remoteUser} from ${proxyIp}`);
-      const remoteGroups =
-        req.headers['remote-groups'] || req.headers['x-remote-groups'];
-      const remoteEmail =
-        req.headers['remote-email'] || req.headers['x-remote-email'];
-      req.user = {
-        username: remoteUser,
-        groups: remoteGroups
-          ? remoteGroups.split(',').map((g) => g.trim())
-          : [],
-        email: remoteEmail || '',
-        authedVia: 'proxy',
-      };
-      req.session.user = req.user.username;
-      req.session.name = null;
-      req.session.email = req.user.email || null;
-      req.session.avatar = null;
-    } else if (remoteUser) {
-      console.log(
-        `Proxy auth rejected for ${remoteUser} from ${proxyIp}: untrusted proxy or missing headers`,
-      );
-    } else {
-      console.log(`Proxy auth skipped: no remote user header (IP ${proxyIp})`);
+      const groups = req.headers['x-remote-groups']
+        ? req.headers['x-remote-groups'].split(',').map((g) => g.trim())
+        : [];
+      const isAdmin = groups.includes(PROXY_ADMIN_GROUP);
+      const isUser = groups.includes(PROXY_USER_GROUP);
+      if (isAdmin || isUser) {
+        req.user = {
+          username: remoteUser,
+          groups,
+          email: req.headers['x-remote-email'] || '',
+          authedVia: 'proxy',
+        };
+        req.session.user = req.user.username;
+        req.session.name = null;
+        req.session.email = req.user.email || null;
+        req.session.avatar = null;
+        req.session.isAdmin = isAdmin;
+      }
     }
     next();
   });
