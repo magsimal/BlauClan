@@ -159,12 +159,14 @@
           setTimeout(() => { this.pobFocus = false; }, 150);
         },
         applyPob(s) {
+          console.log('[applyPob] suggestion selected', s);
           const full =
             s.name
             + (s.postalCode ? ` (${s.postalCode})` : '')
             + (s.adminName1 ? `, ${s.adminName1}` : '')
             + ` ${s.countryCode}`;
           this.$nextTick(() => {
+            console.log('[applyPob] updating selected person', this.selectedPerson);
             if (this.selectedPerson) {
               this.selectedPerson.placeOfBirth = full;
               this.selectedPerson.geonameId = s.geonameId;
@@ -172,6 +174,7 @@
             this.pobSuggestions = [];
             this.pobFocus = false;
             if (document.activeElement) document.activeElement.blur();
+            console.log('[applyPob] update complete');
           });
         },
         useTypedPob() {
