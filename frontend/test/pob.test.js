@@ -17,14 +17,15 @@ describe('place of birth suggestions', () => {
   let vmApp;
 
   beforeEach(async () => {
+    jest.useFakeTimers();
     document.body.innerHTML = `
       <div id="app">
         <div v-if="selectedPerson" class="edit-section">
           <input id="pobInput" v-model="selectedPerson.placeOfBirth"
             @focus="pobFocus=true" @blur="hidePobDropdown" @input="onPobInput">
           <ul v-if="pobFocus && pobSuggestions.length">
-            <li v-for="s in visiblePobSuggestions" :key="s.geonameId" class="list-group-item list-group-item-action" @pointerdown.stop.prevent="applyPob(s)">{{ s.name }}</li>
-            <li class="list-group-item list-group-item-action" @pointerdown.stop.prevent="useTypedPob">Use Exactly</li>
+            <li v-for="s in visiblePobSuggestions" :key="s.geonameId" class="list-group-item list-group-item-action" @mousedown.stop.prevent="applyPob(s)">{{ s.name }}</li>
+            <li class="list-group-item list-group-item-action" @mousedown.stop.prevent="useTypedPob">Use Exactly</li>
           </ul>
         </div>
       </div>`;
@@ -38,6 +39,7 @@ describe('place of birth suggestions', () => {
   afterEach(() => {
     delete global.Vue;
     jest.restoreAllMocks();
+    jest.useRealTimers();
   });
 
   test('selecting suggestion updates person', async () => {
@@ -47,7 +49,10 @@ describe('place of birth suggestions', () => {
     const item = document.querySelector('li.list-group-item');
     const errSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
-    item.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    const input = document.getElementById('pobInput');
+    item.dispatchEvent(new Event('mousedown', { bubbles: true }));
+    input.dispatchEvent(new Event('blur', { bubbles: true }));
+    jest.runOnlyPendingTimers();
     await Vue.nextTick();
     expect(vmApp.selectedPerson.placeOfBirth).toContain('Foo');
     expect(vmApp.selectedPerson.geonameId).toBe(7);
