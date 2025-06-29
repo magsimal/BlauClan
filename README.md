@@ -54,6 +54,9 @@ To integrate with an external SSO proxy such as Authelia, set
 (comma-separated). When a request from a trusted IP includes the
 `X-Remote-User` header, the backend automatically creates a session for that
 user. Otherwise the standard LDAP login form is shown.
+Set `PROXY_ADMIN_GROUP` and `PROXY_USER_GROUP` if your SSO solution uses
+different group names than the defaults of `familytree_admin` and
+`familytree_user`.
 
 ### Running with Prebuilt Images
 
