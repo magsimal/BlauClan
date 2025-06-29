@@ -953,10 +953,8 @@
             + ` ${s.countryCode}`;
           selected.value.placeOfBirth = full;
           selected.value.geonameId = s.geonameId;
-          nextTick(() => {
-            placeSuggestions.value = [];
-            placeFocus.value = false;
-          });
+          placeSuggestions.value = [];
+          placeFocus.value = false;
         }
 
         function useTypedPlace() {
@@ -964,7 +962,7 @@
             selected.value.placeOfBirth = (selected.value.placeOfBirth || '').trim();
             selected.value.geonameId = null;
           }
-          nextTick(() => { placeFocus.value = false; });
+          placeFocus.value = false;
         }
 
         function onPlaceScroll(e) {
