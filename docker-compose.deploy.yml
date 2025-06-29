@@ -32,7 +32,7 @@ services:
       LDAP_ADMIN_FILTER: ${LDAP_ADMIN_FILTER}
       SESSION_SECRET: ${SESSION_SECRET}
       USE_PROXY_AUTH: ${USE_PROXY_AUTH:-false}
-      TRUSTED_PROXY_IPS: ${TRUSTED_PROXY_IPS:-}
+      TRUSTED_PROXY_IPS: ${TRUSTED_PROXY_IPS:-127.0.0.1,localhost}
       PROXY_ADMIN_GROUP: ${PROXY_ADMIN_GROUP:-familytree_admin}
       PROXY_USER_GROUP: ${PROXY_USER_GROUP:-familytree_user}
       NODE_ENV: ${NODE_ENV:-production}

@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>Tree of Life</title>
   <script src="vue.global.js"></script>
   <script>var production = 'development';</script>
@@ -24,7 +24,6 @@
     #page-wrapper { display: flex; flex-direction: column; min-height: 100vh; }
     #main-content { flex: 1; }
     #top-bar, #footer {
-      color: #fff;
       backdrop-filter: blur(8px);
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
       border: none;
@@ -32,27 +31,33 @@
     body.dark-theme #top-bar,
     body.dark-theme #footer {
       background-color: rgba(30,30,30,0.6);
-      background-image: radial-gradient(#2f2f2f 1px, transparent 1px);
-      background-size: 30px 30px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+      color: #fff;
     }
     body.bright-theme #top-bar,
     body.bright-theme #footer {
       background-color: rgba(255,255,255,0.6);
-      background-image:
-        linear-gradient(#f8fafc, #e2e8f0),
-        radial-gradient(#d1d5db 1px, transparent 1px);
-      background-size:
-        100% 100%,
-        30px 30px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      color: #000;
+    }
+    body.dark-theme {
+      background-color: #1e1e1e;
+      background-image: radial-gradient(circle at center, #2f2f2f, #1e1e1e);
+      background-attachment: fixed;
+    }
+    body.bright-theme {
+      background-color: #f8fafc;
+      background-image: radial-gradient(circle at center, #f8fafc, #e2e8f0);
+      background-attachment: fixed;
     }
     .brand-title { font-family: "Montserrat", sans-serif; font-weight: 700; }
+    body.dark-theme .brand-title { color: #fff; }
+    body.bright-theme .brand-title { color: #000; }
     #menu { width: 250px; float: left; }
     .edit-section { border: 1px solid #69b3a2; padding: 10px; border-radius: 6px; margin-top: 10px; }
     .card { border: 1px solid #ccc; padding: 8px; margin-top: 8px; border-radius: 6px; }
     #flow-app {
-      border: 1px solid #444;
+      border: none;
       float: left;
       width: calc(100% - 250px);
       touch-action: none;
@@ -64,15 +69,9 @@
       height: calc(100vh - 90px);
       position: relative;
     }
-    body.dark-theme #flow-app {
-      background-color: #1e1e1e;
-      background-image: radial-gradient(#2f2f2f 1px, transparent 1px);
-      background-size: 30px 30px;
-    }
+    body.dark-theme #flow-app,
     body.bright-theme #flow-app {
-      background-color: #f9fafb;
-      background-image: radial-gradient(#e5e7eb 0.5px, transparent 0.5px);
-      background-size: 20px 20px;
+      background-color: transparent;
     }
     @media (max-width: 768px) {
       #flow-app {
@@ -188,11 +187,30 @@
     }
     .modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; }
     .modal-content {
-      background: #fff;
       padding: 20px;
       border-radius: 8px;
       min-width: 350px;
       max-width: 500px;
+    }
+    body.dark-theme .modal { background: rgba(0,0,0,0.6); }
+    body.bright-theme .modal { background: rgba(0,0,0,0.3); }
+    body.dark-theme .modal-content {
+      background: #2a2a2a;
+      color: #eee;
+    }
+    body.bright-theme .modal-content {
+      background: #fff;
+      color: #000;
+    }
+    body.dark-theme .modal-content .btn-primary {
+      background-color: #3b82f6;
+      border-color: #3b82f6;
+      color: #fff;
+    }
+    body.dark-theme .modal-content .btn-secondary {
+      background-color: #555;
+      border-color: #555;
+      color: #fff;
     }
     #search-overlay li.active {
       background-color: #3b82f6;
@@ -288,6 +306,7 @@
       right: 6px;
       width: 28px;
       height: 28px;
+      z-index: 10;
     }
     .copy-btn:hover {
       background-color: #3b82f6;
@@ -299,6 +318,7 @@
       right: 40px;
       width: 28px;
       height: 28px;
+      z-index: 10;
     }
     .edit-btn:hover {
       background-color: #3b82f6;
@@ -311,6 +331,9 @@
       margin-right: 0.5rem;
     }
     #userLabel {
+      cursor: pointer;
+    }
+    #scoreTrigger {
       cursor: pointer;
     }
     .context-menu {
@@ -348,10 +371,10 @@
           <div class="d-flex align-items-center">
             <button id="loginBtn" class="btn btn-sm btn-secondary ml-2" style="display:none;" data-i18n="login">Login</button>
             <span id="userLabel" class="ml-2"></span>
-            <button id="scoreTrigger" class="icon-button d-flex align-items-center ml-2" data-i18n-title="leaderboard" title="Leaderboard">
+            <span id="scoreTrigger" class="d-flex align-items-center ml-2" data-i18n-title="leaderboard" title="Leaderboard" style="cursor:pointer;">
               <span class="material-icons" style="color:#f0ad4e;font-size:18px;">emoji_events</span>
               <span id="scoreValue" class="ml-1" style="font-size:0.8rem;"></span>
-            </button>
+            </span>
           </div>
         </div>
     </header>
@@ -391,8 +414,8 @@
             </label>
             <input class="form-control mb-2" v-model="selectedPerson.placeOfBirth" placeholder="Place of Birth" data-i18n-placeholder="placeOfBirth" @focus="pobFocus=true; onPobInput($event)" @blur="hidePobDropdown" @input="onPobInput">
             <ul v-if="pobFocus && pobSuggestions.length" class="list-group position-absolute" style="top:100%; left:0; right:0; z-index:1000; max-height:150px; overflow-y:auto;" @scroll="onPobScroll">
-              <li v-for="s in visiblePobSuggestions" :key="s.geonameId" class="list-group-item list-group-item-action" @mousedown.prevent="applyPob(s)">{{ s.name }}<span v-if="s.postalCode"> ({{ s.postalCode }})</span><span v-if="s.adminName1">, {{ s.adminName1 }}</span> {{ s.countryCode }}</li>
-              <li class="list-group-item list-group-item-action" @mousedown.prevent="useTypedPob" data-i18n="useExactly">Use Exactly</li>
+              <li v-for="s in visiblePobSuggestions" :key="s.geonameId" class="list-group-item list-group-item-action" @mousedown.stop.prevent="applyPob(s)">{{ s.name }}<span v-if="s.postalCode"> ({{ s.postalCode }})</span><span v-if="s.adminName1">, {{ s.adminName1 }}</span> {{ s.countryCode }}</li>
+              <li class="list-group-item list-group-item-action" @mousedown.stop.prevent="useTypedPob" data-i18n="useExactly">Use Exactly</li>
             </ul>
           </div>
           <div class="col">
@@ -450,6 +473,7 @@
       <img id="profileAvatar" class="rounded-circle mb-2" style="width:96px;height:96px;object-fit:cover;display:none;" alt="" data-i18n-alt="avatar" />
       <h4 data-i18n="profile" id="profileTitle">Profile</h4>
       <p id="profileUsername" class="mb-1"></p>
+      <p id="profileRole" class="mb-1"></p>
       <p id="profileName" class="mb-1"></p>
       <p id="profileEmail" class="mb-1"></p>
       <p id="profileNode" class="mb-2"></p>
@@ -552,6 +576,7 @@
       const profileModal = document.getElementById('profileModal');
       const profileAvatar = document.getElementById('profileAvatar');
       const profileUsername = document.getElementById('profileUsername');
+      const profileRole = document.getElementById('profileRole');
       const profileName = document.getElementById('profileName');
       const profileEmail = document.getElementById('profileEmail');
       const profileNode = document.getElementById('profileNode');
@@ -580,8 +605,14 @@
           }
           window.meNodeId = meNodeId;
           userLabel.textContent = data.username || '';
-          profileUsername.textContent = data.username || '';
-          profileName.textContent = data.name ? `${I18n.t('name')}: ${data.name}` : '';
+      profileUsername.textContent = data.username || '';
+          profileRole.textContent =
+            data.username && data.username !== 'guest'
+              ? data.admin
+                ? I18n.t('roleAdmin')
+                : I18n.t('roleUser')
+              : '';
+      profileName.textContent = data.name ? `${I18n.t('name')}: ${data.name}` : '';
           profileEmail.textContent = data.email ? `${I18n.t('email')}: ${data.email}` : '';
           profileNode.textContent = meNodeId ? `${I18n.t('myNode')}: ${meNodeId}` : '';
           if (data.avatar) {

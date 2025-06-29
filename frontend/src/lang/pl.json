@@ -92,5 +92,8 @@
   ,"leaderboard": "Ranking"
   ,"points": "Punkty"
   ,"rank": "Ranga"
+  ,"roleAdmin": "Administrator"
+  ,"roleUser": "U\u017cytkownik"
+  ,"resetScores": "Zresetuj punkty"
   ,"loading": "Ladowanie..."
 }

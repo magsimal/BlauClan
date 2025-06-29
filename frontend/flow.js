@@ -945,16 +945,17 @@
         }
 
         function applyPlace(s) {
-          if (!selected.value) return;
           const full =
             s.name
             + (s.postalCode ? ` (${s.postalCode})` : '')
             + (s.adminName1 ? `, ${s.adminName1}` : '')
             + ` ${s.countryCode}`;
-          selected.value.placeOfBirth = full;
-          selected.value.geonameId = s.geonameId;
-          placeSuggestions.value = [];
           nextTick(() => {
+            if (selected.value) {
+              selected.value.placeOfBirth = full;
+              selected.value.geonameId = s.geonameId;
+            }
+            placeSuggestions.value = [];
             placeFocus.value = false;
             if (document.activeElement) document.activeElement.blur();
           });
@@ -965,7 +966,7 @@
             selected.value.placeOfBirth = (selected.value.placeOfBirth || '').trim();
             selected.value.geonameId = null;
           }
-          nextTick(() => { placeFocus.value = false; });
+          placeFocus.value = false;
         }
 
         function onPlaceScroll(e) {
@@ -1139,6 +1140,11 @@
             leaderboard.value = res.ok ? await res.json() : [];
           } catch (e) { leaderboard.value = []; }
           showScores.value = true;
+        }
+
+        async function resetScores() {
+          await fetch('/api/score/reset', { method: 'POST' });
+          openScores();
         }
 
         openScoresFn = openScores;
@@ -1969,6 +1975,7 @@
         showDeleteAllButton,
         runDedup,
         openScores,
+        resetScores,
         showScores,
         myScore,
         leaderboard,
@@ -2188,7 +2195,8 @@
               </tbody>
             </table>
             <div class="text-right mt-2">
-              <button class="btn btn-primary btn-sm mr-2" @click="showScores = false" data-i18n="close">Close</button>
+              <button v-if="admin" class="btn btn-danger btn-sm mr-2" @click="resetScores" data-i18n="resetScores">Reset</button>
+              <button class="btn btn-primary btn-sm" @click="showScores = false" data-i18n="close">Close</button>
             </div>
           </div>
         </div>
@@ -2384,8 +2392,8 @@
                       </label>
                       <input class="form-control" v-model="selected.placeOfBirth" placeholder="City or town" title="Place of birth" data-i18n-placeholder="placeOfBirth" @focus="placeFocus=true; onPlaceInput($event)" @blur="hidePlaceDropdown" @input="onPlaceInput" />
                       <ul v-if="placeFocus && placeSuggestions.length" class="list-group position-absolute" style="top:100%; left:0; right:0; z-index:1000; max-height:150px; overflow-y:auto;" @scroll="onPlaceScroll">
-        <li v-for="s in visiblePlaceSuggestions" :key="s.geonameId" class="list-group-item list-group-item-action" @mousedown.prevent="applyPlace(s)">{{ s.name }}<span v-if="s.postalCode"> ({{ s.postalCode }})</span><span v-if="s.adminName1">, {{ s.adminName1 }}</span> {{ s.countryCode }}</li>
-                        <li class="list-group-item list-group-item-action" @mousedown.prevent="useTypedPlace" data-i18n="useExactly">Use Exactly</li>
+        <li v-for="s in visiblePlaceSuggestions" :key="s.geonameId" class="list-group-item list-group-item-action" @mousedown.stop.prevent="applyPlace(s)">{{ s.name }}<span v-if="s.postalCode"> ({{ s.postalCode }})</span><span v-if="s.adminName1">, {{ s.adminName1 }}</span> {{ s.countryCode }}</li>
+                        <li class="list-group-item list-group-item-action" @mousedown.stop.prevent="useTypedPlace" data-i18n="useExactly">Use Exactly</li>
                       </ul>
                     </div>
                   </div>

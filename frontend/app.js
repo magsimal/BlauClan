@@ -159,17 +159,17 @@
           setTimeout(() => { this.pobFocus = false; }, 150);
         },
         applyPob(s) {
-          if (this.selectedPerson) {
-            const full =
-              s.name
-              + (s.postalCode ? ` (${s.postalCode})` : '')
-              + (s.adminName1 ? `, ${s.adminName1}` : '')
-              + ` ${s.countryCode}`;
-            this.selectedPerson.placeOfBirth = full;
-            this.selectedPerson.geonameId = s.geonameId;
-          }
-          this.pobSuggestions = [];
+          const full =
+            s.name
+            + (s.postalCode ? ` (${s.postalCode})` : '')
+            + (s.adminName1 ? `, ${s.adminName1}` : '')
+            + ` ${s.countryCode}`;
           this.$nextTick(() => {
+            if (this.selectedPerson) {
+              this.selectedPerson.placeOfBirth = full;
+              this.selectedPerson.geonameId = s.geonameId;
+            }
+            this.pobSuggestions = [];
             this.pobFocus = false;
             if (document.activeElement) document.activeElement.blur();
           });
@@ -179,7 +179,7 @@
             this.selectedPerson.placeOfBirth = (this.selectedPerson.placeOfBirth || '').trim();
             this.selectedPerson.geonameId = null;
           }
-          this.$nextTick(() => { this.pobFocus = false; });
+          this.pobFocus = false;
         },
         onPobScroll(e) {
           if (e.target.scrollTop + e.target.clientHeight >= e.target.scrollHeight - 5) {

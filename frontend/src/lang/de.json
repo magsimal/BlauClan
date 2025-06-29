@@ -92,5 +92,8 @@
   ,"leaderboard": "Bestenliste"
   ,"points": "Punkte"
   ,"rank": "Rang"
+  ,"roleAdmin": "Administrator"
+  ,"roleUser": "Benutzer"
+  ,"resetScores": "Punkte zur\u00fccksetzen"
   ,"loading": "Wird geladen..."
 }
