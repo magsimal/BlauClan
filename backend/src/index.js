@@ -63,9 +63,10 @@ function getProxyIp(req) {
 }
 
 function isTrustedProxy(req) {
-  const realIp = getProxyIp(req);
-  return trustedProxies.includes(realIp);
+  const ip = getProxyIp(req);
+  return trustedProxies.includes(ip);
 }
+
 
 app.use(
   session({
@@ -80,18 +81,22 @@ if (USE_PROXY_AUTH) {
   app.use((req, res, next) => {
     const remoteUser =
       req.headers['remote-user'] || req.headers['x-remote-user'];
-    const proxyIp = getProxyIp(req);
+
     if (remoteUser && isTrustedProxy(req)) {
-      const groups = req.headers['x-remote-groups']
-        ? req.headers['x-remote-groups'].split(',').map((g) => g.trim())
+      const groupsHeader =
+        req.headers['remote-groups'] || req.headers['x-remote-groups'] || '';
+      const groups = groupsHeader
+        ? groupsHeader.split(',').map((g) => g.trim())
         : [];
       const isAdmin = groups.includes(PROXY_ADMIN_GROUP);
       const isUser = groups.includes(PROXY_USER_GROUP);
+
       if (isAdmin || isUser) {
         req.user = {
           username: remoteUser,
           groups,
-          email: req.headers['x-remote-email'] || '',
+          email:
+            req.headers['remote-email'] || req.headers['x-remote-email'] || '',
           authedVia: 'proxy',
         };
         req.session.user = req.user.username;
@@ -99,8 +104,15 @@ if (USE_PROXY_AUTH) {
         req.session.email = req.user.email || null;
         req.session.avatar = null;
         req.session.isAdmin = isAdmin;
+      } else {
+        req.session.user = 'guest';
+        req.session.isAdmin = false;
       }
+    } else if (remoteUser) {
+      req.session.user = 'guest';
+      req.session.isAdmin = false;
     }
+
     next();
   });
 }
