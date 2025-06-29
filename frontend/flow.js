@@ -964,17 +964,17 @@
             + (s.adminName1 ? `, ${s.adminName1}` : '')
             + ` ${s.countryCode}`;
           console.log('[applyPlace] computed full', full);
+          console.log('[applyPlace] updating selected person', selected.value);
+          if (selected.value) {
+            selected.value.placeOfBirth = full;
+            selected.value.geonameId = s.geonameId;
+            console.log('[applyPlace] new placeOfBirth', selected.value.placeOfBirth);
+          }
+          placeSuggestions.value = [];
+          console.log('[applyPlace] suggestions cleared');
+          placeFocus.value = false;
+          if (document.activeElement) document.activeElement.blur();
           nextTick(() => {
-            console.log('[applyPlace] updating selected person', selected.value);
-            if (selected.value) {
-              selected.value.placeOfBirth = full;
-              selected.value.geonameId = s.geonameId;
-              console.log('[applyPlace] new placeOfBirth', selected.value.placeOfBirth);
-            }
-            placeSuggestions.value = [];
-            console.log('[applyPlace] suggestions cleared');
-            placeFocus.value = false;
-            if (document.activeElement) document.activeElement.blur();
             console.log('[applyPlace] update complete');
           });
         }
