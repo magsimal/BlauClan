@@ -956,24 +956,34 @@
           setTimeout(() => { placeFocus.value = false; }, 150);
         }
 
-        function applyPlace(s) {
+        async function applyPlace(s) {
           console.log('[applyPlace] suggestion selected', s);
+          if (!selected.value) return;
           const full =
             s.name
             + (s.postalCode ? ` (${s.postalCode})` : '')
             + (s.adminName1 ? `, ${s.adminName1}` : '')
             + ` ${s.countryCode}`;
           console.log('[applyPlace] computed full', full);
-          console.log('[applyPlace] updating selected person', selected.value);
-          if (selected.value) {
-            selected.value.placeOfBirth = full;
-            selected.value.geonameId = s.geonameId;
-            console.log('[applyPlace] new placeOfBirth', selected.value.placeOfBirth);
-          }
           placeSuggestions.value = [];
           console.log('[applyPlace] suggestions cleared');
           placeFocus.value = false;
           if (document.activeElement) document.activeElement.blur();
+          await FrontendApp.updatePerson(selected.value.id, {
+            placeOfBirth: full,
+            geonameId: s.geonameId,
+          });
+          await load(true);
+          const node = nodes.value.find((n) => n.id === String(selected.value.id));
+          if (node) {
+            selected.value = { ...node.data, spouseId: '' };
+            useBirthApprox.value = !!selected.value.birthApprox;
+            useDeathApprox.value = !!selected.value.deathApprox;
+            birthExactBackup.value = selected.value.dateOfBirth || '';
+            deathExactBackup.value = selected.value.dateOfDeath || '';
+          }
+          editing.value = true;
+          showModal.value = true;
           nextTick(() => {
             console.log('[applyPlace] update complete');
           });
