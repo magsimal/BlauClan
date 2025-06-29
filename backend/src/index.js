@@ -80,7 +80,6 @@ if (USE_PROXY_AUTH) {
   app.use((req, res, next) => {
     const remoteUser =
       req.headers['remote-user'] || req.headers['x-remote-user'];
-    const proxyIp = getProxyIp(req);
     if (remoteUser && isTrustedProxy(req)) {
       const groups = req.headers['x-remote-groups']
         ? req.headers['x-remote-groups'].split(',').map((g) => g.trim())

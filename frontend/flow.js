@@ -74,7 +74,7 @@
           snapToGrid,
           snapGrid,
           viewport,
-        } = useVueFlow();
+        } = useVueFlow({ id: 'main-flow' });
         const horizontalGridSize =
           (window.AppConfig &&
             (AppConfig.horizontalGridSize || AppConfig.gridSize)) ||
@@ -2038,6 +2038,7 @@
             </svg>
           </button>
           <VueFlow
+            id="main-flow"
             style="width: 100%; height: 100%"
             v-model:nodes="nodes"
             v-model:edges="edges"
@@ -2164,6 +2165,7 @@
             </div>
             <div style="width:100%;height:60vh;">
               <VueFlow
+                id="relatives-flow"
                 :nodes="relativesNodes"
                 :edges="relativesEdges"
                 fit-view-on-init="true"
