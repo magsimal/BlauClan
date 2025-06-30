@@ -392,6 +392,22 @@
             .map((n) => n.data);
         }
 
+        function hasConnection(pid) {
+          const idStr = String(pid);
+          return edges.value.some(
+            (e) => e.source === idStr || e.target === idStr,
+          );
+        }
+
+        function handleConnected(pid, hid) {
+          const idStr = String(pid);
+          return edges.value.some(
+            (e) =>
+              (e.source === idStr && e.sourceHandle === hid) ||
+              (e.target === idStr && e.targetHandle === hid),
+          );
+        }
+
         function personName(pid) {
           const pNode = nodes.value.find((n) => n.id === String(pid));
           if (!pNode) return '';
@@ -1968,6 +1984,8 @@
         personName,
         shortInfo,
         shortInfoDiff,
+        hasConnection,
+        handleConnected,
         placeSuggestions,
         visiblePlaceSuggestions,
         placeFocus,
@@ -2069,7 +2087,7 @@
             selection-key-code="Shift"
           >
             <template #node-person="{ data }">
-              <div class="person-node" :class="{ 'highlight-node': data.highlight, 'faded-node': (selected || filterActive) && !data.highlight }" :style="{ borderColor: data.gender === 'female' ? '#f8c' : (data.gender === 'male' ? '#88f' : '#ccc') }">
+              <div class="person-node" :class="{ 'highlight-node': data.highlight, 'faded-node': (selected || filterActive) && !data.highlight, 'connected-node': hasConnection(data.id) }" :style="{ borderColor: data.gender === 'female' ? '#f8c' : (data.gender === 'male' ? '#88f' : '#ccc') }">
                 <span v-if="data.me" style="position:absolute;top:-8px;right:-8px;color:#f39c12;">&#9733;</span>
                 <div class="header">
                   <div class="avatar" :style="avatarStyle(data.gender, 40)">{{ initials(data) }}</div>
@@ -2085,19 +2103,19 @@
                     > - </span
                   >{{ data.dateOfDeath || data.deathApprox }}
                 </div>
-                <Handle type="source" position="top" id="s-top" />
-                <Handle type="source" position="right" id="s-right" />
-                <Handle type="source" position="bottom" id="s-bottom" />
-                <Handle type="source" position="left" id="s-left" />
-                <Handle type="target" position="top" id="t-top" />
-                <Handle type="target" position="right" id="t-right" />
-                <Handle type="target" position="bottom" id="t-bottom" />
-                <Handle type="target" position="left" id="t-left" />
+                <Handle type="source" position="top" id="s-top" :class="{ 'connected-handle': handleConnected(data.id, 's-top') }" />
+                <Handle type="source" position="right" id="s-right" :class="{ 'connected-handle': handleConnected(data.id, 's-right') }" />
+                <Handle type="source" position="bottom" id="s-bottom" :class="{ 'connected-handle': handleConnected(data.id, 's-bottom') }" />
+                <Handle type="source" position="left" id="s-left" :class="{ 'connected-handle': handleConnected(data.id, 's-left') }" />
+                <Handle type="target" position="top" id="t-top" :class="{ 'connected-handle': handleConnected(data.id, 't-top') }" />
+                <Handle type="target" position="right" id="t-right" :class="{ 'connected-handle': handleConnected(data.id, 't-right') }" />
+                <Handle type="target" position="bottom" id="t-bottom" :class="{ 'connected-handle': handleConnected(data.id, 't-bottom') }" />
+                <Handle type="target" position="left" id="t-left" :class="{ 'connected-handle': handleConnected(data.id, 't-left') }" />
               </div>
             </template>
             <template #node-helper="{ data }">
-              <div class="helper-node" :class="{ 'highlight-node': data.highlight, 'faded-node': (selected || filterActive) && !data.highlight }">
-                <Handle type="source" position="bottom" id="s-bottom" />
+              <div class="helper-node" :class="{ 'highlight-node': data.highlight, 'faded-node': (selected || filterActive) && !data.highlight, 'connected-node': hasConnection(data.id) }">
+                <Handle type="source" position="bottom" id="s-bottom" :class="{ 'connected-handle': handleConnected(data.id, 's-bottom') }" />
               </div>
             </template>
           </VueFlow>
