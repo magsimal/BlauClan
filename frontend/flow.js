@@ -63,7 +63,6 @@
         const edges = ref([]);
         const selectedEdge = ref(null);
         const I18nGlobal = typeof I18n !== 'undefined' ? I18n : { t: (k) => k };
-        const { fitView } = useZoomPanHelper();
         const {
           screenToFlowCoordinate,
           project,
@@ -75,6 +74,7 @@
           snapGrid,
           viewport,
         } = useVueFlow({ id: 'main-flow' });
+        const { fitView } = useZoomPanHelper({ id: 'main-flow' });
         const horizontalGridSize =
           (window.AppConfig &&
             (AppConfig.horizontalGridSize || AppConfig.gridSize)) ||
