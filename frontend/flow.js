@@ -562,6 +562,8 @@
         onMounted(async () => {
           await load();
           await nextTick();
+          // wait another tick so Vue Flow initializes properly
+          await nextTick();
           fitView();
           snapGrid.value = [horizontalGridSize, verticalGridSize];
           snapToGrid.value = true;
