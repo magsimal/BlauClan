@@ -62,6 +62,9 @@
         const nodes = ref([]);
         const edges = ref([]);
         const selectedEdge = ref(null);
+        const selectedNodes = computed(() =>
+          nodes.value.filter((n) => n.selected)
+        );
         const I18nGlobal = typeof I18n !== 'undefined' ? I18n : { t: (k) => k };
         const { fitView } = useZoomPanHelper();
         const {
@@ -70,7 +73,6 @@
           dimensions,
           addSelectedNodes,
           removeSelectedNodes,
-          getSelectedNodes,
           snapToGrid,
           snapGrid,
           viewport,
@@ -1153,7 +1155,7 @@
         }
 
         function openRelatives() {
-          const list = getSelectedNodes.value;
+          const list = selectedNodes.value;
           if (list.length !== 1) return;
           relativesRoot = parseInt(list[0].id);
           relativesMode.value = 'both';
@@ -1814,7 +1816,7 @@
       }
 
       async function copySelectedGedcom() {
-        const list = getSelectedNodes.value;
+        const list = selectedNodes.value;
         if (!list || list.length === 0) return;
         contextMenuVisible.value = false;
         const map = {};
@@ -1986,7 +1988,7 @@
         overlayClose,
         copyGedcom,
         copySelectedGedcom,
-        getSelectedNodes,
+        selectedNodes,
         openFilter,
         openRelatives,
         showFilter,
@@ -2152,13 +2154,14 @@
             <li @click="menuTidy">Tidy Up</li>
             <li @click="menuFit">Zoom to Fit</li>
             <li
-              v-if="getSelectedNodes && getSelectedNodes.value && getSelectedNodes.value.length > 0"
+              v-if="selectedNodes && selectedNodes.length > 0"
               @click="openRelatives"
               data-i18n="showRelatives"
             >Show Relatives</li>
             <li
-              v-if="getSelectedNodes && getSelectedNodes.value && getSelectedNodes.value.length > 0"
+              v-if="selectedNodes && selectedNodes.length > 0"
               @click="copySelectedGedcom"
+              data-i18n="copyGedcom"
             >Copy GEDCOM</li>
           </ul>
 
