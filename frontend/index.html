@@ -110,6 +110,13 @@
       width: 10px;
       height: 10px;
       border-radius: 50%;
+      opacity: 0;
+      visibility: hidden;
+    }
+    .vue-flow__node:hover .vue-flow__handle,
+    .vue-flow__handle.connected-handle {
+      opacity: 1;
+      visibility: visible;
     }
     body.dark-theme .vue-flow__handle {
       background: #444;
