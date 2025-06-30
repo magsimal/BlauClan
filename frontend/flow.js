@@ -1923,6 +1923,7 @@
         snapToGrid,
         horizontalGridSize,
         verticalGridSize,
+        shiftPressed,
         onNodeDragStop,
         handleContextMenu,
         handleTouchStart,
