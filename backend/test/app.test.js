@@ -235,7 +235,8 @@ describe('People API', () => {
       .get('/api/me')
       .set('X-Forwarded-For', '127.0.0.1')
       .set('Remote-User', 'proxyUser')
-      .set('Remote-Email', 'proxy@example.com');
+      .set('X-Remote-Email', 'proxy@example.com')
+      .set('X-Remote-Groups', 'familytree_user');
     expect(res.statusCode).toBe(200);
     expect(res.body.username).toBe('proxyUser');
     expect(res.body.email).toBe('proxy@example.com');
