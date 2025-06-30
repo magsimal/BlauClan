@@ -74,7 +74,7 @@
           snapGrid,
           viewport,
         } = useVueFlow({ id: 'main-flow' });
-        const { fitView } = useZoomPanHelper({ id: 'main-flow' });
+        const { fitView } = useZoomPanHelper('main-flow');
         const horizontalGridSize =
           (window.AppConfig &&
             (AppConfig.horizontalGridSize || AppConfig.gridSize)) ||
