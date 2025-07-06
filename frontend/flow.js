@@ -108,6 +108,11 @@
         );
         const isLoading = ref(true);
         function setLoading(v) { isLoading.value = v; }
+        watch(isLoading, (v) => {
+          if (!v) {
+            nextTick(() => fitView());
+          }
+        });
         const selected = ref(null);
         const showModal = ref(false);
         const contextMenuVisible = ref(false);
@@ -569,7 +574,6 @@
         onMounted(async () => {
           await load();
           await nextTick();
-          fitView();
           snapGrid.value = [horizontalGridSize, verticalGridSize];
           snapToGrid.value = true;
           updatePrivileges();
