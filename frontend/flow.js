@@ -66,7 +66,6 @@
           nodes.value.filter((n) => n.selected)
         );
         const I18nGlobal = typeof I18n !== 'undefined' ? I18n : { t: (k) => k };
-        const { fitView } = useZoomPanHelper();
         const {
           screenToFlowCoordinate,
           project,
@@ -76,7 +75,8 @@
           snapToGrid,
           snapGrid,
           viewport,
-        } = useVueFlow();
+        } = useVueFlow({ id: 'main-flow' });
+        const { fitView } = useZoomPanHelper('main-flow');
         const horizontalGridSize =
           (window.AppConfig &&
             (AppConfig.horizontalGridSize || AppConfig.gridSize)) ||
@@ -397,6 +397,22 @@
           children.value = nodes.value
             .filter((n) => n.data.fatherId === pid || n.data.motherId === pid)
             .map((n) => n.data);
+        }
+
+        function hasConnection(pid) {
+          const idStr = String(pid);
+          return edges.value.some(
+            (e) => e.source === idStr || e.target === idStr,
+          );
+        }
+
+        function handleConnected(pid, hid) {
+          const idStr = String(pid);
+          return edges.value.some(
+            (e) =>
+              (e.source === idStr && e.sourceHandle === hid) ||
+              (e.target === idStr && e.targetHandle === hid),
+          );
         }
 
         function personName(pid) {
@@ -827,6 +843,10 @@
           });
         }
 
+        function tidyRelatives() {
+          tidySubtree(relativesNodes.value);
+        }
+
         function onNodeClick(evt) {
           const e = evt.event || evt;
           if (e.shiftKey || shiftPressed.value) {
@@ -1126,6 +1146,37 @@
 
         function downloadSvg() {
           const treeData = buildHierarchy();
+          const exporter = window.ExportSvg;
+          if (exporter && typeof exporter.exportFamilyTree === 'function') {
+            exporter.exportFamilyTree({
+              data: treeData,
+              svgEl: null,
+              colors: { male: '#4e79a7', female: '#f28e2b', '?': '#bab0ab' },
+            });
+          } else {
+            console.error('ExportSvg utility not loaded');
+          }
+        }
+
+        function buildRelativesHierarchy() {
+          const map = {};
+          relativesNodes.value.forEach((n) => {
+            if (!n.data || n.data.helper) return;
+            map[n.data.id] = { ...n.data, children: [] };
+          });
+          Object.values(map).forEach((p) => {
+            const parent = map[p.fatherId] || map[p.motherId];
+            if (parent) parent.children.push(p);
+          });
+          return {
+            children: Object.values(map).filter(
+              (p) => !map[p.fatherId] && !map[p.motherId]
+            ),
+          };
+        }
+
+        function downloadRelativesSvg() {
+          const treeData = buildRelativesHierarchy();
           const exporter = window.ExportSvg;
           if (exporter && typeof exporter.exportFamilyTree === 'function') {
             exporter.exportFamilyTree({
@@ -2059,6 +2110,7 @@
         snapToGrid,
         horizontalGridSize,
         verticalGridSize,
+        shiftPressed,
         onNodeDragStop,
         handleContextMenu,
         handleTouchStart,
@@ -2095,6 +2147,8 @@
         relativesNodes,
         relativesEdges,
         relativesMode,
+        tidyRelatives,
+        downloadRelativesSvg,
         triggerSearch,
         handleNodesChange,
         gotoPerson,
@@ -2103,6 +2157,8 @@
         personName,
         shortInfo,
         shortInfoDiff,
+        hasConnection,
+        handleConnected,
         placeSuggestions,
         visiblePlaceSuggestions,
         placeFocus,
@@ -2183,6 +2239,7 @@
             </svg>
           </button>
           <VueFlow
+            id="main-flow"
             style="width: 100%; height: 100%"
             v-model:nodes="nodes"
             v-model:edges="edges"
@@ -2209,7 +2266,7 @@
             selection-key-code="Shift"
           >
             <template #node-person="{ data }">
-              <div class="person-node" :class="{ 'highlight-node': data.highlight, 'faded-node': (selected || filterActive) && !data.highlight }" :style="{ borderColor: data.gender === 'female' ? '#f8c' : (data.gender === 'male' ? '#88f' : '#ccc') }">
+              <div class="person-node" :class="{ 'highlight-node': data.highlight, 'faded-node': (selected || filterActive) && !data.highlight, 'connected-node': hasConnection(data.id) }" :style="{ borderColor: data.gender === 'female' ? '#f8c' : (data.gender === 'male' ? '#88f' : '#ccc') }">
                 <span v-if="data.me" style="position:absolute;top:-8px;right:-8px;color:#f39c12;">&#9733;</span>
                 <div class="header">
                   <div class="avatar" :style="avatarStyle(data.gender, 40)">{{ initials(data) }}</div>
@@ -2225,19 +2282,19 @@
                     > - </span
                   >{{ data.dateOfDeath || data.deathApprox }}
                 </div>
-                <Handle type="source" position="top" id="s-top" />
-                <Handle type="source" position="right" id="s-right" />
-                <Handle type="source" position="bottom" id="s-bottom" />
-                <Handle type="source" position="left" id="s-left" />
-                <Handle type="target" position="top" id="t-top" />
-                <Handle type="target" position="right" id="t-right" />
-                <Handle type="target" position="bottom" id="t-bottom" />
-                <Handle type="target" position="left" id="t-left" />
+                <Handle type="source" position="top" id="s-top" :class="{ 'connected-handle': handleConnected(data.id, 's-top') }" />
+                <Handle type="source" position="right" id="s-right" :class="{ 'connected-handle': handleConnected(data.id, 's-right') }" />
+                <Handle type="source" position="bottom" id="s-bottom" :class="{ 'connected-handle': handleConnected(data.id, 's-bottom') }" />
+                <Handle type="source" position="left" id="s-left" :class="{ 'connected-handle': handleConnected(data.id, 's-left') }" />
+                <Handle type="target" position="top" id="t-top" :class="{ 'connected-handle': handleConnected(data.id, 't-top') }" />
+                <Handle type="target" position="right" id="t-right" :class="{ 'connected-handle': handleConnected(data.id, 't-right') }" />
+                <Handle type="target" position="bottom" id="t-bottom" :class="{ 'connected-handle': handleConnected(data.id, 't-bottom') }" />
+                <Handle type="target" position="left" id="t-left" :class="{ 'connected-handle': handleConnected(data.id, 't-left') }" />
               </div>
             </template>
             <template #node-helper="{ data }">
-              <div class="helper-node" :class="{ 'highlight-node': data.highlight, 'faded-node': (selected || filterActive) && !data.highlight }">
-                <Handle type="source" position="bottom" id="s-bottom" />
+              <div class="helper-node" :class="{ 'highlight-node': data.highlight, 'faded-node': (selected || filterActive) && !data.highlight, 'connected-node': hasConnection(data.id) }">
+                <Handle type="source" position="bottom" id="s-bottom" :class="{ 'connected-handle': handleConnected(data.id, 's-bottom') }" />
               </div>
             </template>
           </VueFlow>
@@ -2310,6 +2367,7 @@
             </div>
             <div style="width:100%;height:60vh;">
               <VueFlow
+                id="relatives-flow"
                 :nodes="relativesNodes"
                 :edges="relativesEdges"
                 fit-view-on-init="true"
@@ -2322,7 +2380,9 @@
               />
             </div>
             <div class="text-right mt-2">
-              <button class="btn btn-primary btn-sm mr-2" @click="showRelatives = false" data-i18n="close">Close</button>
+              <button class="btn btn-secondary btn-sm mr-2" @click="tidyRelatives" data-i18n="tidyUp">Tidy Up</button>
+              <button class="btn btn-secondary btn-sm mr-2" @click="downloadRelativesSvg" data-i18n="downloadSvg">Download SVG</button>
+              <button class="btn btn-primary btn-sm" @click="showRelatives = false" data-i18n="close">Close</button>
             </div>
           </div>
         </div>
