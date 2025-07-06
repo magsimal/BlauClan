@@ -21,7 +21,13 @@
 
     var svg;
     if (svgEl) {
-      var bb = svgEl.getBBox();
+      var bb;
+      try {
+        bb = svgEl.getBBox();
+      } catch (e) {
+        var rect = svgEl.getBoundingClientRect();
+        bb = { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+      }
       svg = svgEl.cloneNode(true);
       svg.setAttribute('viewBox', bb.x + ' ' + bb.y + ' ' + bb.width + ' ' + bb.height);
       svg.setAttribute('width', bb.width);

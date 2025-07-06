@@ -62,6 +62,9 @@
         const nodes = ref([]);
         const edges = ref([]);
         const selectedEdge = ref(null);
+        const selectedNodes = computed(() =>
+          nodes.value.filter((n) => n.selected)
+        );
         const I18nGlobal = typeof I18n !== 'undefined' ? I18n : { t: (k) => k };
         const {
           screenToFlowCoordinate,
@@ -69,7 +72,6 @@
           dimensions,
           addSelectedNodes,
           removeSelectedNodes,
-          getSelectedNodes,
           snapToGrid,
           snapGrid,
           viewport,
@@ -104,8 +106,8 @@
             !!(window.AppConfig && AppConfig.showDeleteAllButton) &&
             admin.value,
         );
-        const loadingEl = document.getElementById('loadingOverlay');
-        function setLoading(v) { if (loadingEl) loadingEl.style.display = v ? 'flex' : 'none'; }
+        const isLoading = ref(true);
+        function setLoading(v) { isLoading.value = v; }
         const selected = ref(null);
         const showModal = ref(false);
         const contextMenuVisible = ref(false);
@@ -260,7 +262,8 @@
 
         async function load(preservePositions = false) {
           setLoading(true);
-          const existingPos = {};
+          try {
+            const existingPos = {};
           if (preservePositions) {
             nodes.value.forEach((n) => {
               existingPos[n.id] = { ...n.position };
@@ -381,7 +384,11 @@
           refreshUnions();
           saveTempLayout();
           applyFilters();
+        } catch (err) {
+          console.error('load failed', err);
+        } finally {
           setLoading(false);
+        }
         }
 
         const children = ref([]);
@@ -578,9 +585,6 @@
         onMounted(async () => {
           await load();
           await nextTick();
-          // wait another tick so Vue Flow initializes properly
-          await nextTick();
-          fitView();
           snapGrid.value = [horizontalGridSize, verticalGridSize];
           snapToGrid.value = true;
           updatePrivileges();
@@ -943,8 +947,14 @@
 
         let placeController = null;
         const fetchPlaces = debounce(async (val) => {
+          console.log('[fetchPlaces] query:', val);
           if (placeController) placeController.abort();
-          if (!val) { placeSuggestions.value = []; placeDisplayCount.value = 5; return; }
+          if (!val) {
+            placeSuggestions.value = [];
+            placeDisplayCount.value = 5;
+            console.log('[fetchPlaces] empty query - cleared suggestions');
+            return;
+          }
           placeController = new AbortController();
           const lang = I18nGlobal.getLang ? I18nGlobal.getLang().toLowerCase() : 'en';
           try {
@@ -954,34 +964,57 @@
             );
             placeSuggestions.value = res.ok ? await res.json() : [];
             placeDisplayCount.value = 5;
+            console.log('[fetchPlaces] results:', placeSuggestions.value.length);
           } catch (e) {
-            if (e.name !== 'AbortError') placeSuggestions.value = [];
+            if (e.name !== 'AbortError') {
+              console.error('[fetchPlaces] error', e);
+              placeSuggestions.value = [];
+            }
           }
         }, 250);
 
         function onPlaceInput(e) {
+          console.log('[onPlaceInput] value:', e.target.value);
           fetchPlaces(e.target.value);
         }
 
         function hidePlaceDropdown() {
+          console.log('[hidePlaceDropdown]');
           setTimeout(() => { placeFocus.value = false; }, 150);
         }
 
-        function applyPlace(s) {
+        async function applyPlace(s) {
+          console.log('[applyPlace] suggestion selected', s);
+          if (!selected.value) return;
           const full =
             s.name
             + (s.postalCode ? ` (${s.postalCode})` : '')
             + (s.adminName1 ? `, ${s.adminName1}` : '')
             + ` ${s.countryCode}`;
-          nextTick(() => {
-            if (selected.value) {
-              selected.value.placeOfBirth = full;
-              selected.value.geonameId = s.geonameId;
-            }
-            placeSuggestions.value = [];
-            placeFocus.value = false;
-            if (document.activeElement) document.activeElement.blur();
+          console.log('[applyPlace] computed full', full);
+          placeSuggestions.value = [];
+          console.log('[applyPlace] suggestions cleared');
+          placeFocus.value = false;
+          if (document.activeElement) document.activeElement.blur();
+          showModal.value = false;
+          await nextTick();
+          await FrontendApp.updatePerson(selected.value.id, {
+            placeOfBirth: full,
+            geonameId: s.geonameId,
           });
+          await load(true);
+          const node = nodes.value.find((n) => n.id === String(selected.value.id));
+          if (node) {
+            selected.value = { ...node.data, spouseId: '' };
+            useBirthApprox.value = !!selected.value.birthApprox;
+            useDeathApprox.value = !!selected.value.deathApprox;
+            birthExactBackup.value = selected.value.dateOfBirth || '';
+            deathExactBackup.value = selected.value.dateOfDeath || '';
+          }
+          editing.value = true;
+          showModal.value = true;
+          await nextTick();
+          console.log('[applyPlace] update complete');
         }
 
         function useTypedPlace() {
@@ -1010,8 +1043,6 @@
 
         watch(shiftPressed, (val) => {
           document.body.classList.toggle('multi-select-active', val);
-          const ind = document.getElementById('multiIndicator');
-          if (ind) ind.style.display = val ? 'block' : 'none';
         });
 
         function refreshI18n() {
@@ -1027,6 +1058,13 @@
         watch(showConflict, (v) => v && refreshI18n());
         watch(showRelatives, (v) => v && refreshI18n());
         watch(showScores, (v) => v && refreshI18n());
+
+        watch(
+          () => selected.value && selected.value.placeOfBirth,
+          (newVal, oldVal) => {
+            console.log('[watch] placeOfBirth', oldVal, '=>', newVal);
+          },
+        );
 
         function applyFilters() {
           const f = filters.value;
@@ -1168,7 +1206,7 @@
         }
 
         function openRelatives() {
-          const list = getSelectedNodes.value;
+          const list = selectedNodes.value;
           if (list.length !== 1) return;
           relativesRoot = parseInt(list[0].id);
           relativesMode.value = 'both';
@@ -1640,6 +1678,49 @@
             }
           });
 
+          const links = [];
+          list.forEach((p) => {
+            if (p.fatherId && map.has(p.fatherId)) {
+              links.push({ source: map.get(p.id), target: map.get(p.fatherId), type: 'parent' });
+            }
+            if (p.motherId && map.has(p.motherId)) {
+              links.push({ source: map.get(p.id), target: map.get(p.motherId), type: 'parent' });
+            }
+            (p.spouseIds || []).forEach((sid) => {
+              if (map.has(sid)) {
+                links.push({ source: map.get(p.id), target: map.get(sid), type: 'spouse' });
+              }
+            });
+          });
+
+          const nodesForSim = Array.from(map.values());
+          nodesForSim.forEach((n) => {
+            const g = gen.get(n.id) ?? 0;
+            n.y = g * ROW_HEIGHT;
+            n.fy = n.y;
+          });
+
+          const linkForce = d3
+            .forceLink(links)
+            .id((d) => d.id)
+            .distance((d) => (d.type === 'spouse' ? H_SPACING / 2 : 0))
+            .strength(1);
+          const collideForce = d3
+            .forceCollide()
+            .radius((d) => (d.width || 0) / 2 + H_SPACING / 2)
+            .strength(1);
+          const sim = d3
+            .forceSimulation(nodesForSim)
+            .force('link', linkForce)
+            .force('collide', collideForce)
+            .alphaDecay(0.05)
+            .velocityDecay(0.4)
+            .stop();
+          for (let i = 0; i < 120; i++) sim.tick();
+          nodesForSim.forEach((n) => {
+            delete n.fy;
+          });
+
           const rows = new Map();
           list.forEach((n) => {
             const g = gen.get(n.id) ?? 0;
@@ -1659,6 +1740,60 @@
               const minX = prevRight + H_SPACING;
               if (curr.x < minX) {
                 curr.x = minX;
+              }
+            }
+
+            const idMap = new Map(row.map((n) => [n.id, n]));
+            const parentUF = {};
+            const find = (id) => {
+              if (!(id in parentUF)) parentUF[id] = id;
+              if (parentUF[id] !== id) parentUF[id] = find(parentUF[id]);
+              return parentUF[id];
+            };
+            const unite = (a, b) => {
+              const pa = find(a);
+              const pb = find(b);
+              if (pa !== pb) parentUF[pb] = pa;
+            };
+            row.forEach((n) => {
+              (n.spouseIds || []).forEach((sid) => {
+                if (idMap.has(sid)) unite(n.id, sid);
+              });
+            });
+            const groupsMap = {};
+            row.forEach((n) => {
+              const root = find(n.id);
+              groupsMap[root] = groupsMap[root] || [];
+              groupsMap[root].push(n);
+            });
+            const groups = Object.values(groupsMap);
+            groups.forEach((g) => {
+              g.sort((a, b) => a.x - b.x);
+              for (let i = 1; i < g.length; i++) {
+                const prev = g[i - 1];
+                const curr = g[i];
+                const minX = prev.x + (prev.width || 0) + H_SPACING;
+                if (curr.x < minX) {
+                  const shift = minX - curr.x;
+                  for (let j = i; j < g.length; j++) {
+                    g[j].x += shift;
+                  }
+                }
+              }
+            });
+            groups.sort((a, b) => a[0].x - b[0].x);
+            for (let i = 1; i < groups.length; i++) {
+              const prevG = groups[i - 1];
+              const currG = groups[i];
+              const prevRight =
+                prevG[prevG.length - 1].x +
+                (prevG[prevG.length - 1].width || 0);
+              const minX = prevRight + H_SPACING;
+              if (currG[0].x < minX) {
+                const shift = minX - currG[0].x;
+                currG.forEach((n) => {
+                  n.x += shift;
+                });
               }
             }
           });
@@ -1829,7 +1964,7 @@
       }
 
       async function copySelectedGedcom() {
-        const list = getSelectedNodes.value;
+        const list = selectedNodes.value;
         if (!list || list.length === 0) return;
         contextMenuVisible.value = false;
         const map = {};
@@ -1938,7 +2073,8 @@
       appState = { nodes, fitView, nextTick };
 
        return {
-         nodes,
+        nodes,
+        isLoading,
         edges,
         loggedIn,
         admin,
@@ -2001,7 +2137,7 @@
         overlayClose,
         copyGedcom,
         copySelectedGedcom,
-        getSelectedNodes,
+        selectedNodes,
         openFilter,
         openRelatives,
         showFilter,
@@ -2043,6 +2179,12 @@
       },
       template: `
         <div style="width: 100%; height: 100%" @click="contextMenuVisible = false">
+          <div id="loadingOverlay" v-show="isLoading">
+            <div class="spinner-border text-primary" role="status">
+              <span class="sr-only" data-i18n="loading">Loading...</span>
+            </div>
+          </div>
+          <div id="multiIndicator" data-i18n="multiSelect" v-show="shiftPressed">Multi-select</div>
           <div id="toolbar">
           <button v-if="loggedIn" class="icon-button" @click="addPerson" v-tooltip="I18n.t('addPerson')">
             <svg viewBox="0 0 24 24"><path d="M5.25 6.375a4.125 4.125 0 1 1 8.25 0 4.125 4.125 0 0 1-8.25 0ZM2.25 19.125a7.125 7.125 0 0 1 14.25 0v.003l-.001.119a.75.75 0 0 1-.363.63 13.067 13.067 0 0 1-6.761 1.873c-2.472 0-4.786-.684-6.76-1.873a.75.75 0 0 1-.364-.63l-.001-.122ZM18.75 7.5a.75.75 0 0 0-1.5 0v2.25H15a.75.75 0 0 0 0 1.5h2.25v2.25a.75.75 0 0 0 1.5 0v-2.25H21a.75.75 0 0 0 0-1.5h-2.25V7.5Z"/></svg>
@@ -2058,7 +2200,7 @@
             <button class="icon-button" @click="loadLayout" v-tooltip="I18n.t('loadLayout')">
               <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M4.755 10.059a7.5 7.5 0 0 1 12.548-3.364l1.903 1.903h-3.183a.75.75 0 1 0 0 1.5h4.992a.75.75 0 0 0 .75-.75V4.356a.75.75 0 0 0-1.5 0v3.18l-1.9-1.9A9 9 0 0 0 3.306 9.67a.75.75 0 1 0 1.45.388Zm15.408 3.352a.75.75 0 0 0-.919.53 7.5 7.5 0 0 1-12.548 3.364l-1.902-1.903h3.183a.75.75 0 0 0 0-1.5H2.984a.75.75 0 0 0-.75.75v4.992a.75.75 0 0 0 1.5 0v-3.18l1.9 1.9a9 9 0 0 0 15.059-4.035.75.75 0 0 0-.53-.918Z" clip-rule="evenodd"/></svg>
             </button>
-            <button class="icon-button" @click="fitView" v-tooltip="I18n.t('fitToScreen')">
+            <button class="icon-button" @click="fitView()" v-tooltip="I18n.t('fitToScreen')">
               <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M15 3.75a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0V5.56l-3.97 3.97a.75.75 0 1 1-1.06-1.06l3.97-3.97h-2.69a.75.75 0 0 1-.75-.75Zm-12 0A.75.75 0 0 1 3.75 3h4.5a.75.75 0 0 1 0 1.5H5.56l3.97 3.97a.75.75 0 0 1-1.06 1.06L4.5 5.56v2.69a.75.75 0 0 1-1.5 0v-4.5Zm11.47 11.78a.75.75 0 1 1 1.06-1.06l3.97 3.97v-2.69a.75.75 0 0 1 1.5 0v4.5a.75.75 0 0 1-.75.75h-4.5a.75.75 0 0 1 0-1.5h2.69l-3.97-3.97Zm-4.94-1.06a.75.75 0 0 1 0 1.06L5.56 19.5h2.69a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1-.75-.75v-4.5a.75.75 0 0 1 1.5 0v2.69l3.97-3.97a.75.75 0 0 1 1.06 0Z" clip-rule="evenodd"/></svg>
             </button>
             <button class="icon-button" @click="gotoMe" v-tooltip="I18n.t('gotoMe')">
@@ -2166,13 +2308,14 @@
             <li @click="menuTidy">Tidy Up</li>
             <li @click="menuFit">Zoom to Fit</li>
             <li
-              v-if="getSelectedNodes && getSelectedNodes.value && getSelectedNodes.value.length === 1"
+              v-if="selectedNodes && selectedNodes.length > 0"
               @click="openRelatives"
               data-i18n="showRelatives"
             >Show Relatives</li>
             <li
-              v-if="getSelectedNodes && getSelectedNodes.value && getSelectedNodes.value.length > 0"
+              v-if="selectedNodes && selectedNodes.length > 0"
               @click="copySelectedGedcom"
+              data-i18n="copyGedcom"
             >Copy GEDCOM</li>
           </ul>
 

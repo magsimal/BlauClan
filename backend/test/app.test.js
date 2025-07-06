@@ -235,10 +235,24 @@ describe('People API', () => {
       .get('/api/me')
       .set('X-Forwarded-For', '127.0.0.1')
       .set('Remote-User', 'proxyUser')
-      .set('X-Remote-Email', 'proxy@example.com')
-      .set('X-Remote-Groups', 'familytree_user');
+      .set('Remote-Groups', 'familytree_user')
+      .set('Remote-Email', 'proxy@example.com');
     expect(res.statusCode).toBe(200);
     expect(res.body.username).toBe('proxyUser');
     expect(res.body.email).toBe('proxy@example.com');
+  });
+
+  test('ignores proxy headers from untrusted IP', async () => {
+    jest.resetModules();
+    process.env.TRUSTED_PROXY_IPS = '192.168.0.1';
+    const untrustedApp = require('../src/index');
+    const res = await request(untrustedApp)
+      .get('/api/me')
+      .set('X-Forwarded-For', '8.8.8.8')
+      .set('Remote-User', 'proxyUser')
+      .set('Remote-Groups', 'familytree_user')
+      .set('Remote-Email', 'proxy@example.com');
+    expect(res.statusCode).toBe(200);
+    expect(res.body.username).toBe('guest');
   });
 });

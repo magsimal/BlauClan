@@ -63,9 +63,10 @@ function getProxyIp(req) {
 }
 
 function isTrustedProxy(req) {
-  const realIp = getProxyIp(req);
-  return trustedProxies.includes(realIp);
+  const ip = getProxyIp(req);
+  return trustedProxies.includes(ip);
 }
+
 
 app.use(
   session({
@@ -80,17 +81,22 @@ if (USE_PROXY_AUTH) {
   app.use((req, res, next) => {
     const remoteUser =
       req.headers['remote-user'] || req.headers['x-remote-user'];
+
     if (remoteUser && isTrustedProxy(req)) {
-      const groups = req.headers['x-remote-groups']
-        ? req.headers['x-remote-groups'].split(',').map((g) => g.trim())
+      const groupsHeader =
+        req.headers['remote-groups'] || req.headers['x-remote-groups'] || '';
+      const groups = groupsHeader
+        ? groupsHeader.split(',').map((g) => g.trim())
         : [];
       const isAdmin = groups.includes(PROXY_ADMIN_GROUP);
       const isUser = groups.includes(PROXY_USER_GROUP);
+
       if (isAdmin || isUser) {
         req.user = {
           username: remoteUser,
           groups,
-          email: req.headers['x-remote-email'] || '',
+          email:
+            req.headers['remote-email'] || req.headers['x-remote-email'] || '',
           authedVia: 'proxy',
         };
         req.session.user = req.user.username;
@@ -98,8 +104,24 @@ if (USE_PROXY_AUTH) {
         req.session.email = req.user.email || null;
         req.session.avatar = null;
         req.session.isAdmin = isAdmin;
+        console.log(
+          `Proxy auth successful for ${remoteUser} as ${
+            isAdmin ? 'admin' : 'user'
+          }`,
+        );
+      } else {
+        req.session.user = 'guest';
+        req.session.isAdmin = false;
+        console.log(`Proxy auth groups not recognized for ${remoteUser}`);
       }
+    } else if (remoteUser) {
+      req.session.user = 'guest';
+      req.session.isAdmin = false;
+      console.log(
+        `Proxy auth ignored for ${remoteUser} from untrusted IP ${getProxyIp(req)}`,
+      );
     }
+
     next();
   });
 }
@@ -135,7 +157,7 @@ function requireAuth(req, res, next) {
 }
 
 function requireAdmin(req, res, next) {
-  if (LOGIN_ENABLED && !req.user && !req.session.isAdmin) {
+  if (LOGIN_ENABLED && !req.session.isAdmin) {
     return res.status(403).json({ error: 'admin required' });
   }
   next();
@@ -209,9 +231,6 @@ app.get('/debug/headers', (req, res) => {
 });
 
 app.get('/api/me', async (req, res) => {
-  if (req.user) {
-    return res.json(req.user);
-  }
   const username = req.session.user || 'guest';
   let nodeId = req.session.meNodeId || null;
   if (username !== 'guest' && !nodeId) {
