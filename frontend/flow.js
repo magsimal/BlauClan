@@ -839,6 +839,10 @@
           });
         }
 
+        function tidyRelatives() {
+          tidySubtree(relativesNodes.value);
+        }
+
         function onNodeClick(evt) {
           const e = evt.event || evt;
           if (e.shiftKey || shiftPressed.value) {
@@ -1104,6 +1108,37 @@
 
         function downloadSvg() {
           const treeData = buildHierarchy();
+          const exporter = window.ExportSvg;
+          if (exporter && typeof exporter.exportFamilyTree === 'function') {
+            exporter.exportFamilyTree({
+              data: treeData,
+              svgEl: null,
+              colors: { male: '#4e79a7', female: '#f28e2b', '?': '#bab0ab' },
+            });
+          } else {
+            console.error('ExportSvg utility not loaded');
+          }
+        }
+
+        function buildRelativesHierarchy() {
+          const map = {};
+          relativesNodes.value.forEach((n) => {
+            if (!n.data || n.data.helper) return;
+            map[n.data.id] = { ...n.data, children: [] };
+          });
+          Object.values(map).forEach((p) => {
+            const parent = map[p.fatherId] || map[p.motherId];
+            if (parent) parent.children.push(p);
+          });
+          return {
+            children: Object.values(map).filter(
+              (p) => !map[p.fatherId] && !map[p.motherId]
+            ),
+          };
+        }
+
+        function downloadRelativesSvg() {
+          const treeData = buildRelativesHierarchy();
           const exporter = window.ExportSvg;
           if (exporter && typeof exporter.exportFamilyTree === 'function') {
             exporter.exportFamilyTree({
@@ -1976,6 +2011,8 @@
         relativesNodes,
         relativesEdges,
         relativesMode,
+        tidyRelatives,
+        downloadRelativesSvg,
         triggerSearch,
         handleNodesChange,
         gotoPerson,
@@ -2129,7 +2166,7 @@
             <li @click="menuTidy">Tidy Up</li>
             <li @click="menuFit">Zoom to Fit</li>
             <li
-              v-if="getSelectedNodes && getSelectedNodes.value && getSelectedNodes.value.length > 0"
+              v-if="getSelectedNodes && getSelectedNodes.value && getSelectedNodes.value.length === 1"
               @click="openRelatives"
               data-i18n="showRelatives"
             >Show Relatives</li>
@@ -2200,7 +2237,9 @@
               />
             </div>
             <div class="text-right mt-2">
-              <button class="btn btn-primary btn-sm mr-2" @click="showRelatives = false" data-i18n="close">Close</button>
+              <button class="btn btn-secondary btn-sm mr-2" @click="tidyRelatives" data-i18n="tidyUp">Tidy Up</button>
+              <button class="btn btn-secondary btn-sm mr-2" @click="downloadRelativesSvg" data-i18n="downloadSvg">Download SVG</button>
+              <button class="btn btn-primary btn-sm" @click="showRelatives = false" data-i18n="close">Close</button>
             </div>
           </div>
         </div>
