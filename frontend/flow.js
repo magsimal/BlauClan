@@ -1691,6 +1691,60 @@
                 curr.x = minX;
               }
             }
+
+            const idMap = new Map(row.map((n) => [n.id, n]));
+            const parentUF = {};
+            const find = (id) => {
+              if (!(id in parentUF)) parentUF[id] = id;
+              if (parentUF[id] !== id) parentUF[id] = find(parentUF[id]);
+              return parentUF[id];
+            };
+            const unite = (a, b) => {
+              const pa = find(a);
+              const pb = find(b);
+              if (pa !== pb) parentUF[pb] = pa;
+            };
+            row.forEach((n) => {
+              (n.spouseIds || []).forEach((sid) => {
+                if (idMap.has(sid)) unite(n.id, sid);
+              });
+            });
+            const groupsMap = {};
+            row.forEach((n) => {
+              const root = find(n.id);
+              groupsMap[root] = groupsMap[root] || [];
+              groupsMap[root].push(n);
+            });
+            const groups = Object.values(groupsMap);
+            groups.forEach((g) => {
+              g.sort((a, b) => a.x - b.x);
+              for (let i = 1; i < g.length; i++) {
+                const prev = g[i - 1];
+                const curr = g[i];
+                const minX = prev.x + (prev.width || 0) + H_SPACING;
+                if (curr.x < minX) {
+                  const shift = minX - curr.x;
+                  for (let j = i; j < g.length; j++) {
+                    g[j].x += shift;
+                  }
+                }
+              }
+            });
+            groups.sort((a, b) => a[0].x - b[0].x);
+            for (let i = 1; i < groups.length; i++) {
+              const prevG = groups[i - 1];
+              const currG = groups[i];
+              const prevRight =
+                prevG[prevG.length - 1].x +
+                (prevG[prevG.length - 1].width || 0);
+              const minX = prevRight + H_SPACING;
+              if (currG[0].x < minX) {
+                const shift = minX - currG[0].x;
+                currG.forEach((n) => {
+                  n.x += shift;
+                });
+              }
+            }
           });
 
           list.forEach((n) => {
