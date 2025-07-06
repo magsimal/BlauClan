@@ -69,7 +69,7 @@
           -ms-user-select: none;
               user-select: none;
       -webkit-touch-callout: none;
-      height: calc(100vh - 90px);
+      height: calc(var(--vh, 1vh) * 100 - 90px);
       position: relative;
     }
     body.dark-theme #flow-app,
@@ -81,7 +81,7 @@
       #menu { width: 100%; }
       #flow-app {
         width: 100%;
-        height: calc(100vh - 90px);
+        height: calc(var(--vh, 1vh) * 100 - 90px);
         overflow: hidden;
       }
     }
@@ -501,6 +501,13 @@
   <script src="assets/vendor/fuse.min.js"></script>
   <script src="search.js"></script>
   <script src="assets/vendor/html2canvas.min.js"></script>
+  <script>
+    function updateVh() {
+      document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
+    }
+    window.addEventListener('resize', updateVh);
+    updateVh();
+  </script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       const THEME_KEY = 'preferredTheme';
