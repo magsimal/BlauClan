@@ -1627,6 +1627,49 @@
             }
           });
 
+          const links = [];
+          list.forEach((p) => {
+            if (p.fatherId && map.has(p.fatherId)) {
+              links.push({ source: map.get(p.id), target: map.get(p.fatherId), type: 'parent' });
+            }
+            if (p.motherId && map.has(p.motherId)) {
+              links.push({ source: map.get(p.id), target: map.get(p.motherId), type: 'parent' });
+            }
+            (p.spouseIds || []).forEach((sid) => {
+              if (map.has(sid)) {
+                links.push({ source: map.get(p.id), target: map.get(sid), type: 'spouse' });
+              }
+            });
+          });
+
+          const nodesForSim = Array.from(map.values());
+          nodesForSim.forEach((n) => {
+            const g = gen.get(n.id) ?? 0;
+            n.y = g * ROW_HEIGHT;
+            n.fy = n.y;
+          });
+
+          const linkForce = d3
+            .forceLink(links)
+            .id((d) => d.id)
+            .distance((d) => (d.type === 'spouse' ? H_SPACING / 2 : 0))
+            .strength(1);
+          const collideForce = d3
+            .forceCollide()
+            .radius((d) => (d.width || 0) / 2 + H_SPACING / 2)
+            .strength(1);
+          const sim = d3
+            .forceSimulation(nodesForSim)
+            .force('link', linkForce)
+            .force('collide', collideForce)
+            .alphaDecay(0.05)
+            .velocityDecay(0.4)
+            .stop();
+          for (let i = 0; i < 120; i++) sim.tick();
+          nodesForSim.forEach((n) => {
+            delete n.fy;
+          });
+
           const rows = new Map();
           list.forEach((n) => {
             const g = gen.get(n.id) ?? 0;
