@@ -108,6 +108,18 @@
         );
         const isLoading = ref(true);
         function setLoading(v) { isLoading.value = v; }
+        const flashMessage = ref('');
+        const flashType = ref('success');
+        const flashVisible = ref(false);
+        function flash(msg, type = 'success') {
+          flashMessage.value = msg;
+          flashType.value = type;
+          flashVisible.value = true;
+          setTimeout(() => { flashVisible.value = false; }, 1500);
+        }
+        function notifyTap() {
+          try { if (navigator.vibrate) navigator.vibrate(10); } catch (e) { /* ignore */ }
+        }
         const selected = ref(null);
         const showModal = ref(false);
         const contextMenuVisible = ref(false);
@@ -1109,6 +1121,7 @@
         }
 
         async function saveLayout() {
+          notifyTap();
           const payload = {
             nodes: nodes.value.map((n) => ({ id: n.id, x: n.position.x, y: n.position.y })),
           };
@@ -1118,12 +1131,17 @@
             body: JSON.stringify(payload),
           });
           try { localStorage.removeItem(TEMP_KEY); } catch (e) { /* ignore */ }
+          flash(I18nGlobal.t('layoutSaved'));
         }
 
         async function loadLayout() {
+          notifyTap();
+          setLoading(true);
           await applySavedLayout();
           refreshUnions();
           try { localStorage.removeItem(TEMP_KEY); } catch (e) { /* ignore */ }
+          setLoading(false);
+          flash(I18nGlobal.t('layoutLoaded'));
         }
 
 
@@ -1808,7 +1826,10 @@
 
 
 
-      function tidyUpLayout() {
+      async function tidyUpLayout() {
+        notifyTap();
+        setLoading(true);
+        await nextTick();
         const people = nodes.value
           .filter((n) => n.type === 'person')
           .map((n) => ({
@@ -1847,6 +1868,8 @@
 
         refreshUnions();
         saveTempLayout();
+        setLoading(false);
+        flash(I18nGlobal.t('layoutTidied'));
       }
 
         async function saveNewPerson() {
@@ -2174,6 +2197,11 @@
         showScores,
         myScore,
         leaderboard,
+        flashMessage,
+        flashVisible,
+        flashType,
+        flash,
+        notifyTap,
         I18n: I18nGlobal,
       };
       },
@@ -2184,6 +2212,7 @@
               <span class="sr-only" data-i18n="loading">Loading...</span>
             </div>
           </div>
+          <div id="flashBanner" v-show="flashVisible" :class="['alert', flashType==='success'?'alert-success':'alert-danger','text-center']">{{ flashMessage }}</div>
           <div id="multiIndicator" data-i18n="multiSelect" v-show="shiftPressed">Multi-select</div>
           <div id="toolbar">
           <button v-if="loggedIn" class="icon-button" @click="addPerson" v-tooltip="I18n.t('addPerson')">

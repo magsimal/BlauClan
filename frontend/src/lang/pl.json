@@ -95,5 +95,8 @@
   ,"roleAdmin": "Administrator"
   ,"roleUser": "U\u017cytkownik"
   ,"resetScores": "Zresetuj punkty"
+  ,"layoutLoaded": "Uklad wczytany"
+  ,"layoutSaved": "Uklad zapisany"
+  ,"layoutTidied": "Uklad uporz\u0105dkowany"
   ,"loading": "Ladowanie..."
 }
