@@ -95,5 +95,8 @@
   ,"roleAdmin": "Admin"
   ,"roleUser": "User"
   ,"resetScores": "Reset Scores"
+  ,"layoutLoaded": "Layout loaded"
+  ,"layoutSaved": "Layout saved"
+  ,"layoutTidied": "Layout tidied"
   ,"loading": "Loading..."
 }

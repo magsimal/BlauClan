@@ -95,5 +95,8 @@
   ,"roleAdmin": "Administrator"
   ,"roleUser": "Benutzer"
   ,"resetScores": "Punkte zur\u00fccksetzen"
+  ,"layoutLoaded": "Layout geladen"
+  ,"layoutSaved": "Layout gespeichert"
+  ,"layoutTidied": "Layout aufger\u00e4umt"
   ,"loading": "Wird geladen..."
 }

@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>Tree of Life</title>
+  <link rel="icon" type="image/png" href="favicon.png?v=0.1.5">
   <script src="vue.global.js"></script>
   <script>var production = 'development';</script>
   <link rel="stylesheet" href="vue-flow-style.css">
@@ -184,6 +185,15 @@
     body.dark-theme #loadingOverlay {
       background: rgba(0,0,0,0.8);
     }
+    #flashBanner {
+      position: fixed;
+      top: 60px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1100;
+      min-width: 200px;
+      max-width: 90%;
+    }
     #multiIndicator {
       position: absolute;
       top: 10px;
@@ -311,6 +321,9 @@
       height: 16px;
       fill: currentColor;
       stroke: currentColor;
+    }
+    .icon-button:active {
+      transform: scale(0.95);
     }
     .copy-btn {
       position: absolute;
