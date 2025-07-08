@@ -27,6 +27,9 @@ the backend listens on port `3009`. You can change this by setting the
 `BACKEND_PORT` environment variable when running `docker-compose`. The value is
 used for both the Node.js server and the Nginx proxy configuration. The front-end itself is served on
 `http://localhost:8080`.
+### Custom Favicon
+Upload your icon to `frontend/favicon.png` on GitHub (use **Add file -> Upload files** in that folder). Keep the filename as `favicon.png` so `index.html` picks it up. Bump the version query in the `<link>` tag when you replace the image to force browsers to reload it.
+
 
 For place of birth suggestions to work you must provide a valid
 GeoNames username. Sign up for a free account at
