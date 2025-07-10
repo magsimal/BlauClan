@@ -31,6 +31,51 @@
     const maxLen = Math.max(a.length, b.length);
     return (maxLen - dist) / maxLen;
   }
+
+  function normalizePlace(str) {
+    if (!str) return '';
+    let s = str.toLowerCase().trim();
+    s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    s = s.replace(/[,\.]/g, '');
+    s = s.replace(/frankfurt a ?\. ?m\.?/g, 'frankfurt am main');
+    s = s.replace(/koln/g, 'cologne');
+    s = s.replace(/deutschland/g, 'germany');
+    return s;
+  }
+
+  function firstNameSimilarity(a, b) {
+    a = (a || '').trim();
+    b = (b || '').trim();
+    if (!a || !b) return 0;
+    const aParts = a.toLowerCase().split(/\s+/);
+    const bParts = b.toLowerCase().split(/\s+/);
+    if (aParts.length > 1 && bParts.length > 1) {
+      if (similarity(aParts[1], bParts[1]) < 0.82) {
+        return 0;
+      }
+    }
+    return similarity(a, b);
+  }
+
+  function hasConflictingInfo(p, e) {
+    const yearBirthP = getYear(p.dateOfBirth || p.birthApprox);
+    const yearBirthE = getYear(e.dateOfBirth || e.birthApprox);
+    if (yearBirthP && yearBirthE && Math.abs(yearBirthP - yearBirthE) >= 5) {
+      return true;
+    }
+    const yearDeathP = getYear(p.dateOfDeath || p.deathApprox);
+    const yearDeathE = getYear(e.dateOfDeath || e.deathApprox);
+    if (yearDeathP && yearDeathE && Math.abs(yearDeathP - yearDeathE) >= 5) {
+      return true;
+    }
+    if (p.placeOfBirth && e.placeOfBirth && similarity(normalizePlace(p.placeOfBirth), normalizePlace(e.placeOfBirth)) < 0.6) {
+      return true;
+    }
+    if (p.placeOfDeath && e.placeOfDeath && similarity(normalizePlace(p.placeOfDeath), normalizePlace(e.placeOfDeath)) < 0.6) {
+      return true;
+    }
+    return false;
+  }
   const getYear = (str) => {
     const m = str && /^(\d{4})/.exec(str);
     return m ? parseInt(m[1], 10) : null;
@@ -43,7 +88,7 @@
     if (ln && ln2 && ln === ln2) score += 1.5;
     else if (ln && mn2 && ln === mn2) score += 1.5;
 
-    score += similarity(p.firstName, e.firstName) * 2;
+    score += firstNameSimilarity(p.firstName, e.firstName) * 2;
 
     const yearP = getYear(p.dateOfBirth || p.birthApprox);
     const yearE = getYear(e.dateOfBirth || e.birthApprox);
@@ -54,7 +99,7 @@
       else if (diff <= 3) score += 1;
     }
 
-    score += similarity(p.placeOfBirth, e.placeOfBirth);
+    score += similarity(normalizePlace(p.placeOfBirth), normalizePlace(e.placeOfBirth));
 
     return score;
   }
@@ -65,13 +110,13 @@
     const mn2 = (e.maidenName || '').toLowerCase();
     if ((ln && ln2 && ln === ln2) || (ln && mn2 && ln === mn2)) count += 1;
 
-    if (similarity(p.firstName, e.firstName) >= 0.82) count += 1;
+    if (firstNameSimilarity(p.firstName, e.firstName) >= 0.82) count += 1;
 
     const yearP = getYear(p.dateOfBirth || p.birthApprox);
     const yearE = getYear(e.dateOfBirth || e.birthApprox);
     if (yearP && yearE && Math.abs(yearP - yearE) <= 1) count += 1;
 
-    if (similarity(p.placeOfBirth, e.placeOfBirth) >= 0.8) count += 1;
+    if (similarity(normalizePlace(p.placeOfBirth), normalizePlace(e.placeOfBirth)) >= 0.8) count += 1;
 
     return count;
   }
@@ -83,6 +128,9 @@
         return { match: e, score: 100 };
       }
       if (person.gender && e.gender && person.gender !== e.gender) {
+        continue;
+      }
+      if (hasConflictingInfo(person, e)) {
         continue;
       }
       const sc = matchScore(person, e);
