@@ -40,8 +40,8 @@
     const ln = (p.lastName || '').toLowerCase();
     const ln2 = (e.lastName || '').toLowerCase();
     const mn2 = (e.maidenName || '').toLowerCase();
-    if (ln && ln2 && ln === ln2) score += 3;
-    else if (ln && mn2 && ln === mn2) score += 3;
+    if (ln && ln2 && ln === ln2) score += 1.5;
+    else if (ln && mn2 && ln === mn2) score += 1.5;
 
     score += similarity(p.firstName, e.firstName) * 2;
 
@@ -65,7 +65,7 @@
     const mn2 = (e.maidenName || '').toLowerCase();
     if ((ln && ln2 && ln === ln2) || (ln && mn2 && ln === mn2)) count += 1;
 
-    if (similarity(p.firstName, e.firstName) >= 0.8) count += 1;
+    if (similarity(p.firstName, e.firstName) >= 0.82) count += 1;
 
     const yearP = getYear(p.dateOfBirth || p.birthApprox);
     const yearE = getYear(e.dateOfBirth || e.birthApprox);
@@ -81,6 +81,9 @@
     for (const e of existing) {
       if (person.gedcomId && e.gedcomId && person.gedcomId === e.gedcomId) {
         return { match: e, score: 100 };
+      }
+      if (person.gender && e.gender && person.gender !== e.gender) {
+        continue;
       }
       const sc = matchScore(person, e);
       const matches = attributeMatchCount(person, e);

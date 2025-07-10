@@ -1,4 +1,5 @@
 const { findBestMatch, matchScore } = require('../src/utils/dedup');
+const cases = require('./dedupCases');
 
 describe('deduplication utils', () => {
   test('findBestMatch chooses closest match', () => {
@@ -25,5 +26,18 @@ describe('deduplication utils', () => {
     const person = { firstName: 'Jon', lastName: 'Doe' };
     const { match } = findBestMatch(person, existing);
     expect(match).toBe(null);
+  });
+});
+
+describe('deduplication scenarios', () => {
+  cases.forEach(({ desc, person, existing, shouldMatch }) => {
+    test(desc, () => {
+      const { match } = findBestMatch(person, existing);
+      if (shouldMatch) {
+        expect(match).not.toBe(null);
+      } else {
+        expect(match).toBe(null);
+      }
+    });
   });
 });
