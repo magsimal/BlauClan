@@ -188,6 +188,7 @@
         });
         const filterActive = ref(false);
         const focusedView = ref(false);
+        const hiddenCount = ref(0);
         let longPressTimer = null;
         const UNION_Y_OFFSET = 20;
         let unions = {};
@@ -613,6 +614,11 @@
         const shiftPressed = ref(false);
 
         onMounted(async () => {
+          if (typeof window.focusedViewSetting !== 'undefined') {
+            focusedView.value = !!window.focusedViewSetting;
+          } else {
+            try { focusedView.value = localStorage.getItem('focusedView') === 'true'; } catch (e) { /* ignore */ }
+          }
           await load();
           await nextTick();
           snapGrid.value = [horizontalGridSize, verticalGridSize];
@@ -788,6 +794,7 @@
           if (!focusedView.value || !window.meNodeId) {
             nodes.value.forEach((n) => { if (n.data) n.data.hidden = false; });
             edges.value.forEach((e) => removeClass(e, 'hidden-edge'));
+            hiddenCount.value = 0;
             return;
           }
           const allowed = getBloodlineSet(window.meNodeId);
@@ -801,6 +808,7 @@
               addClass(e, 'hidden-edge');
             }
           });
+          hiddenCount.value = nodes.value.filter((n) => n.data && n.data.hidden).length;
         }
 
         function computeRelatives() {
@@ -997,9 +1005,27 @@
           zoomTo(Math.max(0.1, (viewport.value.zoom || 1) * 0.95));
         }
 
+        async function saveFocusedSetting(val) {
+          if (window.currentUser && window.currentUser !== 'guest') {
+            try {
+              await fetch('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ focusedView: val })
+              });
+            } catch (e) { /* ignore */ }
+          } else {
+            try { localStorage.setItem('focusedView', val ? 'true' : 'false'); } catch (e) { /* ignore */ }
+          }
+        }
+
         function toggleFocused() {
-          if (!window.meNodeId) return;
+          if (!window.meNodeId) {
+            flash(I18nGlobal.t('defineMeFirst'), 'danger');
+            return;
+          }
           focusedView.value = !focusedView.value;
+          saveFocusedSetting(focusedView.value);
           applyFocusedView();
         }
 
@@ -2303,6 +2329,7 @@
         zoomOutStep,
         toggleFocused,
         focusedView,
+        hiddenCount,
         hasMe,
         personName,
         shortInfo,
@@ -2341,6 +2368,7 @@
           </div>
           <div id="flashBanner" v-show="flashVisible" :class="['alert', flashType==='success'?'alert-success':'alert-danger','text-center']">{{ flashMessage }}</div>
           <div id="multiIndicator" data-i18n="multiSelect" v-show="shiftPressed">Multi-select</div>
+          <div id="hiddenIndicator" v-show="hiddenCount > 0">{{ hiddenCount }} {{ I18n.t('personsHidden') }}</div>
           <div id="toolbar">
           <button v-if="loggedIn" class="icon-button" @click="addPerson" v-tooltip="I18n.t('addPerson')">
             <svg viewBox="0 0 24 24"><path d="M5.25 6.375a4.125 4.125 0 1 1 8.25 0 4.125 4.125 0 0 1-8.25 0ZM2.25 19.125a7.125 7.125 0 0 1 14.25 0v.003l-.001.119a.75.75 0 0 1-.363.63 13.067 13.067 0 0 1-6.761 1.873c-2.472 0-4.786-.684-6.76-1.873a.75.75 0 0 1-.364-.63l-.001-.122ZM18.75 7.5a.75.75 0 0 0-1.5 0v2.25H15a.75.75 0 0 0 0 1.5h2.25v2.25a.75.75 0 0 0 1.5 0v-2.25H21a.75.75 0 0 0 0-1.5h-2.25V7.5Z"/></svg>

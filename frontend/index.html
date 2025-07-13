@@ -324,6 +324,10 @@
       border-color: #3b82f6;
       box-shadow: 0 0 5px #3b82f6;
     }
+    .icon-button.disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
     .icon-button svg {
       width: 16px;
       height: 16px;
@@ -356,6 +360,17 @@
     .edit-btn:hover {
       background-color: #3b82f6;
       color: #fff;
+    }
+    #hiddenIndicator {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      background: rgba(0,0,0,0.7);
+      color: #fff;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      z-index: 20;
     }
     #top-bar {
       position: relative;
@@ -553,6 +568,8 @@
           if (savedTheme) toggle.checked = savedTheme === 'dark';
           langSelect.value = I18n.getLang();
           await I18n.setLang(langSelect.value);
+          const fv = (() => { try { return localStorage.getItem('focusedView'); } catch (e) { return null; } })();
+          window.focusedViewSetting = fv === 'true';
           updateTheme(false);
           return;
         }
@@ -562,6 +579,7 @@
           if (data) {
             if (data.theme) { toggle.checked = data.theme === 'dark'; }
             if (data.language) { langSelect.value = data.language; await I18n.setLang(data.language); }
+            window.focusedViewSetting = !!data.focusedView;
           }
           updateTheme(false);
         } catch (e) { /* ignore */ }
