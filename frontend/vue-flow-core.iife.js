@@ -1,5 +1,6 @@
 var VueFlowCore = function(exports, vue) {
   "use strict";
+  let isUpdatingNodeDimensions = false;
   function tryOnScopeDispose(fn) {
     if (vue.getCurrentScope()) {
       vue.onScopeDispose(fn);
@@ -6002,11 +6003,17 @@ Edge: ${id2}`
       }
     };
     const updateNodeDimensions = (updates) => {
+      if (isUpdatingNodeDimensions) {
+        return;
+      }
+      isUpdatingNodeDimensions = true;
       if (!state.vueFlowRef) {
+        isUpdatingNodeDimensions = false;
         return;
       }
       const viewportNode = state.vueFlowRef.querySelector(".vue-flow__transformationpane");
       if (!viewportNode) {
+        isUpdatingNodeDimensions = false;
         return;
       }
       const style = window.getComputedStyle(viewportNode);
@@ -6039,6 +6046,7 @@ Edge: ${id2}`
       if (changes.length) {
         state.hooks.nodesChange.trigger(changes);
       }
+      isUpdatingNodeDimensions = false;
     };
     const nodeSelectionHandler = (nodes, selected) => {
       const nodeIds2 = nodes.map((n) => n.id);
