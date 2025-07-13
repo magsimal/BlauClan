@@ -9101,7 +9101,7 @@ Edge: ${id2}`
       });
       vue.watch([() => node.value.type, () => node.value.sourcePosition, () => node.value.targetPosition], () => {
         vue.nextTick(() => {
-          updateNodeDimensions([{ id: props.id, nodeElement: nodeElement.value, forceUpdate: true }]);
+          updateNodeDimensions([{ id: props.id, nodeElement: nodeElement.value, forceUpdate: false }]);
         });
       });
       vue.watch(
@@ -9241,7 +9241,7 @@ Edge: ${id2}`
       }
       function updateInternals() {
         if (nodeElement.value) {
-          updateNodeDimensions([{ id: props.id, nodeElement: nodeElement.value, forceUpdate: true }]);
+          updateNodeDimensions([{ id: props.id, nodeElement: nodeElement.value, forceUpdate: false }]);
         }
       }
       function onMouseEnter(event) {
@@ -9395,7 +9395,7 @@ Edge: ${id2}`
             return {
               id: id2,
               nodeElement: entry.target,
-              forceUpdate: true
+              forceUpdate: false
             };
           });
           vue.nextTick(() => updateNodeDimensions(updates));
