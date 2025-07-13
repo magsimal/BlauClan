@@ -29,9 +29,9 @@
 
   function focusNode(pid) {
     if (!appState) return;
-    const { nodes, fitView, nextTick } = appState;
+    const { fitView, nextTick, getNodeById } = appState;
     nextTick(() => {
-      const node = nodes.value.find((n) => n.id === String(pid));
+      const node = getNodeById(pid);
       if (!node) return;
       fitView({ nodes: [String(pid)], maxZoom: 1.5, padding: 0.1 });
       node.data.highlight = true;
@@ -60,6 +60,14 @@
       components: { VueFlow, Handle },
       setup() {
         const nodes = ref([]);
+        const nodeMap = new Map();
+        function rebuildNodeMap() {
+          nodeMap.clear();
+          nodes.value.forEach((n) => nodeMap.set(n.id, n));
+        }
+        function getNodeById(id) {
+          return nodeMap.get(String(id)) || null;
+        }
         const edges = ref([]);
         const selectedEdge = ref(null);
         const selectedNodes = computed(() =>
@@ -311,6 +319,7 @@
             position: existingPos[p.id] || positions[p.id],
             data: { ...p, me: window.meNodeId && p.id === window.meNodeId },
           }));
+          rebuildNodeMap();
 
           unions = {};
           edges.value = [];
@@ -334,14 +343,16 @@
                 (positions[child.fatherId].y + positions[child.motherId].y) / 2 +
                 UNION_Y_OFFSET;
               const pos = { x: midX, y: midY };
-              nodes.value.push({
+              const uNode = {
                 id: union.id,
                 type: 'helper',
                 position: existingPos[union.id] || pos,
                 data: { _gen: idMap[child.fatherId]._gen, helper: true },
                 draggable: false,
                 selectable: false,
-              });
+              };
+              nodes.value.push(uNode);
+              nodeMap.set(uNode.id, uNode);
               positions[union.id] = pos;
             }
             union.children.push(child.id);
@@ -349,8 +360,8 @@
 
           Object.values(unions).forEach((m) => {
             const handles = spouseHandles(
-              nodes.value.find((n) => n.id === String(m.fatherId)),
-              nodes.value.find((n) => n.id === String(m.motherId)),
+              getNodeById(m.fatherId),
+              getNodeById(m.motherId),
             );
             edges.value.push({
               id: `spouse-line-${m.id}`,
@@ -431,7 +442,7 @@
         }
 
         function personName(pid) {
-          const pNode = nodes.value.find((n) => n.id === String(pid));
+          const pNode = getNodeById(pid);
           if (!pNode) return '';
           const p = pNode.data;
           return (p.callName ? p.callName + ' (' + p.firstName + ')' : p.firstName) + ' ' + p.lastName;
@@ -474,7 +485,7 @@
           showModal.value = false;
           editing.value = false;
           await nextTick();
-          const node = nodes.value.find((n) => n.id === String(pid));
+          const node = getNodeById(pid);
           if (!node) return;
           highlightBloodline(pid);
           fitView({ nodes: [String(pid)], maxZoom: 1.5, padding: 0.1 });
@@ -579,9 +590,9 @@
             return;
           }
 
-          const childNode = nodes.value.find((n) => n.id === String(childId));
+          const childNode = getNodeById(childId);
           if (!childNode) return;
-          const parentNode = nodes.value.find((n) => n.id === String(parentId));
+          const parentNode = getNodeById(parentId);
           const updates = {};
           const gender = (parentNode?.data.gender || '').toLowerCase();
           if (gender === 'female' && childNode.data.motherId === parentId) updates.motherId = null;
@@ -1098,7 +1109,7 @@
             geonameId: s.geonameId,
           });
           await load(true);
-          const node = nodes.value.find((n) => n.id === String(selected.value.id));
+          const node = getNodeById(selected.value.id);
           if (node) {
             selected.value = { ...node.data, spouseId: '' };
             useBirthApprox.value = !!selected.value.birthApprox;
@@ -1372,6 +1383,7 @@
           if (!ok) return;
           await FrontendApp.clearDatabase();
           nodes.value = [];
+          rebuildNodeMap();
           edges.value = [];
           try { localStorage.removeItem(TEMP_KEY); } catch (e) { /* ignore */ }
         }
@@ -1484,8 +1496,8 @@
         async function onConnect(params) {
           const sH = params.sourceHandle || '';
           const tH = params.targetHandle || '';
-          const src = nodes.value.find((n) => n.id === params.source);
-          const tgt = nodes.value.find((n) => n.id === params.target);
+          const src = getNodeById(params.source);
+          const tgt = getNodeById(params.target);
           if (!src || !tgt) return;
 
           if (
@@ -1687,9 +1699,9 @@
 
         function refreshUnions() {
           Object.values(unions).forEach((u) => {
-            const father = nodes.value.find((n) => n.id === String(u.fatherId));
-            const mother = nodes.value.find((n) => n.id === String(u.motherId));
-            const helper = nodes.value.find((n) => n.id === u.id);
+            const father = getNodeById(u.fatherId);
+            const mother = getNodeById(u.motherId);
+            const helper = getNodeById(u.id);
             if (father && mother && helper) {
               const fatherWidth = father.dimensions?.width || 0;
               const motherWidth = mother.dimensions?.width || 0;
@@ -1720,7 +1732,7 @@
 
               u.children.forEach((cid) => {
                 const edge = edges.value.find((e) => e.id === `${u.id}-${cid}`);
-                const childNode = nodes.value.find((n) => n.id === String(cid));
+                const childNode = getNodeById(cid);
                 if (edge && childNode) {
                   edge.sourceHandle = 's-bottom';
                   edge.targetHandle = 't-top';
@@ -1993,7 +2005,7 @@
           }
           await load(true);
           if (newNodePos) {
-            const node = nodes.value.find((n) => n.id === String(p.id));
+            const node = getNodeById(p.id);
             if (node) {
               node.position = { ...newNodePos };
             }
@@ -2183,7 +2195,7 @@
         fitView();
       }
 
-      appState = { nodes, fitView, nextTick };
+      appState = { nodes, fitView, nextTick, getNodeById };
 
        return {
         nodes,
