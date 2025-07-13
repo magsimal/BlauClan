@@ -7,6 +7,7 @@ module.exports = (sequelize) => {
       theme: { type: DataTypes.STRING, allowNull: false, defaultValue: 'light' },
       language: { type: DataTypes.STRING, allowNull: false, defaultValue: 'EN' },
       meNodeId: { type: DataTypes.INTEGER, allowNull: true },
+      focusedView: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
     },
     { sequelize, modelName: 'Setting' },
   );
