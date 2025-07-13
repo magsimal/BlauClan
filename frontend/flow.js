@@ -140,6 +140,9 @@
         const conflictIndex = ref(0);
         const showConflict = ref(false);
         const conflictAction = ref('keep');
+        let pendingPeople = [];
+        let pendingFamilies = [];
+        let pendingIdMap = {};
         const resultPerson = computed(() => {
           const c = conflicts.value[conflictIndex.value];
           if (!c) return null;
@@ -1388,36 +1391,27 @@
           try { localStorage.removeItem(TEMP_KEY); } catch (e) { /* ignore */ }
         }
 
-        async function processImport() {
-          const { people: importPeople = [], families = [] } =
-            parseGedcom(gedcomText.value || '');
-          const existing = await FrontendApp.fetchPeople();
-          const conflictList = [];
-          const idMap = {};
-          const THRESHOLD = 4;
-          for (const p of importPeople) {
-            const { match: dup, score } = findBestMatch(p, existing);
-            if (dup && score >= THRESHOLD) {
-              idMap[p.gedcomId] = dup.id;
-              conflictList.push({ existing: dup, incoming: p });
-            } else {
-              const created = await FrontendApp.createPerson(p);
-              idMap[p.gedcomId] = created.id;
-              existing.push(created);
-            }
+        async function finishImport() {
+          for (const p of pendingPeople) {
+            const created = await FrontendApp.createPerson(p);
+            pendingIdMap[p.gedcomId] = created.id;
           }
-          for (const f of families) {
-            const hus = idMap[f.husband];
-            const wife = idMap[f.wife];
+          for (const f of pendingFamilies) {
+            const hus = pendingIdMap[f.husband];
+            const wife = pendingIdMap[f.wife];
             if (hus && wife) {
-              await FrontendApp.linkSpouse(hus, wife, {
-                dateOfMarriage: f.date,
-                marriageApprox: f.approx,
-                placeOfMarriage: f.place,
-              });
+              try {
+                await FrontendApp.linkSpouse(hus, wife, {
+                  dateOfMarriage: f.date,
+                  marriageApprox: f.approx,
+                  placeOfMarriage: f.place,
+                });
+              } catch (err) {
+                console.warn('linkSpouse failed', err);
+              }
             }
             for (const cId of f.children) {
-              const cid = idMap[cId];
+              const cid = pendingIdMap[cId];
               if (!cid) continue;
               const updates = {};
               if (hus) updates.fatherId = hus;
@@ -1427,11 +1421,38 @@
               }
             }
           }
+          pendingPeople = [];
+          pendingFamilies = [];
+          pendingIdMap = {};
+          await load(true);
+        }
+
+        async function processImport() {
+          const { people: importPeople = [], families = [] } =
+            parseGedcom(gedcomText.value || '');
+          const existing = await FrontendApp.fetchPeople();
+          const conflictList = [];
+          pendingPeople = [];
+          pendingFamilies = families;
+          pendingIdMap = {};
+          const THRESHOLD = 4;
+          for (const p of importPeople) {
+            const { match: dup, score } = findBestMatch(p, existing);
+            if (dup && score >= THRESHOLD) {
+              conflictList.push({ existing: dup, incoming: p });
+              pendingIdMap[p.gedcomId] = dup.id;
+            } else {
+              pendingPeople.push(p);
+            }
+          }
           conflicts.value = conflictList;
           conflictIndex.value = 0;
           showImport.value = false;
-          if (conflicts.value.length) showConflict.value = true;
-          else await load(true);
+          if (conflictList.length) {
+            showConflict.value = true;
+          } else {
+            await finishImport();
+          }
         }
 
         async function runDedup() {
@@ -1458,8 +1479,10 @@
         async function resolveConflict(action) {
           const c = conflicts.value[conflictIndex.value];
           if (!c) return;
+          let newId = c.existing.id;
           if (action === 'keep') {
-            await FrontendApp.createPerson(c.incoming);
+            const created = await FrontendApp.createPerson(c.incoming);
+            newId = created.id;
           } else if (action === 'overwrite') {
             await FrontendApp.updatePerson(c.existing.id, c.incoming);
           } else if (action === 'merge') {
@@ -1474,12 +1497,13 @@
               });
             }
           } else if (action === 'skip') {
-            // do nothing
+            // keep existing
           }
+          if (c.incoming.gedcomId) pendingIdMap[c.incoming.gedcomId] = newId;
           conflictIndex.value += 1;
           if (conflictIndex.value >= conflicts.value.length) {
             showConflict.value = false;
-            await load(true);
+            await finishImport();
           }
         }
 
@@ -1487,7 +1511,7 @@
           if (action === 'skipAll') {
             conflictIndex.value = conflicts.value.length;
             showConflict.value = false;
-            load(true);
+            finishImport();
             return;
           }
           resolveConflict(action || conflictAction.value);
