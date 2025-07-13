@@ -1000,6 +1000,7 @@
         function toggleFocused() {
           if (!window.meNodeId) return;
           focusedView.value = !focusedView.value;
+          applyFocusedView();
         }
 
         function onEdgeClick(evt) {
@@ -1168,12 +1169,7 @@
         watch(showRelatives, (v) => v && refreshI18n());
         watch(showScores, (v) => v && refreshI18n());
 
-        watch(focusedView, () => {
-          applyFocusedView();
-        });
-        watch([nodes, edges], () => {
-          if (focusedView.value) applyFocusedView();
-        }, { deep: true });
+        // focused view is toggled via button, no deep watcher to avoid recursion
 
         watch(
           () => selected.value && selected.value.placeOfBirth,
