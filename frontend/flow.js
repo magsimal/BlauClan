@@ -76,7 +76,7 @@
           snapGrid,
           viewport,
         } = useVueFlow({ id: 'main-flow' });
-        const { fitView } = useZoomPanHelper('main-flow');
+        const { fitView, zoomTo } = useZoomPanHelper('main-flow');
         const horizontalGridSize =
           (window.AppConfig &&
             (AppConfig.horizontalGridSize || AppConfig.gridSize)) ||
@@ -106,6 +106,7 @@
             !!(window.AppConfig && AppConfig.showDeleteAllButton) &&
             admin.value,
         );
+        const hasMe = computed(() => !!window.meNodeId);
         const isLoading = ref(true);
         function setLoading(v) { isLoading.value = v; }
         const flashMessage = ref('');
@@ -175,6 +176,7 @@
           missingMaiden: false,
         });
         const filterActive = ref(false);
+        const focusedView = ref(false);
         let longPressTimer = null;
         const UNION_Y_OFFSET = 20;
         let unions = {};
@@ -396,6 +398,7 @@
           refreshUnions();
           saveTempLayout();
           applyFilters();
+          applyFocusedView();
         } catch (err) {
           console.error('load failed', err);
         } finally {
@@ -497,6 +500,7 @@
           }
           if (window.FlowApp && window.FlowApp.refreshMe) window.FlowApp.refreshMe();
           selected.value.me = true;
+          applyFocusedView();
         }
 
         function handleKeydown(ev) {
@@ -719,6 +723,72 @@
           });
         }
 
+        function getBloodlineSet(rootId) {
+          const map = {};
+          nodes.value.forEach((n) => { map[n.id] = n; });
+          const allowed = new Set();
+          const visitedUp = new Set();
+          const visitedDown = new Set();
+
+          function unionId(f, m) {
+            return `u-${f}-${m}`;
+          }
+
+          function addNode(id) { if (id) allowed.add(String(id)); }
+
+          function walkAncestors(pid) {
+            if (!pid || visitedUp.has(pid)) return;
+            visitedUp.add(pid);
+            const node = map[String(pid)];
+            if (!node) return;
+            addNode(pid);
+            if (node.data.fatherId && node.data.motherId) {
+              addNode(unionId(node.data.fatherId, node.data.motherId));
+            }
+            walkAncestors(node.data.fatherId);
+            walkAncestors(node.data.motherId);
+          }
+
+          function walkDescendants(pid) {
+            if (!pid || visitedDown.has(pid)) return;
+            visitedDown.add(pid);
+            const node = map[String(pid)];
+            if (!node) return;
+            addNode(pid);
+            nodes.value.forEach((child) => {
+              if (child.data.fatherId === pid || child.data.motherId === pid) {
+                if (child.data.fatherId && child.data.motherId) {
+                  addNode(unionId(child.data.fatherId, child.data.motherId));
+                }
+                walkDescendants(parseInt(child.id));
+              }
+            });
+          }
+
+          walkAncestors(rootId);
+          walkDescendants(rootId);
+          return allowed;
+        }
+
+        function applyFocusedView() {
+          if (!focusedView.value || !window.meNodeId) {
+            nodes.value.forEach((n) => { if (n.data) n.data.hidden = false; });
+            edges.value.forEach((e) => removeClass(e, 'hidden-edge'));
+            return;
+          }
+          const allowed = getBloodlineSet(window.meNodeId);
+          nodes.value.forEach((n) => {
+            if (n.data) n.data.hidden = !allowed.has(n.id);
+          });
+          edges.value.forEach((e) => {
+            if (allowed.has(e.source) && allowed.has(e.target)) {
+              removeClass(e, 'hidden-edge');
+            } else {
+              addClass(e, 'hidden-edge');
+            }
+          });
+        }
+
         function computeRelatives() {
           if (!relativesRoot) return;
           const mode = relativesMode.value;
@@ -905,6 +975,19 @@
           if (window.gotoMe) window.gotoMe();
         }
 
+        function zoomInStep() {
+          zoomTo((viewport.value.zoom || 1) * 1.05);
+        }
+
+        function zoomOutStep() {
+          zoomTo(Math.max(0.1, (viewport.value.zoom || 1) * 0.95));
+        }
+
+        function toggleFocused() {
+          if (!window.meNodeId) return;
+          focusedView.value = !focusedView.value;
+        }
+
         function onEdgeClick(evt) {
           selectedEdge.value = evt.edge;
           edges.value.forEach((e) => removeClass(e, 'selected-edge'));
@@ -1070,6 +1153,13 @@
         watch(showConflict, (v) => v && refreshI18n());
         watch(showRelatives, (v) => v && refreshI18n());
         watch(showScores, (v) => v && refreshI18n());
+
+        watch(focusedView, () => {
+          applyFocusedView();
+        });
+        watch([nodes, edges], () => {
+          if (focusedView.value) applyFocusedView();
+        }, { deep: true });
 
         watch(
           () => selected.value && selected.value.placeOfBirth,
@@ -2177,6 +2267,11 @@
         gotoPerson,
         setMe,
         gotoMe,
+        zoomInStep,
+        zoomOutStep,
+        toggleFocused,
+        focusedView,
+        hasMe,
         personName,
         shortInfo,
         shortInfoDiff,
@@ -2231,6 +2326,15 @@
             </button>
             <button class="icon-button" @click="fitView()" v-tooltip="I18n.t('fitToScreen')">
               <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M15 3.75a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0V5.56l-3.97 3.97a.75.75 0 1 1-1.06-1.06l3.97-3.97h-2.69a.75.75 0 0 1-.75-.75Zm-12 0A.75.75 0 0 1 3.75 3h4.5a.75.75 0 0 1 0 1.5H5.56l3.97 3.97a.75.75 0 0 1-1.06 1.06L4.5 5.56v2.69a.75.75 0 0 1-1.5 0v-4.5Zm11.47 11.78a.75.75 0 1 1 1.06-1.06l3.97 3.97v-2.69a.75.75 0 0 1 1.5 0v4.5a.75.75 0 0 1-.75.75h-4.5a.75.75 0 0 1 0-1.5h2.69l-3.97-3.97Zm-4.94-1.06a.75.75 0 0 1 0 1.06L5.56 19.5h2.69a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1-.75-.75v-4.5a.75.75 0 0 1 1.5 0v2.69l3.97-3.97a.75.75 0 0 1 1.06 0Z" clip-rule="evenodd"/></svg>
+            </button>
+            <button class="icon-button" @click="zoomInStep" v-tooltip="I18n.t('zoomIn')">
+              <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM11 10v-2h2v2h2v2h-2v2h-2v-2H9v-2h2Z"/></svg>
+            </button>
+            <button class="icon-button" @click="zoomOutStep" v-tooltip="I18n.t('zoomOut')">
+              <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM9 11.5h5v1.5H9z"/></svg>
+            </button>
+            <button class="icon-button" @click="toggleFocused" :class="{ active: focusedView }" :disabled="!hasMe" v-tooltip="I18n.t('focusedView')">
+              <svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/><path d="M12 15.4 8.24 17.67l.99-4.28L6 9.5l4.38-.38L12 5l1.62 4.12 4.38.38-3.23 2.89.99 4.28z"/></svg>
             </button>
             <button class="icon-button" @click="gotoMe" v-tooltip="I18n.t('gotoMe')">
               <svg viewBox="0 0 24 24"><path d="M12 2l1.546 4.755H18l-4.023 2.923L15.545 14 12 11.077 8.455 14l1.568-4.322L6 6.755h4.454z"/></svg>
@@ -2295,7 +2399,7 @@
             selection-key-code="Shift"
           >
             <template #node-person="{ data }">
-              <div class="person-node" :class="{ 'highlight-node': data.highlight, 'faded-node': (selected || filterActive) && !data.highlight, 'connected-node': hasConnection(data.id) }" :style="{ borderColor: data.gender === 'female' ? '#f8c' : (data.gender === 'male' ? '#88f' : '#ccc') }">
+              <div class="person-node" :class="{ 'highlight-node': data.highlight, 'faded-node': (selected || filterActive) && !data.highlight, 'connected-node': hasConnection(data.id), 'hidden-node': data.hidden }" :style="{ borderColor: data.gender === 'female' ? '#f8c' : (data.gender === 'male' ? '#88f' : '#ccc') }">
                 <span v-if="data.me" style="position:absolute;top:-8px;right:-8px;color:#f39c12;">&#9733;</span>
                 <div class="header">
                   <div class="avatar" :style="avatarStyle(data.gender, 40)">{{ initials(data) }}</div>
@@ -2322,7 +2426,7 @@
               </div>
             </template>
             <template #node-helper="{ data }">
-              <div class="helper-node" :class="{ 'highlight-node': data.highlight, 'faded-node': (selected || filterActive) && !data.highlight, 'connected-node': hasConnection(data.id) }">
+              <div class="helper-node" :class="{ 'highlight-node': data.highlight, 'faded-node': (selected || filterActive) && !data.highlight, 'connected-node': hasConnection(data.id), 'hidden-node': data.hidden }">
                 <Handle type="source" position="bottom" id="s-bottom" :class="{ 'connected-handle': handleConnected(data.id, 's-bottom') }" />
               </div>
             </template>
