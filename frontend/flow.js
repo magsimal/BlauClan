@@ -1049,6 +1049,10 @@
               await FrontendApp.linkSpouse(updated.id, parseInt(spouseId));
             }
               await load(true);
+              // Refresh search data so updated person info is searchable
+              if (root.SearchApp && typeof root.SearchApp.refresh === 'function') {
+                await root.SearchApp.refresh();
+              }
               computeChildren(updated.id);
               fetchScore();
           }, 200);
@@ -1709,6 +1713,10 @@
           await FrontendApp.deletePerson(id);
           selected.value = null;
           await load(true);
+          // Refresh search data so deleted person is removed from search
+          if (root.SearchApp && typeof root.SearchApp.refresh === 'function') {
+            await root.SearchApp.refresh();
+          }
         }
 
         async function cancelEdit() {
@@ -2050,6 +2058,10 @@
             }
           }
           await load(true);
+          // Refresh search data so newly created person is searchable
+          if (root.SearchApp && typeof root.SearchApp.refresh === 'function') {
+            await root.SearchApp.refresh();
+          }
           if (newNodePos) {
             const node = getNodeById(p.id);
             if (node) {
