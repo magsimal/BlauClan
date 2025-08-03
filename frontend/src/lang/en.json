@@ -102,6 +102,7 @@
   ,"layoutSaved": "Layout saved"
   ,"layoutTidied": "Layout tidied"
   ,"loading": "Loading..."
+  ,"processingLargeDataset": "Processing {count} nodes, please wait..."
   ,"defineMeFirst": "Please define a me-node first"
   ,"personsHidden": "persons hidden"
 }

@@ -102,6 +102,7 @@
   ,"layoutSaved": "Layout gespeichert"
   ,"layoutTidied": "Layout aufger\u00e4umt"
   ,"loading": "Wird geladen..."
+  ,"processingLargeDataset": "Verarbeite {count} Knoten, bitte warten..."
   ,"defineMeFirst": "Bitte zuerst einen Me-Knoten festlegen"
   ,"personsHidden": "Personen ausgeblendet"
 }
