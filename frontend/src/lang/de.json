@@ -57,6 +57,9 @@
   "saveLayout": "Layout speichern",
   "loadLayout": "Layout laden",
   "fitToScreen": "An Bildschirm anpassen",
+  "zoomIn": "Vergr\u00f6\u00dfern",
+  "zoomOut": "Verkleinern",
+  "focusedView": "Fokusansicht",
   "downloadPng": "PNG herunterladen",
   "downloadSvg": "SVG herunterladen",
   "resetFilters": "Filter zur\u00fccksetzen",
@@ -100,4 +103,6 @@
   ,"layoutTidied": "Layout aufger\u00e4umt"
   ,"loading": "Wird geladen..."
   ,"processingLargeDataset": "Verarbeite {count} Knoten, bitte warten..."
+  ,"defineMeFirst": "Bitte zuerst einen Me-Knoten festlegen"
+  ,"personsHidden": "Personen ausgeblendet"
 }

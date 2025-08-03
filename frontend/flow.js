@@ -29,9 +29,9 @@
 
   function focusNode(pid) {
     if (!appState) return;
-    const { nodes, fitView, nextTick } = appState;
+    const { fitView, nextTick, getNodeById } = appState;
     nextTick(() => {
-      const node = nodes.value.find((n) => n.id === String(pid));
+      const node = getNodeById(pid);
       if (!node) return;
       fitView({ nodes: [String(pid)], maxZoom: 1.5, padding: 0.1 });
       node.data.highlight = true;
@@ -60,6 +60,14 @@
       components: { VueFlow, Handle },
       setup() {
         const nodes = ref([]);
+        const nodeMap = new Map();
+        function rebuildNodeMap() {
+          nodeMap.clear();
+          nodes.value.forEach((n) => nodeMap.set(n.id, n));
+        }
+        function getNodeById(id) {
+          return nodeMap.get(String(id)) || null;
+        }
         const edges = ref([]);
         const selectedEdge = ref(null);
         const selectedNodes = computed(() =>
@@ -76,7 +84,7 @@
           snapGrid,
           viewport,
         } = useVueFlow({ id: 'main-flow' });
-        const { fitView } = useZoomPanHelper('main-flow');
+        const { fitView, zoomTo } = useZoomPanHelper('main-flow');
         const horizontalGridSize =
           (window.AppConfig &&
             (AppConfig.horizontalGridSize || AppConfig.gridSize)) ||
@@ -106,6 +114,7 @@
             !!(window.AppConfig && AppConfig.showDeleteAllButton) &&
             admin.value,
         );
+        const hasMe = computed(() => !!window.meNodeId);
         const isLoading = ref(true);
         function setLoading(v) { isLoading.value = v; }
         const flashMessage = ref('');
@@ -131,6 +140,9 @@
         const conflictIndex = ref(0);
         const showConflict = ref(false);
         const conflictAction = ref('keep');
+        let pendingPeople = [];
+        let pendingFamilies = [];
+        let pendingIdMap = {};
         const resultPerson = computed(() => {
           const c = conflicts.value[conflictIndex.value];
           if (!c) return null;
@@ -175,6 +187,8 @@
           missingMaiden: false,
         });
         const filterActive = ref(false);
+        const focusedView = ref(false);
+        const hiddenCount = ref(0);
         let longPressTimer = null;
         const UNION_Y_OFFSET = 20;
         let unions = {};
@@ -372,14 +386,16 @@
                 (positions[child.fatherId].y + positions[child.motherId].y) / 2 +
                 UNION_Y_OFFSET;
               const pos = { x: midX, y: midY };
-              nodes.value.push({
+              const uNode = {
                 id: union.id,
                 type: 'helper',
                 position: existingPos[union.id] || pos,
                 data: { _gen: idMap[child.fatherId]._gen, helper: true },
                 draggable: false,
                 selectable: false,
-              });
+              };
+              nodes.value.push(uNode);
+              nodeMap.set(uNode.id, uNode);
               positions[union.id] = pos;
             }
             union.children.push(child.id);
@@ -387,8 +403,8 @@
 
           Object.values(unions).forEach((m) => {
             const handles = spouseHandles(
-              nodes.value.find((n) => n.id === String(m.fatherId)),
-              nodes.value.find((n) => n.id === String(m.motherId)),
+              getNodeById(m.fatherId),
+              getNodeById(m.motherId),
             );
             edges.value.push({
               id: `spouse-line-${m.id}`,
@@ -436,6 +452,7 @@
           refreshUnions();
           saveTempLayout();
           applyFilters();
+          applyFocusedView();
         } catch (err) {
           console.error('load failed', err);
         } finally {
@@ -468,7 +485,7 @@
         }
 
         function personName(pid) {
-          const pNode = nodes.value.find((n) => n.id === String(pid));
+          const pNode = getNodeById(pid);
           if (!pNode) return '';
           const p = pNode.data;
           return (p.callName ? p.callName + ' (' + p.firstName + ')' : p.firstName) + ' ' + p.lastName;
@@ -511,7 +528,7 @@
           showModal.value = false;
           editing.value = false;
           await nextTick();
-          const node = nodes.value.find((n) => n.id === String(pid));
+          const node = getNodeById(pid);
           if (!node) return;
           highlightBloodline(pid);
           fitView({ nodes: [String(pid)], maxZoom: 1.5, padding: 0.1 });
@@ -537,6 +554,7 @@
           }
           if (window.FlowApp && window.FlowApp.refreshMe) window.FlowApp.refreshMe();
           selected.value.me = true;
+          applyFocusedView();
         }
 
         function handleKeydown(ev) {
@@ -615,9 +633,9 @@
             return;
           }
 
-          const childNode = nodes.value.find((n) => n.id === String(childId));
+          const childNode = getNodeById(childId);
           if (!childNode) return;
-          const parentNode = nodes.value.find((n) => n.id === String(parentId));
+          const parentNode = getNodeById(parentId);
           const updates = {};
           const gender = (parentNode?.data.gender || '').toLowerCase();
           if (gender === 'female' && childNode.data.motherId === parentId) updates.motherId = null;
@@ -635,6 +653,11 @@
         const shiftPressed = ref(false);
 
         onMounted(async () => {
+          if (typeof window.focusedViewSetting !== 'undefined') {
+            focusedView.value = !!window.focusedViewSetting;
+          } else {
+            try { focusedView.value = localStorage.getItem('focusedView') === 'true'; } catch (e) { /* ignore */ }
+          }
           await load();
           await nextTick();
           snapGrid.value = [horizontalGridSize, verticalGridSize];
@@ -757,6 +780,74 @@
               edge.class = sel ? 'selected-edge' : 'faded-edge';
             }
           });
+        }
+
+        function getBloodlineSet(rootId) {
+          const map = {};
+          nodes.value.forEach((n) => { map[n.id] = n; });
+          const allowed = new Set();
+          const visitedUp = new Set();
+          const visitedDown = new Set();
+
+          function unionId(f, m) {
+            return `u-${f}-${m}`;
+          }
+
+          function addNode(id) { if (id) allowed.add(String(id)); }
+
+          function walkAncestors(pid) {
+            if (!pid || visitedUp.has(pid)) return;
+            visitedUp.add(pid);
+            const node = map[String(pid)];
+            if (!node) return;
+            addNode(pid);
+            if (node.data.fatherId && node.data.motherId) {
+              addNode(unionId(node.data.fatherId, node.data.motherId));
+            }
+            walkAncestors(node.data.fatherId);
+            walkAncestors(node.data.motherId);
+          }
+
+          function walkDescendants(pid) {
+            if (!pid || visitedDown.has(pid)) return;
+            visitedDown.add(pid);
+            const node = map[String(pid)];
+            if (!node) return;
+            addNode(pid);
+            nodes.value.forEach((child) => {
+              if (child.data.fatherId === pid || child.data.motherId === pid) {
+                if (child.data.fatherId && child.data.motherId) {
+                  addNode(unionId(child.data.fatherId, child.data.motherId));
+                }
+                walkDescendants(parseInt(child.id));
+              }
+            });
+          }
+
+          walkAncestors(rootId);
+          walkDescendants(rootId);
+          return allowed;
+        }
+
+        function applyFocusedView() {
+          if (!focusedView.value || !window.meNodeId) {
+            nodes.value.forEach((n) => { if (n.data) n.data.hidden = false; });
+            edges.value.forEach((e) => removeClass(e, 'hidden-edge'));
+            hiddenCount.value = 0;
+            return;
+          }
+          const allowed = getBloodlineSet(window.meNodeId);
+          nodes.value.forEach((n) => {
+            if (n.data) n.data.hidden = !allowed.has(n.id);
+          });
+          edges.value.forEach((e) => {
+            if (allowed.has(e.source) && allowed.has(e.target)) {
+              removeClass(e, 'hidden-edge');
+            } else {
+              addClass(e, 'hidden-edge');
+            }
+          });
+          hiddenCount.value = nodes.value.filter((n) => n.data && n.data.hidden).length;
         }
 
         function computeRelatives() {
@@ -945,6 +1036,38 @@
           if (window.gotoMe) window.gotoMe();
         }
 
+        function zoomInStep() {
+          zoomTo((viewport.value.zoom || 1) * 1.05);
+        }
+
+        function zoomOutStep() {
+          zoomTo(Math.max(0.1, (viewport.value.zoom || 1) * 0.95));
+        }
+
+        async function saveFocusedSetting(val) {
+          if (window.currentUser && window.currentUser !== 'guest') {
+            try {
+              await fetch('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ focusedView: val })
+              });
+            } catch (e) { /* ignore */ }
+          } else {
+            try { localStorage.setItem('focusedView', val ? 'true' : 'false'); } catch (e) { /* ignore */ }
+          }
+        }
+
+        function toggleFocused() {
+          if (!window.meNodeId) {
+            flash(I18nGlobal.t('defineMeFirst'), 'danger');
+            return;
+          }
+          focusedView.value = !focusedView.value;
+          saveFocusedSetting(focusedView.value);
+          applyFocusedView();
+        }
+
         function onEdgeClick(evt) {
           selectedEdge.value = evt.edge;
           edges.value.forEach((e) => removeClass(e, 'selected-edge'));
@@ -965,6 +1088,10 @@
               await FrontendApp.linkSpouse(updated.id, parseInt(spouseId));
             }
               await load(true);
+              // Refresh search data so updated person info is searchable
+              if (root.SearchApp && typeof root.SearchApp.refresh === 'function') {
+                await root.SearchApp.refresh();
+              }
               computeChildren(updated.id);
               fetchScore();
           }, 200);
@@ -972,7 +1099,7 @@
         watch(
           () => selected.value,
           () => {
-            if (editing.value && showModal.value && !isNew.value) saveSelected();
+            if (editing.value && showModal.value && !isNew.value && selected.value?.id) saveSelected();
           },
           { deep: true }
         );
@@ -1055,7 +1182,7 @@
             geonameId: s.geonameId,
           });
           await load(true);
-          const node = nodes.value.find((n) => n.id === String(selected.value.id));
+          const node = getNodeById(selected.value.id);
           if (node) {
             selected.value = { ...node.data, spouseId: '' };
             useBirthApprox.value = !!selected.value.birthApprox;
@@ -1110,6 +1237,8 @@
         watch(showConflict, (v) => v && refreshI18n());
         watch(showRelatives, (v) => v && refreshI18n());
         watch(showScores, (v) => v && refreshI18n());
+
+        // focused view is toggled via button, no deep watcher to avoid recursion
 
         watch(
           () => selected.value && selected.value.placeOfBirth,
@@ -1322,40 +1451,32 @@
           if (!ok) return;
           await FrontendApp.clearDatabase();
           nodes.value = [];
+          rebuildNodeMap();
           edges.value = [];
           try { localStorage.removeItem(TEMP_KEY); } catch (e) { /* ignore */ }
         }
 
-        async function processImport() {
-          const { people: importPeople = [], families = [] } =
-            parseGedcom(gedcomText.value || '');
-          const existing = await FrontendApp.fetchPeople();
-          const conflictList = [];
-          const idMap = {};
-          const THRESHOLD = 4;
-          for (const p of importPeople) {
-            const { match: dup, score } = findBestMatch(p, existing);
-            if (dup && score >= THRESHOLD) {
-              idMap[p.gedcomId] = dup.id;
-              conflictList.push({ existing: dup, incoming: p });
-            } else {
-              const created = await FrontendApp.createPerson(p);
-              idMap[p.gedcomId] = created.id;
-              existing.push(created);
-            }
+        async function finishImport() {
+          for (const p of pendingPeople) {
+            const created = await FrontendApp.createPerson(p);
+            pendingIdMap[p.gedcomId] = created.id;
           }
-          for (const f of families) {
-            const hus = idMap[f.husband];
-            const wife = idMap[f.wife];
+          for (const f of pendingFamilies) {
+            const hus = pendingIdMap[f.husband];
+            const wife = pendingIdMap[f.wife];
             if (hus && wife) {
-              await FrontendApp.linkSpouse(hus, wife, {
-                dateOfMarriage: f.date,
-                marriageApprox: f.approx,
-                placeOfMarriage: f.place,
-              });
+              try {
+                await FrontendApp.linkSpouse(hus, wife, {
+                  dateOfMarriage: f.date,
+                  marriageApprox: f.approx,
+                  placeOfMarriage: f.place,
+                });
+              } catch (err) {
+                console.warn('linkSpouse failed', err);
+              }
             }
             for (const cId of f.children) {
-              const cid = idMap[cId];
+              const cid = pendingIdMap[cId];
               if (!cid) continue;
               const updates = {};
               if (hus) updates.fatherId = hus;
@@ -1365,11 +1486,38 @@
               }
             }
           }
+          pendingPeople = [];
+          pendingFamilies = [];
+          pendingIdMap = {};
+          await load(true);
+        }
+
+        async function processImport() {
+          const { people: importPeople = [], families = [] } =
+            parseGedcom(gedcomText.value || '');
+          const existing = await FrontendApp.fetchPeople();
+          const conflictList = [];
+          pendingPeople = [];
+          pendingFamilies = families;
+          pendingIdMap = {};
+          const THRESHOLD = 4;
+          for (const p of importPeople) {
+            const { match: dup, score } = findBestMatch(p, existing);
+            if (dup && score >= THRESHOLD) {
+              conflictList.push({ existing: dup, incoming: p });
+              pendingIdMap[p.gedcomId] = dup.id;
+            } else {
+              pendingPeople.push(p);
+            }
+          }
           conflicts.value = conflictList;
           conflictIndex.value = 0;
           showImport.value = false;
-          if (conflicts.value.length) showConflict.value = true;
-          else await load(true);
+          if (conflictList.length) {
+            showConflict.value = true;
+          } else {
+            await finishImport();
+          }
         }
 
         async function runDedup() {
@@ -1396,8 +1544,10 @@
         async function resolveConflict(action) {
           const c = conflicts.value[conflictIndex.value];
           if (!c) return;
+          let newId = c.existing.id;
           if (action === 'keep') {
-            await FrontendApp.createPerson(c.incoming);
+            const created = await FrontendApp.createPerson(c.incoming);
+            newId = created.id;
           } else if (action === 'overwrite') {
             await FrontendApp.updatePerson(c.existing.id, c.incoming);
           } else if (action === 'merge') {
@@ -1412,12 +1562,13 @@
               });
             }
           } else if (action === 'skip') {
-            // do nothing
+            // keep existing
           }
+          if (c.incoming.gedcomId) pendingIdMap[c.incoming.gedcomId] = newId;
           conflictIndex.value += 1;
           if (conflictIndex.value >= conflicts.value.length) {
             showConflict.value = false;
-            await load(true);
+            await finishImport();
           }
         }
 
@@ -1425,7 +1576,7 @@
           if (action === 'skipAll') {
             conflictIndex.value = conflicts.value.length;
             showConflict.value = false;
-            load(true);
+            finishImport();
             return;
           }
           resolveConflict(action || conflictAction.value);
@@ -1434,9 +1585,12 @@
         async function onConnect(params) {
           const sH = params.sourceHandle || '';
           const tH = params.targetHandle || '';
-          const src = nodes.value.find((n) => n.id === params.source);
-          const tgt = nodes.value.find((n) => n.id === params.target);
+          const src = getNodeById(params.source);
+          const tgt = getNodeById(params.target);
           if (!src || !tgt) return;
+
+          // Prevent self-connections
+          if (params.source === params.target) return;
 
           if (
             (sH.includes('left') || sH.includes('right')) &&
@@ -1601,6 +1755,10 @@
           await FrontendApp.deletePerson(id);
           selected.value = null;
           await load(true);
+          // Refresh search data so deleted person is removed from search
+          if (root.SearchApp && typeof root.SearchApp.refresh === 'function') {
+            await root.SearchApp.refresh();
+          }
         }
 
         async function cancelEdit() {
@@ -1635,11 +1793,33 @@
           computeChildren(selected.value.id);
         }
 
+        async function removeFather() {
+          if (!selected.value || !selected.value.fatherId) return;
+          await FrontendApp.updatePerson(selected.value.id, { fatherId: null });
+          await load(true);
+          // Update the selected person's data
+          const node = nodes.value.find((n) => n.id === String(selected.value.id));
+          if (node) {
+            selected.value = { ...node.data };
+          }
+        }
+
+        async function removeMother() {
+          if (!selected.value || !selected.value.motherId) return;
+          await FrontendApp.updatePerson(selected.value.id, { motherId: null });
+          await load(true);
+          // Update the selected person's data
+          const node = nodes.value.find((n) => n.id === String(selected.value.id));
+          if (node) {
+            selected.value = { ...node.data };
+          }
+        }
+
         function refreshUnions() {
           Object.values(unions).forEach((u) => {
-            const father = nodes.value.find((n) => n.id === String(u.fatherId));
-            const mother = nodes.value.find((n) => n.id === String(u.motherId));
-            const helper = nodes.value.find((n) => n.id === u.id);
+            const father = getNodeById(u.fatherId);
+            const mother = getNodeById(u.motherId);
+            const helper = getNodeById(u.id);
             if (father && mother && helper) {
               const fatherWidth = father.dimensions?.width || 0;
               const motherWidth = mother.dimensions?.width || 0;
@@ -1670,7 +1850,7 @@
 
               u.children.forEach((cid) => {
                 const edge = edges.value.find((e) => e.id === `${u.id}-${cid}`);
-                const childNode = nodes.value.find((n) => n.id === String(cid));
+                const childNode = getNodeById(cid);
                 if (edge && childNode) {
                   edge.sourceHandle = 's-bottom';
                   edge.targetHandle = 't-top';
@@ -2143,8 +2323,12 @@
             }
           }
           await load(true);
+          // Refresh search data so newly created person is searchable
+          if (root.SearchApp && typeof root.SearchApp.refresh === 'function') {
+            await root.SearchApp.refresh();
+          }
           if (newNodePos) {
-            const node = nodes.value.find((n) => n.id === String(p.id));
+            const node = getNodeById(p.id);
             if (node) {
               node.position = { ...newNodePos };
             }
@@ -2334,7 +2518,7 @@
         fitView();
       }
 
-      appState = { nodes, fitView, nextTick };
+      appState = { nodes, fitView, nextTick, getNodeById };
 
        return {
         nodes,
@@ -2351,6 +2535,8 @@
           saveNewPerson,
           cancelModal,
           unlinkChild,
+          removeFather,
+          removeMother,
           addChild,
           addSpouse,
         addParent,
@@ -2418,6 +2604,12 @@
         gotoPerson,
         setMe,
         gotoMe,
+        zoomInStep,
+        zoomOutStep,
+        toggleFocused,
+        focusedView,
+        hiddenCount,
+        hasMe,
         personName,
         shortInfo,
         shortInfoDiff,
@@ -2455,6 +2647,7 @@
           </div>
           <div id="flashBanner" v-show="flashVisible" :class="['alert', flashType==='success'?'alert-success':'alert-danger','text-center']">{{ flashMessage }}</div>
           <div id="multiIndicator" data-i18n="multiSelect" v-show="shiftPressed">Multi-select</div>
+          <div id="hiddenIndicator" v-show="hiddenCount > 0">{{ hiddenCount }} {{ I18n.t('personsHidden') }}</div>
           <div id="toolbar">
           <button v-if="loggedIn" class="icon-button" @click="addPerson" v-tooltip="I18n.t('addPerson')">
             <svg viewBox="0 0 24 24"><path d="M5.25 6.375a4.125 4.125 0 1 1 8.25 0 4.125 4.125 0 0 1-8.25 0ZM2.25 19.125a7.125 7.125 0 0 1 14.25 0v.003l-.001.119a.75.75 0 0 1-.363.63 13.067 13.067 0 0 1-6.761 1.873c-2.472 0-4.786-.684-6.76-1.873a.75.75 0 0 1-.364-.63l-.001-.122ZM18.75 7.5a.75.75 0 0 0-1.5 0v2.25H15a.75.75 0 0 0 0 1.5h2.25v2.25a.75.75 0 0 0 1.5 0v-2.25H21a.75.75 0 0 0 0-1.5h-2.25V7.5Z"/></svg>
@@ -2472,6 +2665,15 @@
             </button>
             <button class="icon-button" @click="fitView()" v-tooltip="I18n.t('fitToScreen')">
               <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M15 3.75a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0V5.56l-3.97 3.97a.75.75 0 1 1-1.06-1.06l3.97-3.97h-2.69a.75.75 0 0 1-.75-.75Zm-12 0A.75.75 0 0 1 3.75 3h4.5a.75.75 0 0 1 0 1.5H5.56l3.97 3.97a.75.75 0 0 1-1.06 1.06L4.5 5.56v2.69a.75.75 0 0 1-1.5 0v-4.5Zm11.47 11.78a.75.75 0 1 1 1.06-1.06l3.97 3.97v-2.69a.75.75 0 0 1 1.5 0v4.5a.75.75 0 0 1-.75.75h-4.5a.75.75 0 0 1 0-1.5h2.69l-3.97-3.97Zm-4.94-1.06a.75.75 0 0 1 0 1.06L5.56 19.5h2.69a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1-.75-.75v-4.5a.75.75 0 0 1 1.5 0v2.69l3.97-3.97a.75.75 0 0 1 1.06 0Z" clip-rule="evenodd"/></svg>
+            </button>
+            <button class="icon-button" @click="zoomInStep" v-tooltip="I18n.t('zoomIn')">
+              <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM11 10v-2h2v2h2v2h-2v2h-2v-2H9v-2h2Z"/></svg>
+            </button>
+            <button class="icon-button" @click="zoomOutStep" v-tooltip="I18n.t('zoomOut')">
+              <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM9 11.5h5v1.5H9z"/></svg>
+            </button>
+            <button class="icon-button" @click="toggleFocused" :class="{ active: focusedView }" :disabled="!hasMe" v-tooltip="I18n.t('focusedView')">
+              <svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/><path d="M12 15.4 8.24 17.67l.99-4.28L6 9.5l4.38-.38L12 5l1.62 4.12 4.38.38-3.23 2.89.99 4.28z"/></svg>
             </button>
             <button class="icon-button" @click="gotoMe" v-tooltip="I18n.t('gotoMe')">
               <svg viewBox="0 0 24 24"><path d="M12 2l1.546 4.755H18l-4.023 2.923L15.545 14 12 11.077 8.455 14l1.568-4.322L6 6.755h4.454z"/></svg>
@@ -2536,7 +2738,7 @@
             selection-key-code="Shift"
           >
             <template #node-person="{ data }">
-              <div class="person-node" :class="{ 'highlight-node': data.highlight, 'faded-node': (selected || filterActive) && !data.highlight, 'connected-node': hasConnection(data.id) }" :style="{ borderColor: data.gender === 'female' ? '#f8c' : (data.gender === 'male' ? '#88f' : '#ccc') }">
+              <div class="person-node" :class="{ 'highlight-node': data.highlight, 'faded-node': (selected || filterActive) && !data.highlight, 'connected-node': hasConnection(data.id), 'hidden-node': data.hidden }" :style="{ borderColor: data.gender === 'female' ? '#f8c' : (data.gender === 'male' ? '#88f' : '#ccc') }">
                 <span v-if="data.me" style="position:absolute;top:-8px;right:-8px;color:#f39c12;">&#9733;</span>
                 <div class="header">
                   <div class="avatar" :style="avatarStyle(data.gender, 40)">{{ initials(data) }}</div>
@@ -2563,7 +2765,7 @@
               </div>
             </template>
             <template #node-helper="{ data }">
-              <div class="helper-node" :class="{ 'highlight-node': data.highlight, 'faded-node': (selected || filterActive) && !data.highlight, 'connected-node': hasConnection(data.id) }">
+              <div class="helper-node" :class="{ 'highlight-node': data.highlight, 'faded-node': (selected || filterActive) && !data.highlight, 'connected-node': hasConnection(data.id), 'hidden-node': data.hidden }">
                 <Handle type="source" position="bottom" id="s-bottom" :class="{ 'connected-handle': handleConnected(data.id, 's-bottom') }" />
               </div>
             </template>
@@ -2772,6 +2974,11 @@
                     <strong data-i18n="fatherLabel">Father:</strong>
                     <template v-if="selected.fatherId">
                       <a href="#" @click.prevent="gotoPerson(selected.fatherId)">{{ personName(selected.fatherId) }}</a>
+                      <span class="ml-1" style="cursor: pointer;" @click="removeFather" title="Remove father relationship">
+                        <svg viewBox="0 0 24 24" class="text-danger" style="width: 14px; height: 14px; vertical-align: middle;">
+                          <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+                        </svg>
+                      </span>
                     </template>
                     <template v-else>
                       <span class="ml-1" style="cursor: pointer;" @click="startAddParent('father')">
@@ -2785,6 +2992,11 @@
                     <strong data-i18n="motherLabel">Mother:</strong>
                     <template v-if="selected.motherId">
                       <a href="#" @click.prevent="gotoPerson(selected.motherId)">{{ personName(selected.motherId) }}</a>
+                      <span class="ml-1" style="cursor: pointer;" @click="removeMother" title="Remove mother relationship">
+                        <svg viewBox="0 0 24 24" class="text-danger" style="width: 14px; height: 14px; vertical-align: middle;">
+                          <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+                        </svg>
+                      </span>
                     </template>
                     <template v-else>
                       <span class="ml-1" style="cursor: pointer;" @click="startAddParent('mother')">
@@ -2800,6 +3012,11 @@
                     <ul>
                       <li v-for="c in children" :key="c.id">
                         <a href="#" @click.prevent="gotoPerson(c.id)">{{ personName(c.id) }}</a>
+                        <span class="ml-1" style="cursor: pointer;" @click="unlinkChild(c)" title="Remove child relationship">
+                          <svg viewBox="0 0 24 24" class="text-danger" style="width: 14px; height: 14px; vertical-align: middle;">
+                            <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+                          </svg>
+                        </span>
                       </li>
                     </ul>
                   </div>

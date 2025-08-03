@@ -257,7 +257,7 @@ app.post('/api/me', requireAuth, async (req, res) => {
   if (username !== 'guest') {
     const [row] = await Setting.findOrCreate({
       where: { username },
-      defaults: { theme: 'light', language: 'EN', meNodeId: nodeId },
+      defaults: { theme: 'light', language: 'EN', meNodeId: nodeId, focusedView: false },
     });
     row.meNodeId = nodeId;
     await row.save();
@@ -272,9 +272,9 @@ app.get('/api/settings', async (req, res) => {
   }
   const [row] = await Setting.findOrCreate({
     where: { username },
-    defaults: { theme: 'light', language: 'EN', meNodeId: null },
+    defaults: { theme: 'light', language: 'EN', meNodeId: null, focusedView: false },
   });
-  res.json({ theme: row.theme, language: row.language, meNodeId: row.meNodeId });
+  res.json({ theme: row.theme, language: row.language, meNodeId: row.meNodeId, focusedView: row.focusedView });
 });
 
 app.post('/api/settings', requireAuth, async (req, res) => {
@@ -284,11 +284,12 @@ app.post('/api/settings', requireAuth, async (req, res) => {
   }
   const [row] = await Setting.findOrCreate({
     where: { username },
-    defaults: { theme: 'light', language: 'EN', meNodeId: null },
+    defaults: { theme: 'light', language: 'EN', meNodeId: null, focusedView: false },
   });
   if (typeof req.body.theme === 'string') row.theme = req.body.theme;
   if (typeof req.body.language === 'string') row.language = req.body.language;
   if (typeof req.body.meNodeId !== 'undefined') row.meNodeId = req.body.meNodeId;
+  if (typeof req.body.focusedView !== 'undefined') row.focusedView = !!req.body.focusedView;
   await row.save();
   res.sendStatus(204);
 });

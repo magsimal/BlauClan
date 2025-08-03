@@ -57,6 +57,9 @@
   "saveLayout": "Zapisz uklad",
   "loadLayout": "Wczytaj uklad",
   "fitToScreen": "Dopasuj do ekranu",
+  "zoomIn": "Powieksz",
+  "zoomOut": "Pomniejsz",
+  "focusedView": "Widok skupiony",
   "downloadPng": "Pobierz PNG",
   "downloadSvg": "Pobierz SVG",
   "resetFilters": "Resetuj filtry",
@@ -100,4 +103,6 @@
   ,"layoutTidied": "Uklad uporz\u0105dkowany"
   ,"loading": "Ladowanie..."
   ,"processingLargeDataset": "Przetwarzanie {count} wezlow, prosze czekac..."
+  ,"defineMeFirst": "Najpierw zdefiniuj wezel 'me'"
+  ,"personsHidden": "os\u00f3b ukrytych"
 }

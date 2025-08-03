@@ -154,5 +154,15 @@
     if (overlay) overlay.style.display = 'none';
   }
 
-  return { init, show, hide };
+  async function refresh() {
+    try {
+      const res = await fetch('/api/people');
+      people = await res.json();
+      fuse = new Fuse(people, { keys: ['firstName', 'lastName', 'callName'], threshold: 0.3 });
+    } catch (e) {
+      console.error('Failed to refresh people data for search', e);
+    }
+  }
+
+  return { init, show, hide, refresh };
 });
