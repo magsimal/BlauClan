@@ -1550,6 +1550,9 @@
           const tgt = getNodeById(params.target);
           if (!src || !tgt) return;
 
+          // Prevent self-connections
+          if (params.source === params.target) return;
+
           if (
             (sH.includes('left') || sH.includes('right')) &&
             (tH.includes('left') || tH.includes('right'))
@@ -1749,6 +1752,28 @@
           await FrontendApp.updatePerson(child.id, updates);
           await load(true);
           computeChildren(selected.value.id);
+        }
+
+        async function removeFather() {
+          if (!selected.value || !selected.value.fatherId) return;
+          await FrontendApp.updatePerson(selected.value.id, { fatherId: null });
+          await load(true);
+          // Update the selected person's data
+          const node = nodes.value.find((n) => n.id === String(selected.value.id));
+          if (node) {
+            selected.value = { ...node.data };
+          }
+        }
+
+        async function removeMother() {
+          if (!selected.value || !selected.value.motherId) return;
+          await FrontendApp.updatePerson(selected.value.id, { motherId: null });
+          await load(true);
+          // Update the selected person's data
+          const node = nodes.value.find((n) => n.id === String(selected.value.id));
+          if (node) {
+            selected.value = { ...node.data };
+          }
         }
 
         function refreshUnions() {
@@ -2270,6 +2295,8 @@
           saveNewPerson,
           cancelModal,
           unlinkChild,
+          removeFather,
+          removeMother,
           addChild,
           addSpouse,
         addParent,
@@ -2707,6 +2734,11 @@
                     <strong data-i18n="fatherLabel">Father:</strong>
                     <template v-if="selected.fatherId">
                       <a href="#" @click.prevent="gotoPerson(selected.fatherId)">{{ personName(selected.fatherId) }}</a>
+                      <span class="ml-1" style="cursor: pointer;" @click="removeFather" title="Remove father relationship">
+                        <svg viewBox="0 0 24 24" class="text-danger" style="width: 14px; height: 14px; vertical-align: middle;">
+                          <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+                        </svg>
+                      </span>
                     </template>
                     <template v-else>
                       <span class="ml-1" style="cursor: pointer;" @click="startAddParent('father')">
@@ -2720,6 +2752,11 @@
                     <strong data-i18n="motherLabel">Mother:</strong>
                     <template v-if="selected.motherId">
                       <a href="#" @click.prevent="gotoPerson(selected.motherId)">{{ personName(selected.motherId) }}</a>
+                      <span class="ml-1" style="cursor: pointer;" @click="removeMother" title="Remove mother relationship">
+                        <svg viewBox="0 0 24 24" class="text-danger" style="width: 14px; height: 14px; vertical-align: middle;">
+                          <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+                        </svg>
+                      </span>
                     </template>
                     <template v-else>
                       <span class="ml-1" style="cursor: pointer;" @click="startAddParent('mother')">
@@ -2735,6 +2772,11 @@
                     <ul>
                       <li v-for="c in children" :key="c.id">
                         <a href="#" @click.prevent="gotoPerson(c.id)">{{ personName(c.id) }}</a>
+                        <span class="ml-1" style="cursor: pointer;" @click="unlinkChild(c)" title="Remove child relationship">
+                          <svg viewBox="0 0 24 24" class="text-danger" style="width: 14px; height: 14px; vertical-align: middle;">
+                            <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+                          </svg>
+                        </span>
                       </li>
                     </ul>
                   </div>
