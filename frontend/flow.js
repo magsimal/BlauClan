@@ -932,7 +932,7 @@
         watch(
           () => selected.value,
           () => {
-            if (editing.value && showModal.value && !isNew.value) saveSelected();
+            if (editing.value && showModal.value && !isNew.value && selected.value?.id) saveSelected();
           },
           { deep: true }
         );
