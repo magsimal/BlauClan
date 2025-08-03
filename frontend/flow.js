@@ -1605,7 +1605,7 @@
           // Update the selected person's data
           const node = nodes.value.find((n) => n.id === String(selected.value.id));
           if (node) {
-            selected.value = { ...node.data, spouseId: '' };
+            selected.value = { ...node.data };
           }
         }
 
@@ -1616,7 +1616,7 @@
           // Update the selected person's data
           const node = nodes.value.find((n) => n.id === String(selected.value.id));
           if (node) {
-            selected.value = { ...node.data, spouseId: '' };
+            selected.value = { ...node.data };
           }
         }
 
