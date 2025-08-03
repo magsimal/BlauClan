@@ -282,17 +282,44 @@
             });
           }
           const people = await FrontendApp.fetchPeople();
+          
+          // Show progress for large datasets
+          if (people.length > 1000) {
+            flash(I18nGlobal.t('processingLargeDataset', { count: people.length }));
+          }
+          
           const idMap = {};
-          people.forEach((p) => (idMap[p.id] = p));
+          const CHUNK_SIZE = Math.min(500, Math.max(50, Math.floor(people.length / 10)));
+          
+          // Process people in chunks to prevent UI freezing
+          for (let i = 0; i < people.length; i += CHUNK_SIZE) {
+            const chunk = people.slice(i, i + CHUNK_SIZE);
+            chunk.forEach((p) => (idMap[p.id] = p));
+            
+            // Yield control for large datasets
+            if (people.length > CHUNK_SIZE && i + CHUNK_SIZE < people.length) {
+              await nextTick();
+            }
+          }
 
           // determine generation levels via helper
           const genMap = GenerationLayout.assignGenerations(people);
           const layers = {};
-          people.forEach((p) => {
-            const g = genMap.get(p.id) ?? 0;
-            layers[g] = layers[g] || [];
-            layers[g].push(p);
-          });
+          
+          // Process layers in chunks
+          for (let i = 0; i < people.length; i += CHUNK_SIZE) {
+            const chunk = people.slice(i, i + CHUNK_SIZE);
+            chunk.forEach((p) => {
+              const g = genMap.get(p.id) ?? 0;
+              layers[g] = layers[g] || [];
+              layers[g].push(p);
+            });
+            
+            // Yield control for large datasets
+            if (people.length > CHUNK_SIZE && i + CHUNK_SIZE < people.length) {
+              await nextTick();
+            }
+          }
 
           const positions = {};
           const xSpacing = 180;
@@ -303,12 +330,25 @@
             });
           });
 
-          nodes.value = people.map((p) => ({
-            id: String(p.id),
-            type: 'person',
-            position: existingPos[p.id] || positions[p.id],
-            data: { ...p, me: window.meNodeId && p.id === window.meNodeId },
-          }));
+          // Create nodes in chunks for large datasets
+          const newNodes = [];
+          for (let i = 0; i < people.length; i += CHUNK_SIZE) {
+            const chunk = people.slice(i, i + CHUNK_SIZE);
+            const chunkNodes = chunk.map((p) => ({
+              id: String(p.id),
+              type: 'person',
+              position: existingPos[p.id] || positions[p.id],
+              data: { ...p, me: window.meNodeId && p.id === window.meNodeId },
+            }));
+            newNodes.push(...chunkNodes);
+            
+            // Yield control for large datasets
+            if (people.length > CHUNK_SIZE && i + CHUNK_SIZE < people.length) {
+              await nextTick();
+            }
+          }
+          
+          nodes.value = newNodes;
 
           unions = {};
           edges.value = [];
@@ -1640,6 +1680,172 @@
           });
         }
 
+        // Chunked version of tidyUp for large datasets
+        async function tidyUpChunked(list) {
+          const CHUNK_SIZE = Math.min(500, Math.max(50, Math.floor(list.length / 10)));
+          
+          const map = new Map(
+            list.map((n) => [n.id, { ...n, children: [], width: n.width || 0 }])
+          );
+          
+          // Process parent-child relationships in chunks
+          let processed = 0;
+          for (const [id, node] of map) {
+            if (node.fatherId && map.has(node.fatherId)) {
+              map.get(node.fatherId).children.push(node);
+            } else if (node.motherId && map.has(node.motherId)) {
+              map.get(node.motherId).children.push(node);
+            }
+            
+            processed++;
+            if (processed % CHUNK_SIZE === 0) {
+              await nextTick(); // Yield control to prevent UI freezing
+            }
+          }
+
+          const gen = GenerationLayout.assignGenerations(list);
+          const ROW_HEIGHT = 230;
+
+          const roots = [];
+          map.forEach((n) => {
+            const hasParent = list.some((p) => p.id === n.motherId || p.id === n.fatherId);
+            if (!hasParent) roots.push(n);
+          });
+          
+          const fakeRoot = { id: 'root', children: roots };
+          const baseSpacing = horizontalGridSize * 4;
+          const H_SPACING = baseSpacing - (baseSpacing - horizontalGridSize) * relativeAttraction;
+          const layout = d3.tree().nodeSize([H_SPACING, 1]);
+          const rootNode = d3.hierarchy(fakeRoot);
+          layout(rootNode);
+
+          rootNode.children.forEach(walk);
+          function walk(h) {
+            const d = map.get(h.data.id);
+            if (d) {
+              d.x = h.x;
+            }
+            h.children && h.children.forEach(walk);
+          }
+
+          const couples = new Set();
+          // Process couples in chunks
+          for (let i = 0; i < list.length; i += CHUNK_SIZE) {
+            const chunk = list.slice(i, i + CHUNK_SIZE);
+            chunk.forEach((child) => {
+              if (child.fatherId && child.motherId) {
+                const key = `${child.fatherId}-${child.motherId}`;
+                if (!couples.has(key)) {
+                  couples.add(key);
+                  const father = map.get(child.fatherId);
+                  const mother = map.get(child.motherId);
+                  if (father && mother) {
+                    const mid =
+                      (father.x + father.width / 2 + mother.x + mother.width / 2) /
+                      2;
+                    father.x = mid - father.width / 2 - H_SPACING / 2;
+                    mother.x = mid + H_SPACING / 2 - mother.width / 2;
+                  }
+                }
+              }
+            });
+            
+            if (i + CHUNK_SIZE < list.length) {
+              await nextTick(); // Yield control
+            }
+          }
+
+          const links = [];
+          // Process links in chunks
+          for (let i = 0; i < list.length; i += CHUNK_SIZE) {
+            const chunk = list.slice(i, i + CHUNK_SIZE);
+            chunk.forEach((p) => {
+              if (p.fatherId && map.has(p.fatherId)) {
+                links.push({ source: map.get(p.id), target: map.get(p.fatherId), type: 'parent' });
+              }
+              if (p.motherId && map.has(p.motherId)) {
+                links.push({ source: map.get(p.id), target: map.get(p.motherId), type: 'parent' });
+              }
+              (p.spouseIds || []).forEach((sid) => {
+                if (map.has(sid)) {
+                  links.push({ source: map.get(p.id), target: map.get(sid), type: 'spouse' });
+                }
+              });
+            });
+            
+            if (i + CHUNK_SIZE < list.length) {
+              await nextTick(); // Yield control
+            }
+          }
+
+          const nodesForSim = Array.from(map.values());
+          nodesForSim.forEach((n) => {
+            const g = gen.get(n.id) ?? 0;
+            n.y = g * ROW_HEIGHT;
+            n.fy = n.y;
+          });
+
+          const linkForce = d3
+            .forceLink(links)
+            .id((d) => d.id)
+            .distance((d) => (d.type === 'spouse' ? H_SPACING / 2 : 0))
+            .strength(1);
+          const collideForce = d3
+            .forceCollide()
+            .radius((d) => (d.width || 0) / 2 + H_SPACING / 2)
+            .strength(1);
+          const sim = d3
+            .forceSimulation(nodesForSim)
+            .force('link', linkForce)
+            .force('collide', collideForce)
+            .alphaDecay(0.05)
+            .velocityDecay(0.4)
+            .stop();
+          
+          // Run simulation with periodic yielding for large datasets
+          const SIMULATION_CHUNK = 10;
+          for (let i = 0; i < 120; i += SIMULATION_CHUNK) {
+            const iterations = Math.min(SIMULATION_CHUNK, 120 - i);
+            for (let j = 0; j < iterations; j++) {
+              sim.tick();
+            }
+            if (i + SIMULATION_CHUNK < 120) {
+              await nextTick(); // Yield control periodically during simulation
+            }
+          }
+          
+          nodesForSim.forEach((n) => {
+            delete n.fy;
+          });
+
+          // Continue with the rest of the original tidyUp logic...
+          const rows = new Map();
+          nodesForSim.forEach((n) => {
+            const row = Math.round(n.y / ROW_HEIGHT);
+            if (!rows.has(row)) rows.set(row, []);
+            rows.get(row).push(n);
+          });
+
+          rows.forEach((rowNodes) => {
+            rowNodes.sort((a, b) => a.x - b.x);
+            let lastX = Number.NEGATIVE_INFINITY;
+            rowNodes.forEach((n) => {
+              if (n.x < lastX + (n.width || 0) / 2 + H_SPACING / 2) {
+                n.x = lastX + (n.width || 0) / 2 + H_SPACING / 2;
+              }
+              lastX = n.x + (n.width || 0) / 2;
+            });
+          });
+
+          list.forEach((original) => {
+            const updated = map.get(original.id);
+            if (updated) {
+              original.x = updated.x;
+              original.y = updated.y;
+            }
+          });
+        }
+
         function tidyUp(list) {
           const map = new Map(
             list.map((n) => [n.id, { ...n, children: [], width: n.width || 0 }])
@@ -1830,6 +2036,15 @@
         notifyTap();
         setLoading(true);
         await nextTick();
+        
+        const totalNodes = nodes.value.filter((n) => n.type === 'person').length;
+        const CHUNK_SIZE = Math.min(500, Math.max(50, Math.floor(totalNodes / 10))); // Adaptive chunk size
+        
+        // Show progress for large datasets
+        if (totalNodes > 1000) {
+          flash(I18nGlobal.t('processingLargeDataset', { count: totalNodes }));
+        }
+        
         const people = nodes.value
           .filter((n) => n.type === 'person')
           .map((n) => ({
@@ -1843,28 +2058,54 @@
           }));
 
         const pMap = new Map(people.map((p) => [p.id, p]));
-        Object.values(unions).forEach((u) => {
-          const a = pMap.get(u.fatherId);
-          const b = pMap.get(u.motherId);
-          if (a && b) {
-            if (!a.spouseIds.includes(b.id)) a.spouseIds.push(b.id);
-            if (!b.spouseIds.includes(a.id)) b.spouseIds.push(a.id);
+        
+        // Process unions in chunks for large datasets
+        const unionEntries = Object.values(unions);
+        for (let i = 0; i < unionEntries.length; i += CHUNK_SIZE) {
+          const chunk = unionEntries.slice(i, i + CHUNK_SIZE);
+          chunk.forEach((u) => {
+            const a = pMap.get(u.fatherId);
+            const b = pMap.get(u.motherId);
+            if (a && b) {
+              if (!a.spouseIds.includes(b.id)) a.spouseIds.push(b.id);
+              if (!b.spouseIds.includes(a.id)) b.spouseIds.push(a.id);
+            }
+          });
+          
+          // Yield control to prevent UI freezing
+          if (unionEntries.length > CHUNK_SIZE && i + CHUNK_SIZE < unionEntries.length) {
+            await nextTick();
           }
-        });
+        }
 
-        tidyUp(people);
+        // Use chunked tidyUp for large datasets
+        if (totalNodes > 1000) {
+          await tidyUpChunked(people);
+        } else {
+          tidyUp(people);
+        }
 
         const posMap = {};
         people.forEach((p) => {
           posMap[p.id] = { x: p.x, y: p.y };
         });
 
-        nodes.value.forEach((n) => {
-          if (n.type === 'person' && posMap[n.data.id]) {
-            n.position.x = posMap[n.data.id].x;
-            n.position.y = posMap[n.data.id].y;
+        // Update node positions in chunks for large datasets
+        const personNodes = nodes.value.filter((n) => n.type === 'person');
+        for (let i = 0; i < personNodes.length; i += CHUNK_SIZE) {
+          const chunk = personNodes.slice(i, i + CHUNK_SIZE);
+          chunk.forEach((n) => {
+            if (posMap[n.data.id]) {
+              n.position.x = posMap[n.data.id].x;
+              n.position.y = posMap[n.data.id].y;
+            }
+          });
+          
+          // Yield control to prevent UI freezing
+          if (personNodes.length > CHUNK_SIZE && i + CHUNK_SIZE < personNodes.length) {
+            await nextTick();
           }
-        });
+        }
 
         refreshUnions();
         saveTempLayout();

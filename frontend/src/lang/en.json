@@ -99,4 +99,5 @@
   ,"layoutSaved": "Layout saved"
   ,"layoutTidied": "Layout tidied"
   ,"loading": "Loading..."
+  ,"processingLargeDataset": "Processing {count} nodes, please wait..."
 }
