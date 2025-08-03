@@ -1869,7 +1869,7 @@
           
           // Process parent-child relationships in chunks
           let processed = 0;
-          for (const [id, node] of map) {
+          for (const [, node] of map) {
             if (node.fatherId && map.has(node.fatherId)) {
               map.get(node.fatherId).children.push(node);
             } else if (node.motherId && map.has(node.motherId)) {
