@@ -1750,9 +1750,8 @@
 
         async function deleteSelected() {
           if (!selected.value) return;
-          const id = selected.value.id;
           showModal.value = false;
-          await FrontendApp.deletePerson(id);
+          await FrontendApp.deletePerson(selected.value.id);
           selected.value = null;
           await load(true);
           // Refresh search data so deleted person is removed from search
