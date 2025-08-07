@@ -28,17 +28,16 @@
   let admin;
 
   function focusNode(pid) {
-    if (!appState) return;
-    const { fitView, nextTick, getNodeById } = appState;
-    nextTick(() => {
-      const node = getNodeById(pid);
-      if (!node) return;
-      fitView({ nodes: [String(pid)], maxZoom: 1.5, padding: 0.1 });
-      node.data.highlight = true;
-      setTimeout(() => {
-        node.data.highlight = false;
-      }, 800);
-    });
+    if (!appState) {
+      console.warn('AppState not initialized');
+      return;
+    }
+    const { focusOnNode } = appState;
+    if (!focusOnNode) {
+      console.warn('focusOnNode function not available');
+      return;
+    }
+    focusOnNode(pid);
   }
   function refreshMe() {
     if (!appState) return;
@@ -539,6 +538,27 @@
           deathExactBackup.value = selected.value.dateOfDeath || '';
           computeChildren(pid);
           showModal.value = true;
+        }
+
+        async function focusOnNode(pid) {
+          if (!pid) return;
+          await nextTick();
+          const node = getNodeById(pid);
+          if (!node) {
+            console.warn('Node not found for focusing:', pid);
+            return;
+          }
+          try {
+            fitView({ nodes: [String(pid)], maxZoom: 1.5, padding: 0.1 });
+            node.data.highlight = true;
+            setTimeout(() => {
+              if (node.data) {
+                node.data.highlight = false;
+              }
+            }, 800);
+          } catch (error) {
+            console.error('Error focusing on node:', error);
+          }
         }
 
         async function setMe() {
@@ -2517,7 +2537,7 @@
         fitView();
       }
 
-      appState = { nodes, fitView, nextTick, getNodeById };
+      appState = { nodes, fitView, nextTick, getNodeById, gotoPerson, focusOnNode };
 
        return {
         nodes,
