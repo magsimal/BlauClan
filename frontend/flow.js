@@ -770,7 +770,15 @@
           // Only update edges that were previously highlighted
           for (const edgeId of highlightedEdges) {
             const edge = edges.value.find(e => e.id === edgeId);
-            if (edge) edge.class = '';
+            if (edge) {
+              // Remove highlight-specific classes but preserve other classes like 'selected-edge'
+              removeClass(edge, 'highlight-edge');
+              removeClass(edge, 'faded-edge');
+              // If no classes remain, remove the class property entirely
+              if (!edge.class || edge.class.trim() === '') {
+                delete edge.class;
+              }
+            }
           }
           highlightedEdges.clear();
         }
@@ -837,14 +845,17 @@
             const sel = edge === selectedEdge.value;
             if (edge.id.startsWith('spouse-line')) {
               edge.class = sel ? 'selected-edge' : 'faded-edge';
+              if (!sel) highlightedEdges.add(edge.id);
               return;
             }
             const src = map[edge.source];
             const tgt = map[edge.target];
             if (src?.data.highlight && tgt?.data.highlight) {
               edge.class = sel ? 'selected-edge' : 'highlight-edge';
+              if (!sel) highlightedEdges.add(edge.id);
             } else {
               edge.class = sel ? 'selected-edge' : 'faded-edge';
+              if (!sel) highlightedEdges.add(edge.id);
             }
           });
         }
@@ -928,14 +939,17 @@
               const sel = edge === selectedEdge.value;
               if (edge.id.startsWith('spouse-line')) {
                 edge.class = sel ? 'selected-edge' : 'faded-edge';
+                if (!sel) highlightedEdges.add(edge.id);
                 return;
               }
               const src = map.get(edge.source);
               const tgt = map.get(edge.target);
               if (src?.data.highlight && tgt?.data.highlight) {
                 edge.class = sel ? 'selected-edge' : 'highlight-edge';
+                if (!sel) highlightedEdges.add(edge.id);
               } else {
                 edge.class = sel ? 'selected-edge' : 'faded-edge';
+                if (!sel) highlightedEdges.add(edge.id);
               }
             });
             
