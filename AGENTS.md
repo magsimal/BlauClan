@@ -136,3 +136,28 @@ Use these final requirements to implement the Family Tree application from scrat
         •       Whenever adding new frontend UI elements (buttons, labels, tool tips, etc.), update the translation files in `frontend/src/lang/` for all supported languages.
 	•	Ensure the application version number and Docker image tags are incremented with every change.
         •       Do **not** replace the `latest` tag in `docker-compose.deploy.yml` or README examples.
+
+⸻
+
+# Internationalization (i18n) Support
+
+The application supports multiple languages with JSON translation files located in `frontend/src/lang/`:
+- `en.json` - English (default)
+- `de.json` - German  
+- `pl.json` - Polish
+- `hu.json` - Hungarian
+
+## Adding New Languages
+When adding translations for new languages:
+1. Create a new JSON file in `frontend/src/lang/` following the ISO 639-1 language code (e.g., `hu.json` for Hungarian)
+2. Copy the structure from `en.json` and translate all values
+3. Ensure all UI strings use the i18n system with `I18n.t('key')` 
+4. Test the application with the new language to ensure completeness
+5. Update this documentation to list the new supported language
+
+## Translation Guidelines
+- Keep translation keys consistent across all language files
+- Use clear, concise translations appropriate for the genealogical context
+- Maintain proper gender forms and grammatical structures for each language
+- Include cultural context where genealogical terms may vary by region
+- Update all translation files when adding new UI elements or messages
