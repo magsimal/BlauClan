@@ -1176,26 +1176,33 @@
             clearTimeout(clickTimer);
             clickTimer = null;
             
-            // Show loading for double-click (modal opening)
+            // Cancel any pending single-click loading state
+            isLoading.value = false;
+            
+            // Show loading for double-click (modal opening) - immediate
             isLoading.value = true;
             
             try {
-              // Use nextTick to ensure loading state shows first
-              await nextTick();
-              
+              // Update data immediately (most UI updates are fast)
               selected.value = { ...evt.node.data, spouseId: '' };
               useBirthApprox.value = !!selected.value.birthApprox;
               useDeathApprox.value = !!selected.value.deathApprox;
               birthExactBackup.value = selected.value.dateOfBirth || '';
               deathExactBackup.value = selected.value.dateOfDeath || '';
-              computeChildren(evt.node.data.id);
               editing.value = false;
+              
+              // Use nextTick only for heavy operations
+              await nextTick();
+              computeChildren(evt.node.data.id);
               showModal.value = true;
             } finally {
               isLoading.value = false;
             }
           } else {
-            // For single-click, update UI immediately then do expensive highlighting
+            // For single-click, show loading immediately and update UI
+            isLoading.value = true;
+            
+            // Update UI immediately
             selected.value = { ...evt.node.data, spouseId: '' };
             useBirthApprox.value = !!selected.value.birthApprox;
             useDeathApprox.value = !!selected.value.deathApprox;
@@ -1209,37 +1216,33 @@
             clickTimer = setTimeout(async () => {
               clickTimer = null;
               
-              // Only do expensive highlighting for large graphs
-              if (nodes.value.length > 200) {
-                isLoading.value = true;
-                try {
+              try {
+                // Only do expensive highlighting for very large graphs
+                if (nodes.value.length > 500) {
                   await nextTick();
                   await highlightBloodlineAsync(evt.node.data.id);
-                } finally {
-                  isLoading.value = false;
+                } else {
+                  // For smaller/medium graphs, use the faster synchronous version
+                  highlightBloodline(evt.node.data.id);
                 }
-              } else {
-                // For smaller graphs, use the faster synchronous version
-                highlightBloodline(evt.node.data.id);
+              } finally {
+                isLoading.value = false;
               }
-            }, 50); // Very short delay to ensure UI updates first
+            }, 10); // Very short delay to ensure UI updates first
           }
         }
 
        async function onPaneClick() {
+         // Immediate UI updates for responsiveness
          selected.value = null;
          showModal.value = false;
          editing.value = false;
-         isLoading.value = true;
-         
-         try {
-           await nextTick();
-           clearHighlights();
-         } finally {
-           isLoading.value = false;
-         }
-         
          contextMenuVisible.value = false;
+         
+         // Clear highlights without blocking UI - do it async
+         setTimeout(() => {
+           clearHighlights();
+         }, 0);
        }
 
         function gotoMe() {
