@@ -1214,16 +1214,12 @@
             }
             addSelectedNodes([evt.node]);
             
-            // For single-click, show loading immediately and update UI
-            isLoading.value = true;
-            
-            // Update UI immediately
+            // ONLY immediate, non-blocking UI updates to enable double-click detection
             selected.value = { ...evt.node.data, spouseId: '' };
             useBirthApprox.value = !!selected.value.birthApprox;
             useDeathApprox.value = !!selected.value.deathApprox;
             birthExactBackup.value = selected.value.dateOfBirth || '';
             deathExactBackup.value = selected.value.dateOfDeath || '';
-            computeChildren(evt.node.data.id);
             editing.value = false;
             showModal.value = false;
             
@@ -1231,18 +1227,30 @@
             clickTimer = setTimeout(async () => {
               clickTimer = null;
               
+              // Show loading state only after double-click window
+              isLoading.value = true;
+              
               try {
+                // Do all the expensive operations asynchronously
+                setTimeout(() => {
+                  computeChildren(evt.node.data.id);
+                }, 0);
+                
                 // Clear previous highlights and show new bloodline
                 clearHighlights();
-                // Only do expensive highlighting for very large graphs
-                if (nodes.value.length > 500) {
-                  await nextTick();
-                  await highlightBloodlineAsync(evt.node.data.id);
-                } else {
-                  // For smaller/medium graphs, use the faster synchronous version
-                  highlightBloodline(evt.node.data.id);
-                }
-              } finally {
+                // Always use async version to prevent any blocking
+                setTimeout(async () => {
+                  if (nodes.value.length > 500) {
+                    await nextTick();
+                    await highlightBloodlineAsync(evt.node.data.id);
+                  } else {
+                    // Use async version even for smaller graphs to prevent blocking
+                    await highlightBloodlineAsync(evt.node.data.id);
+                  }
+                  isLoading.value = false;
+                }, 0);
+              } catch (error) {
+                console.error('Error in single-click processing:', error);
                 isLoading.value = false;
               }
             }, 250); // Standard double-click window
