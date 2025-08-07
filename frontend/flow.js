@@ -718,6 +718,7 @@
           if (scoreTimer) clearInterval(scoreTimer);
         });
         const editing = ref(false);
+        const isLoading = ref(false);
 
         let clickTimer = null;
 
@@ -801,6 +802,105 @@
               edge.class = sel ? 'selected-edge' : 'faded-edge';
             }
           });
+        }
+
+        // Optimized async version that breaks up work across frames
+        async function highlightBloodlineAsync(id) {
+          clearHighlights();
+
+          // Pre-build map for faster lookups
+          const map = new Map();
+          nodes.value.forEach((n) => {
+            map.set(n.id, n);
+          });
+
+          const visitedUp = new Set();
+          const visitedDown = new Set();
+          const toHighlight = new Set();
+          const unionIds = new Set();
+
+          function unionId(f, m) {
+            return `u-${f}-${m}`;
+          }
+
+          // Collect all nodes to highlight first (non-blocking)
+          function collectAncestors(pid) {
+            if (!pid || visitedUp.has(pid)) return;
+            visitedUp.add(pid);
+            const node = map.get(String(pid));
+            if (!node) return;
+            toHighlight.add(pid);
+            if (node.data.fatherId && node.data.motherId) {
+              unionIds.add(unionId(node.data.fatherId, node.data.motherId));
+            }
+            collectAncestors(node.data.fatherId);
+            collectAncestors(node.data.motherId);
+          }
+
+          function collectDescendants(pid) {
+            if (!pid || visitedDown.has(pid)) return;
+            visitedDown.add(pid);
+            const node = map.get(String(pid));
+            if (!node) return;
+            toHighlight.add(pid);
+            nodes.value.forEach((child) => {
+              if (
+                child.data.fatherId === pid ||
+                child.data.motherId === pid
+              ) {
+                if (child.data.fatherId && child.data.motherId) {
+                  unionIds.add(unionId(child.data.fatherId, child.data.motherId));
+                }
+                collectDescendants(parseInt(child.id));
+              }
+            });
+          }
+
+          // Collect all nodes to highlight
+          collectAncestors(id);
+          collectDescendants(id);
+
+          // Apply highlights in batches to avoid blocking
+          const nodesToUpdate = [...toHighlight, ...unionIds];
+          const batchSize = 50;
+          
+          for (let i = 0; i < nodesToUpdate.length; i += batchSize) {
+            const batch = nodesToUpdate.slice(i, i + batchSize);
+            batch.forEach(nId => {
+              const node = map.get(String(nId));
+              if (node && node.data) node.data.highlight = true;
+            });
+            
+            // Yield control back to browser
+            if (i + batchSize < nodesToUpdate.length) {
+              await new Promise(resolve => setTimeout(resolve, 0));
+            }
+          }
+
+          // Update edges in batches
+          const edgeBatchSize = 100;
+          for (let i = 0; i < edges.value.length; i += edgeBatchSize) {
+            const batch = edges.value.slice(i, i + edgeBatchSize);
+            batch.forEach((edge) => {
+              const sel = edge === selectedEdge.value;
+              if (edge.id.startsWith('spouse-line')) {
+                edge.class = sel ? 'selected-edge' : 'faded-edge';
+                return;
+              }
+              const src = map.get(edge.source);
+              const tgt = map.get(edge.target);
+              if (src?.data.highlight && tgt?.data.highlight) {
+                edge.class = sel ? 'selected-edge' : 'highlight-edge';
+              } else {
+                edge.class = sel ? 'selected-edge' : 'faded-edge';
+              }
+            });
+            
+            // Yield control back to browser
+            if (i + edgeBatchSize < edges.value.length) {
+              await new Promise(resolve => setTimeout(resolve, 0));
+            }
+          }
         }
 
         function getBloodlineSet(rootId) {
@@ -1011,7 +1111,7 @@
           tidySubtree(relativesNodes.value);
         }
 
-        function onNodeClick(evt) {
+        async function onNodeClick(evt) {
           const e = evt.event || evt;
           if (e.shiftKey || shiftPressed.value) {
             if (evt.node.selected) removeSelectedNodes([evt.node]);
@@ -1021,35 +1121,65 @@
           if (clickTimer) {
             clearTimeout(clickTimer);
             clickTimer = null;
-            selected.value = { ...evt.node.data, spouseId: '' };
-            useBirthApprox.value = !!selected.value.birthApprox;
-            useDeathApprox.value = !!selected.value.deathApprox;
-            birthExactBackup.value = selected.value.dateOfBirth || '';
-            deathExactBackup.value = selected.value.dateOfDeath || '';
-            computeChildren(evt.node.data.id);
-            editing.value = false;
-            showModal.value = true;
+            
+            // Show loading for double-click (modal opening)
+            isLoading.value = true;
+            
+            try {
+              // Use nextTick to ensure loading state shows first
+              await nextTick();
+              
+              selected.value = { ...evt.node.data, spouseId: '' };
+              useBirthApprox.value = !!selected.value.birthApprox;
+              useDeathApprox.value = !!selected.value.deathApprox;
+              birthExactBackup.value = selected.value.dateOfBirth || '';
+              deathExactBackup.value = selected.value.dateOfDeath || '';
+              computeChildren(evt.node.data.id);
+              editing.value = false;
+              showModal.value = true;
+            } finally {
+              isLoading.value = false;
+            }
           } else {
-            selected.value = { ...evt.node.data, spouseId: '' };
-            useBirthApprox.value = !!selected.value.birthApprox;
-            useDeathApprox.value = !!selected.value.deathApprox;
-            birthExactBackup.value = selected.value.dateOfBirth || '';
-            deathExactBackup.value = selected.value.dateOfDeath || '';
-            computeChildren(evt.node.data.id);
-            editing.value = false;
-            showModal.value = false;
-            highlightBloodline(evt.node.data.id);
+            // Show loading for single-click (bloodline highlighting)
+            isLoading.value = true;
+            
+            try {
+              selected.value = { ...evt.node.data, spouseId: '' };
+              useBirthApprox.value = !!selected.value.birthApprox;
+              useDeathApprox.value = !!selected.value.deathApprox;
+              birthExactBackup.value = selected.value.dateOfBirth || '';
+              deathExactBackup.value = selected.value.dateOfDeath || '';
+              computeChildren(evt.node.data.id);
+              editing.value = false;
+              showModal.value = false;
+              
+              // Use nextTick to ensure UI updates before heavy computation
+              await nextTick();
+              await highlightBloodlineAsync(evt.node.data.id);
+            } finally {
+              isLoading.value = false;
+            }
+            
             clickTimer = setTimeout(() => {
               clickTimer = null;
             }, 250);
           }
         }
 
-       function onPaneClick() {
+       async function onPaneClick() {
          selected.value = null;
          showModal.value = false;
          editing.value = false;
-         clearHighlights();
+         isLoading.value = true;
+         
+         try {
+           await nextTick();
+           clearHighlights();
+         } finally {
+           isLoading.value = false;
+         }
+         
          contextMenuVisible.value = false;
        }
 
@@ -2661,9 +2791,7 @@
       template: `
         <div style="width: 100%; height: 100%" @click="contextMenuVisible = false">
           <div id="loadingOverlay" v-show="isLoading">
-            <div class="spinner-border text-primary" role="status">
-              <span class="sr-only" data-i18n="loading">Loading...</span>
-            </div>
+            <div class="loading-spinner"></div>
           </div>
           <div id="flashBanner" v-show="flashVisible" :class="['alert', flashType==='success'?'alert-success':'alert-danger','text-center']">{{ flashMessage }}</div>
           <div id="multiIndicator" data-i18n="multiSelect" v-show="shiftPressed">Multi-select</div>
