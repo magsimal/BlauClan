@@ -62,6 +62,7 @@
   "focusedView": "Widok skupiony",
   "downloadPng": "Pobierz PNG",
   "downloadSvg": "Pobierz SVG",
+  "downloadBloodlineSvg": "Pobierz SVG linii krwi",
   "resetFilters": "Resetuj filtry",
   "snapToGrid": "Przyciagaj do siatki",
   "enableSnap": "Wlacz przyciaganie",

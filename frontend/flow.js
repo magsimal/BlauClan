@@ -1591,6 +1591,34 @@
           };
         }
 
+        function buildBloodlineHierarchy(selectedNodeId) {
+          if (!selectedNodeId) return null;
+          
+          // Get the bloodline set for the selected node
+          const bloodlineSet = getBloodlineSet(selectedNodeId);
+          
+          // Build a map of bloodline nodes
+          const map = {};
+          nodes.value.forEach((n) => {
+            if (!n.data || n.data.helper) return;
+            if (bloodlineSet.has(n.id)) {
+              map[n.data.id] = { ...n.data, children: [] };
+            }
+          });
+          
+          // Build parent-child relationships within bloodline
+          Object.values(map).forEach((p) => {
+            const parent = map[p.fatherId] || map[p.motherId];
+            if (parent) parent.children.push(p);
+          });
+          
+          return {
+            children: Object.values(map).filter(
+              (p) => !map[p.fatherId] && !map[p.motherId]
+            ),
+          };
+        }
+
         function downloadSvg() {
           const treeData = buildHierarchy();
           const exporter = window.ExportSvg;
@@ -1599,6 +1627,35 @@
               data: treeData,
               svgEl: null,
               colors: { male: '#4e79a7', female: '#f28e2b', '?': '#bab0ab' },
+            });
+          } else {
+            console.error('ExportSvg utility not loaded');
+          }
+        }
+
+        function downloadBloodlineSvg() {
+          // Check if exactly one node is selected
+          if (selectedNodes.value.length !== 1) {
+            flash('Please select exactly one person to export their bloodline', 'warning');
+            return;
+          }
+          
+          const selectedNodeId = parseInt(selectedNodes.value[0].id);
+          const treeData = buildBloodlineHierarchy(selectedNodeId);
+          
+          if (!treeData || !treeData.children || treeData.children.length === 0) {
+            flash('No bloodline data found for selected person', 'warning');
+            return;
+          }
+          
+          const exporter = window.ExportSvg;
+          if (exporter && typeof exporter.exportFamilyTree === 'function') {
+            exporter.exportFamilyTree({
+              data: treeData,
+              svgEl: null,
+              colors: { male: '#4e79a7', female: '#f28e2b', '?': '#bab0ab' },
+              selectedNodeId: selectedNodeId,
+              bloodlineOnly: true,
             });
           } else {
             console.error('ExportSvg utility not loaded');
@@ -2885,6 +2942,7 @@
         loadLayout,
         fitView,
         downloadSvg,
+        downloadBloodlineSvg,
         toggleSnap,
         deleteAll,
         snapToGrid,
@@ -3022,6 +3080,9 @@
             <button class="icon-button" @click="downloadSvg" v-tooltip="I18n.t('downloadSvg')">
               <svg viewBox="0 0 24 24"><path d="M11.25 3h1.5v10.379l3.47-3.47 1.06 1.06-5 5a.75.75 0 0 1-1.06 0l-5-5 1.06-1.06 3.47 3.47V3z"/><path d="M4.5 18.75h15v1.5h-15z"/></svg>
             </button>
+            <button class="icon-button" @click="downloadBloodlineSvg" v-tooltip="I18n.t('downloadBloodlineSvg')" :disabled="selectedNodes.length !== 1">
+              <svg viewBox="0 0 24 24"><path d="M12 2L2 7v10c0 5.55 3.84 9.74 9 11 5.16-1.26 9-5.45 9-11V7l-10-5zM12 20c-4.41 0-8-3.59-8-8V9l8-4 8 4v3c0 4.41-3.59 8-8 8z"/></svg>
+            </button>
             <button class="icon-button" @click="toggleSnap" :class="{ active: snapToGrid }" v-tooltip="snapToGrid ? I18n.t('disableSnap') : I18n.t('enableSnap')">
               <svg viewBox="0 0 24 24"><path d="M3 3h18v18H3V3m2 2v14h14V5H5Z" /></svg>
             </button>
@@ -3119,6 +3180,11 @@
               @click="copySelectedGedcom"
               data-i18n="copyGedcom"
             >Copy GEDCOM</li>
+            <li
+              v-if="selectedNodes && selectedNodes.length === 1"
+              @click="downloadBloodlineSvg"
+              data-i18n="downloadBloodlineSvg"
+            >Download Bloodline SVG</li>
           </ul>
 
         <div v-if="showImport" class="modal" @click.self="showImport = false">

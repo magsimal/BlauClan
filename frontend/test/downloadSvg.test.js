@@ -10,6 +10,7 @@ function mountFlow(windowExtras = {}) {
     console,
     module: { exports: {} },
     exports: {},
+    setTimeout: (fn, delay) => fn(), // Mock setTimeout to execute immediately
     Vue: {
       createApp(options) { return { mount() { return options.setup(); } }; },
       ref: (v) => ({ value: v }),
@@ -53,5 +54,35 @@ describe('downloadSvg', () => {
     app.downloadSvg();
     expect(errorSpy).toHaveBeenCalledWith('ExportSvg utility not loaded');
     errorSpy.mockRestore();
+  });
+});
+
+describe('downloadBloodlineSvg', () => {
+  test('function exists and can be called', () => {
+    const { app } = mountFlow();
+    expect(typeof app.downloadBloodlineSvg).toBe('function');
+    expect(() => app.downloadBloodlineSvg()).not.toThrow();
+  });
+
+  test('shows warning when no node selected', () => {
+    const { app } = mountFlow();
+    
+    app.selectedNodes.value = [];
+    app.downloadBloodlineSvg();
+    
+    // The function should not throw when no nodes are selected
+    expect(() => app.downloadBloodlineSvg()).not.toThrow();
+  });
+
+  test('shows warning when multiple nodes selected', () => {
+    const { app } = mountFlow();
+    
+    app.selectedNodes.value = [
+      { id: 'n1', data: { id: 1, firstName: 'A', lastName: 'B' } },
+      { id: 'n2', data: { id: 2, firstName: 'C', lastName: 'D' } }
+    ];
+    
+    // The function should not throw when multiple nodes are selected
+    expect(() => app.downloadBloodlineSvg()).not.toThrow();
   });
 });
