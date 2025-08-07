@@ -1172,12 +1172,21 @@
             else addSelectedNodes([evt.node]);
             return;
           }
+          
           if (clickTimer) {
             clearTimeout(clickTimer);
             clickTimer = null;
             
             // Cancel any pending single-click loading state
             isLoading.value = false;
+            
+            // Double-click detected - ensure proper VueFlow selection
+            if (selectedNodes.value.length > 0 && !selectedNodes.value.includes(evt.node)) {
+              removeSelectedNodes(selectedNodes.value);
+            }
+            if (!evt.node.selected) {
+              addSelectedNodes([evt.node]);
+            }
             
             // Show loading for double-click (modal opening) - immediate
             isLoading.value = true;
@@ -1199,6 +1208,12 @@
               isLoading.value = false;
             }
           } else {
+            // Single-click - manage VueFlow selection properly
+            if (selectedNodes.value.length > 0) {
+              removeSelectedNodes(selectedNodes.value);
+            }
+            addSelectedNodes([evt.node]);
+            
             // For single-click, show loading immediately and update UI
             isLoading.value = true;
             
@@ -1217,6 +1232,8 @@
               clickTimer = null;
               
               try {
+                // Clear previous highlights and show new bloodline
+                clearHighlights();
                 // Only do expensive highlighting for very large graphs
                 if (nodes.value.length > 500) {
                   await nextTick();
@@ -1233,6 +1250,11 @@
         }
 
        async function onPaneClick() {
+         // Clear VueFlow selection first
+         if (selectedNodes.value.length > 0) {
+           removeSelectedNodes(selectedNodes.value);
+         }
+         
          // Immediate UI updates for responsiveness
          selected.value = null;
          showModal.value = false;
