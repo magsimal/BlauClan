@@ -57,6 +57,9 @@
   "saveLayout": "Save Layout",
   "loadLayout": "Reload Layout",
   "fitToScreen": "Fit to Screen",
+  "zoomIn": "Zoom In",
+  "zoomOut": "Zoom Out",
+  "focusedView": "Focused View",
   "downloadPng": "Download PNG",
   "downloadSvg": "Download SVG",
   "resetFilters": "Reset Filters",
@@ -99,4 +102,7 @@
   ,"layoutSaved": "Layout saved"
   ,"layoutTidied": "Layout tidied"
   ,"loading": "Loading..."
+  ,"processingLargeDataset": "Processing {count} nodes, please wait..."
+  ,"defineMeFirst": "Please define a me-node first"
+  ,"personsHidden": "persons hidden"
 }

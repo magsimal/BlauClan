@@ -1,5 +1,6 @@
 var VueFlowCore = function(exports, vue) {
   "use strict";
+  let isUpdatingNodeDimensions = false;
   function tryOnScopeDispose(fn) {
     if (vue.getCurrentScope()) {
       vue.onScopeDispose(fn);
@@ -6002,11 +6003,17 @@ Edge: ${id2}`
       }
     };
     const updateNodeDimensions = (updates) => {
+      if (isUpdatingNodeDimensions) {
+        return;
+      }
+      isUpdatingNodeDimensions = true;
       if (!state.vueFlowRef) {
+        isUpdatingNodeDimensions = false;
         return;
       }
       const viewportNode = state.vueFlowRef.querySelector(".vue-flow__transformationpane");
       if (!viewportNode) {
+        isUpdatingNodeDimensions = false;
         return;
       }
       const style = window.getComputedStyle(viewportNode);
@@ -6039,6 +6046,7 @@ Edge: ${id2}`
       if (changes.length) {
         state.hooks.nodesChange.trigger(changes);
       }
+      isUpdatingNodeDimensions = false;
     };
     const nodeSelectionHandler = (nodes, selected) => {
       const nodeIds2 = nodes.map((n) => n.id);
@@ -9101,7 +9109,7 @@ Edge: ${id2}`
       });
       vue.watch([() => node.value.type, () => node.value.sourcePosition, () => node.value.targetPosition], () => {
         vue.nextTick(() => {
-          updateNodeDimensions([{ id: props.id, nodeElement: nodeElement.value, forceUpdate: true }]);
+          updateNodeDimensions([{ id: props.id, nodeElement: nodeElement.value, forceUpdate: false }]);
         });
       });
       vue.watch(
@@ -9241,7 +9249,7 @@ Edge: ${id2}`
       }
       function updateInternals() {
         if (nodeElement.value) {
-          updateNodeDimensions([{ id: props.id, nodeElement: nodeElement.value, forceUpdate: true }]);
+          updateNodeDimensions([{ id: props.id, nodeElement: nodeElement.value, forceUpdate: false }]);
         }
       }
       function onMouseEnter(event) {
@@ -9395,7 +9403,7 @@ Edge: ${id2}`
             return {
               id: id2,
               nodeElement: entry.target,
-              forceUpdate: true
+              forceUpdate: false
             };
           });
           vue.nextTick(() => updateNodeDimensions(updates));
