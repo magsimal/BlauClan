@@ -1675,6 +1675,11 @@
           pendingIdMap = {};
           await load(true);
           
+          // Refresh search data so newly imported people are searchable
+          if (root.SearchApp && typeof root.SearchApp.refresh === 'function') {
+            await root.SearchApp.refresh();
+          }
+          
           importProgress.value.visible = false;
         }
 
