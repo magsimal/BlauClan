@@ -6,7 +6,7 @@
     global.ExportSvg = factory();
   }
 })(this, function () {
-  function exportFamilyTree({ svgEl, data, colors, selectedNodeId = null, bloodlineOnly = false }) {
+  function exportFamilyTree({ svgEl, data, selectedNodeId = null, bloodlineOnly = false }) {
     var d3lib = typeof d3 !== 'undefined' ? d3 : null;
     if (!d3lib && typeof require === 'function') {
       try { d3lib = require('d3'); } catch (e) { /* ignore */ }

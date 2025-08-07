@@ -10,7 +10,7 @@ function mountFlow(windowExtras = {}) {
     console,
     module: { exports: {} },
     exports: {},
-    setTimeout: (fn, delay) => fn(), // Mock setTimeout to execute immediately
+    setTimeout: (fn) => fn(), // execute immediately, omit unused delay arg
     Vue: {
       createApp(options) { return { mount() { return options.setup(); } }; },
       ref: (v) => ({ value: v }),
