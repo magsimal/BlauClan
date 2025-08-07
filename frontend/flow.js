@@ -1290,8 +1290,8 @@
             }
               await load(true);
               // Refresh search data so updated person info is searchable
-              if (root.SearchApp && typeof root.SearchApp.refresh === 'function') {
-                await root.SearchApp.refresh();
+              if (window.SearchApp && typeof window.SearchApp.refresh === 'function') {
+                await window.SearchApp.refresh();
               }
               computeChildren(updated.id);
               fetchScore();
@@ -1733,8 +1733,8 @@
           await load(true);
           
           // Refresh search data so newly imported people are searchable
-          if (root.SearchApp && typeof root.SearchApp.refresh === 'function') {
-            await root.SearchApp.refresh();
+          if (window.SearchApp && typeof window.SearchApp.refresh === 'function') {
+            await window.SearchApp.refresh();
           }
           
           importProgress.value.visible = false;
@@ -2030,8 +2030,8 @@
           selected.value = null;
           await load(true);
           // Refresh search data so deleted person is removed from search
-          if (root.SearchApp && typeof root.SearchApp.refresh === 'function') {
-            await root.SearchApp.refresh();
+          if (window.SearchApp && typeof window.SearchApp.refresh === 'function') {
+            await window.SearchApp.refresh();
           }
         }
 
@@ -2610,8 +2610,8 @@
           }
           await load(true);
           // Refresh search data so newly created person is searchable
-          if (root.SearchApp && typeof root.SearchApp.refresh === 'function') {
-            await root.SearchApp.refresh();
+          if (window.SearchApp && typeof window.SearchApp.refresh === 'function') {
+            await window.SearchApp.refresh();
           }
           if (newNodePos) {
             const node = getNodeById(p.id);
