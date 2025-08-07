@@ -62,6 +62,7 @@
   "focusedView": "Fókuszált nézet",
   "downloadPng": "PNG letöltése",
   "downloadSvg": "SVG letöltése",
+  "downloadBloodlineSvg": "Vérvonal SVG letöltése",
   "resetFilters": "Szűrők visszaállítása",
   "snapToGrid": "Rácshoz igazítás",
   "enableSnap": "Rácshoz igazítás engedélyezése",

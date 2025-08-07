@@ -8,6 +8,7 @@ function mountFlow(options = {}) {
     window: { ...window, ...options.windowExtras },
     document,
     console,
+    setTimeout: (fn) => fn(),
     module: { exports: {} },
     exports: {},
     Vue: {

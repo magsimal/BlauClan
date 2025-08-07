@@ -62,6 +62,7 @@
   "focusedView": "Focused View",
   "downloadPng": "Download PNG",
   "downloadSvg": "Download SVG",
+  "downloadBloodlineSvg": "Download Bloodline SVG",
   "resetFilters": "Reset Filters",
   "snapToGrid": "Snap to Grid",
   "enableSnap": "Enable Snap to Grid",
