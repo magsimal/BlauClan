@@ -718,7 +718,6 @@
           if (scoreTimer) clearInterval(scoreTimer);
         });
         const editing = ref(false);
-        const isLoading = ref(false);
 
         let clickTimer = null;
 
