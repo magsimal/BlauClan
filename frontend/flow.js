@@ -1223,6 +1223,9 @@
             editing.value = false;
             showModal.value = false;
             
+            // Clear previous highlights immediately so user sees deselection
+            clearHighlights();
+            
             // Set timer immediately to enable double-click detection
             clickTimer = setTimeout(async () => {
               clickTimer = null;
@@ -1236,9 +1239,7 @@
                   computeChildren(evt.node.data.id);
                 }, 0);
                 
-                // Clear previous highlights and show new bloodline
-                clearHighlights();
-                // Always use async version to prevent any blocking
+                // Show new bloodline highlighting
                 setTimeout(async () => {
                   if (nodes.value.length > 500) {
                     await nextTick();
@@ -1269,10 +1270,8 @@
          editing.value = false;
          contextMenuVisible.value = false;
          
-         // Clear highlights without blocking UI - do it async
-         setTimeout(() => {
-           clearHighlights();
-         }, 0);
+         // Clear highlights immediately (this is fast and needs to be visible right away)
+         clearHighlights();
        }
 
         function gotoMe() {
