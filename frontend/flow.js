@@ -1601,34 +1601,76 @@
 
         function buildBloodlineHierarchy(selectedNodeId) {
           if (!selectedNodeId) return null;
-          
-          // Get the bloodline set for the selected node
-          const bloodlineSet = getBloodlineSet(selectedNodeId);
-          
-          // Build a map of bloodline nodes
-          const map = {};
+
+          // Prepare quick lookups
+          const idToPerson = new Map();
+          const childrenOf = new Map();
           nodes.value.forEach((n) => {
             if (!n.data || n.data.helper) return;
-            if (bloodlineSet.has(n.id)) {
-              map[n.data.id] = { ...n.data, children: [] };
-            }
+            idToPerson.set(n.data.id, n.data);
           });
-          
-          // Build parent-child relationships within bloodline, including both parents when present
-          Object.values(map).forEach((p) => {
-            if (map[p.fatherId]) {
-              map[p.fatherId].children.push(p);
-            }
-            if (map[p.motherId]) {
-              map[p.motherId].children.push(p);
-            }
+          // Build children map
+          idToPerson.forEach((p) => {
+            if (!childrenOf.has(p.id)) childrenOf.set(p.id, []);
           });
-          
-          return {
-            children: Object.values(map).filter(
-              (p) => !map[p.fatherId] && !map[p.motherId]
-            ),
-          };
+          idToPerson.forEach((p) => {
+            if (p.fatherId && childrenOf.has(p.fatherId)) childrenOf.get(p.fatherId).push(p);
+            if (p.motherId && childrenOf.has(p.motherId)) childrenOf.get(p.motherId).push(p);
+          });
+
+          function cloneNodeData(person) {
+            return { ...person, children: [] };
+          }
+
+          const visitedAnc = new Set();
+          const visitedDesc = new Set();
+
+          function buildAncestors(pid) {
+            if (!pid || visitedAnc.has(pid)) return null;
+            const person = idToPerson.get(pid);
+            if (!person) return null;
+            visitedAnc.add(pid);
+            const node = cloneNodeData(person);
+            const f = person.fatherId ? buildAncestors(person.fatherId) : null;
+            const m = person.motherId ? buildAncestors(person.motherId) : null;
+            if (f) node.children.push(f);
+            if (m) node.children.push(m);
+            return node;
+          }
+
+          function buildDescendants(pid) {
+            if (!pid || visitedDesc.has(pid)) return null;
+            const person = idToPerson.get(pid);
+            if (!person) return null;
+            visitedDesc.add(pid);
+            const node = cloneNodeData(person);
+            const kids = childrenOf.get(pid) || [];
+            for (const child of kids) {
+              // Attach child only once (under the selected ancestor in this path)
+              const childSub = buildDescendants(child.id);
+              if (childSub) node.children.push(childSub);
+            }
+            return node;
+          }
+
+          const me = idToPerson.get(selectedNodeId);
+          if (!me) return null;
+
+          // Root is selected person, with both ancestors and descendants as children branches
+          const root = cloneNodeData(me);
+          const fatherTree = buildAncestors(me.fatherId);
+          const motherTree = buildAncestors(me.motherId);
+          if (fatherTree) root.children.push(fatherTree);
+          if (motherTree) root.children.push(motherTree);
+
+          // descendants
+          const kids = childrenOf.get(me.id) || [];
+          for (const child of kids) {
+            const childTree = buildDescendants(child.id);
+            if (childTree) root.children.push(childTree);
+          }
+
+          return { children: [root] };
         }
 
         function downloadSvg() {
