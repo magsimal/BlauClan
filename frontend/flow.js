@@ -2011,6 +2011,10 @@
 
         // Chunked version of tidyUp for large datasets
         async function tidyUpChunked(list) {
+          if (list.length === 0) {
+            return;
+          }
+          
           const CHUNK_SIZE = Math.min(500, Math.max(50, Math.floor(list.length / 10)));
           
           const map = new Map(
@@ -2048,7 +2052,9 @@
           const rootNode = d3.hierarchy(fakeRoot);
           layout(rootNode);
 
-          rootNode.children.forEach(walk);
+          if (rootNode.children) {
+            rootNode.children.forEach(walk);
+          }
           function walk(h) {
             const d = map.get(h.data.id);
             if (d) {
@@ -2176,6 +2182,10 @@
         }
 
         function tidyUp(list) {
+          if (list.length === 0) {
+            return;
+          }
+          
           const map = new Map(
             list.map((n) => [n.id, { ...n, children: [], width: n.width || 0 }])
           );
@@ -2202,7 +2212,9 @@
           const rootNode = d3.hierarchy(fakeRoot);
           layout(rootNode);
 
-          rootNode.children.forEach(walk);
+          if (rootNode.children) {
+            rootNode.children.forEach(walk);
+          }
           function walk(h) {
             const d = map.get(h.data.id);
             if (d) {
