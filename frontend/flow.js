@@ -139,6 +139,8 @@
         const conflictIndex = ref(0);
         const showConflict = ref(false);
         const conflictAction = ref('keep');
+        const importProgress = ref({ current: 0, total: 0, phase: '', visible: false });
+        let importCancelled = false;
         let pendingPeople = [];
         let pendingFamilies = [];
         let pendingIdMap = {};
@@ -1536,6 +1538,13 @@
         function openImport() {
           gedcomText.value = '';
           showImport.value = true;
+          importCancelled = false;
+        }
+
+        function cancelImport() {
+          importCancelled = true;
+          importProgress.value.visible = false;
+          importProgress.value = { current: 0, total: 0, phase: '', visible: false };
         }
 
         function openFilter() {
@@ -1607,11 +1616,29 @@
         }
 
         async function finishImport() {
+          if (importCancelled) return;
+          
+          const totalOperations = pendingPeople.length + pendingFamilies.length;
+          let currentOperation = 0;
+          
+          importProgress.value = { current: 0, total: totalOperations, phase: 'Creating people...', visible: true };
+          
           for (const p of pendingPeople) {
+            if (importCancelled) return;
+            
             const created = await FrontendApp.createPerson(p);
             pendingIdMap[p.gedcomId] = created.id;
+            currentOperation++;
+            importProgress.value.current = currentOperation;
           }
+          
+          if (importCancelled) return;
+          
+          importProgress.value.phase = 'Creating families...';
+          
           for (const f of pendingFamilies) {
+            if (importCancelled) return;
+            
             const hus = pendingIdMap[f.husband];
             const wife = pendingIdMap[f.wife];
             if (hus && wife) {
@@ -1635,23 +1662,50 @@
                 await FrontendApp.updatePerson(cid, updates);
               }
             }
+            currentOperation++;
+            importProgress.value.current = currentOperation;
           }
+          
+          if (importCancelled) return;
+          
+          importProgress.value.phase = 'Refreshing display...';
+          
           pendingPeople = [];
           pendingFamilies = [];
           pendingIdMap = {};
           await load(true);
+          
+          importProgress.value.visible = false;
         }
 
         async function processImport() {
+          importCancelled = false;
+          importProgress.value = { current: 0, total: 0, phase: 'Parsing GEDCOM...', visible: true };
+          
           const { people: importPeople = [], families = [] } =
             parseGedcom(gedcomText.value || '');
+          
+          if (importCancelled) return;
+          
+          importProgress.value = { current: 0, total: importPeople.length, phase: 'Loading existing data...', visible: true };
           const existing = await FrontendApp.fetchPeople();
+          
+          if (importCancelled) return;
+          
           const conflictList = [];
           pendingPeople = [];
           pendingFamilies = families;
           pendingIdMap = {};
           const THRESHOLD = 4;
-          for (const p of importPeople) {
+          
+          importProgress.value.phase = 'Checking for duplicates...';
+          
+          for (let i = 0; i < importPeople.length; i++) {
+            if (importCancelled) return;
+            
+            const p = importPeople[i];
+            importProgress.value.current = i + 1;
+            
             const { match: dup, score } = findBestMatch(p, existing);
             if (dup && score >= THRESHOLD) {
               conflictList.push({ existing: dup, incoming: p });
@@ -1659,11 +1713,20 @@
             } else {
               pendingPeople.push(p);
             }
+            
+            if (i % 50 === 0) {
+              await new Promise(resolve => setTimeout(resolve, 0));
+            }
           }
+          
+          if (importCancelled) return;
+          
           conflicts.value = conflictList;
           conflictIndex.value = 0;
           showImport.value = false;
+          
           if (conflictList.length) {
+            importProgress.value.visible = false;
             showConflict.value = true;
           } else {
             await finishImport();
@@ -2735,6 +2798,8 @@
         gedcomText,
         processImport,
         openImport,
+        cancelImport,
+        importProgress,
         showConflict,
         conflicts,
         conflictIndex,
@@ -2958,6 +3023,28 @@
                 <button class="btn btn-primary btn-sm mr-2" @click="processImport" data-i18n="import">Import</button>
                 <button class="btn btn-secondary btn-sm" @click="showImport = false" data-i18n="cancel">Cancel</button>
               </div>
+          </div>
+        </div>
+
+        <div v-if="importProgress.visible" class="modal">
+          <div class="modal-content card p-4" style="max-width: 400px;">
+            <h4>Importing GEDCOM...</h4>
+            <div class="mb-3">
+              <div class="progress-text mb-2">
+                {{ importProgress.phase }}
+              </div>
+              <div class="progress-bar-container">
+                <div class="progress-bar" :style="{ width: importProgress.total > 0 ? (importProgress.current / importProgress.total * 100) + '%' : '0%' }"></div>
+              </div>
+              <div class="progress-stats mt-2" v-if="importProgress.total > 0">
+                {{ importProgress.current }} / {{ importProgress.total }} 
+                ({{ Math.round(importProgress.current / importProgress.total * 100) }}%)
+              </div>
+            </div>
+            <div class="d-flex justify-content-center align-items-center">
+              <div class="loading-spinner mr-3"></div>
+              <button class="btn btn-secondary btn-sm" @click="cancelImport" data-i18n="cancel">Cancel</button>
+            </div>
           </div>
         </div>
 
