@@ -365,6 +365,7 @@
           
           nodes.value = newNodes;
           rebuildNodeMap();
+          buildChildrenCache();
 
           unions = {};
           edges.value = [];
@@ -463,11 +464,33 @@
         }
 
         const children = ref([]);
+        
+        // Cache for children lookup - maps parentId to array of child data
+        const childrenCache = new Map();
+        
+        function buildChildrenCache() {
+          childrenCache.clear();
+          for (const node of nodes.value) {
+            if (!node.data || node.data.helper) continue;
+            
+            const data = node.data;
+            if (data.fatherId) {
+              if (!childrenCache.has(data.fatherId)) {
+                childrenCache.set(data.fatherId, []);
+              }
+              childrenCache.get(data.fatherId).push(data);
+            }
+            if (data.motherId && data.motherId !== data.fatherId) {
+              if (!childrenCache.has(data.motherId)) {
+                childrenCache.set(data.motherId, []);
+              }
+              childrenCache.get(data.motherId).push(data);
+            }
+          }
+        }
 
         function computeChildren(pid) {
-          children.value = nodes.value
-            .filter((n) => n.data.fatherId === pid || n.data.motherId === pid)
-            .map((n) => n.data);
+          children.value = childrenCache.get(pid) || [];
         }
 
         function hasConnection(pid) {
@@ -723,13 +746,24 @@
 
         let clickTimer = null;
 
+        // Cache for highlighting state to avoid unnecessary DOM updates
+        const highlightedNodes = new Set();
+        const highlightedEdges = new Set();
+        
         function clearHighlights() {
-          nodes.value.forEach((n) => {
-            if (n.data) n.data.highlight = false;
-          });
-          edges.value.forEach((e) => {
-            e.class = '';
-          });
+          // Only update nodes that were previously highlighted
+          for (const nodeId of highlightedNodes) {
+            const node = nodeMap.get(nodeId);
+            if (node && node.data) node.data.highlight = false;
+          }
+          highlightedNodes.clear();
+          
+          // Only update edges that were previously highlighted
+          for (const edgeId of highlightedEdges) {
+            const edge = edges.value.find(e => e.id === edgeId);
+            if (edge) edge.class = '';
+          }
+          highlightedEdges.clear();
         }
 
         function highlightBloodline(id) {
@@ -749,7 +783,10 @@
 
           function markNode(nId) {
             const node = map[String(nId)];
-            if (node && node.data) node.data.highlight = true;
+            if (node && node.data) {
+              node.data.highlight = true;
+              highlightedNodes.add(String(nId));
+            }
           }
 
           function highlightAncestors(pid) {
@@ -772,18 +809,16 @@
             const node = map[String(pid)];
             if (!node) return;
             markNode(pid);
-            nodes.value.forEach((child) => {
-              if (
-                child.data.fatherId === pid ||
-                child.data.motherId === pid
-              ) {
-                if (child.data.fatherId && child.data.motherId) {
-                  const uId = unionId(child.data.fatherId, child.data.motherId);
-                  markNode(uId);
-                }
-                highlightDescendants(parseInt(child.id));
+            
+            // Use cached children instead of iterating all nodes
+            const children = childrenCache.get(pid) || [];
+            for (const childData of children) {
+              if (childData.fatherId && childData.motherId) {
+                const uId = unionId(childData.fatherId, childData.motherId);
+                markNode(uId);
               }
-            });
+              highlightDescendants(parseInt(childData.id));
+            }
           }
 
           highlightAncestors(id);
@@ -844,17 +879,15 @@
             const node = map.get(String(pid));
             if (!node) return;
             toHighlight.add(pid);
-            nodes.value.forEach((child) => {
-              if (
-                child.data.fatherId === pid ||
-                child.data.motherId === pid
-              ) {
-                if (child.data.fatherId && child.data.motherId) {
-                  unionIds.add(unionId(child.data.fatherId, child.data.motherId));
-                }
-                collectDescendants(parseInt(child.id));
+            
+            // Use cached children instead of iterating all nodes
+            const children = childrenCache.get(pid) || [];
+            for (const childData of children) {
+              if (childData.fatherId && childData.motherId) {
+                unionIds.add(unionId(childData.fatherId, childData.motherId));
               }
-            });
+              collectDescendants(parseInt(childData.id));
+            }
           }
 
           // Collect all nodes to highlight
@@ -953,23 +986,34 @@
 
         function applyFocusedView() {
           if (!focusedView.value || !window.meNodeId) {
-            nodes.value.forEach((n) => { if (n.data) n.data.hidden = false; });
-            edges.value.forEach((e) => removeClass(e, 'hidden-edge'));
+            for (const n of nodes.value) { 
+              if (n.data) n.data.hidden = false; 
+            }
+            for (const e of edges.value) { 
+              removeClass(e, 'hidden-edge');
+            }
             hiddenCount.value = 0;
             return;
           }
           const allowed = getBloodlineSet(window.meNodeId);
-          nodes.value.forEach((n) => {
-            if (n.data) n.data.hidden = !allowed.has(n.id);
-          });
-          edges.value.forEach((e) => {
+          let hiddenNodeCount = 0;
+          
+          for (const n of nodes.value) {
+            if (n.data) {
+              n.data.hidden = !allowed.has(n.id);
+              if (n.data.hidden) hiddenNodeCount++;
+            }
+          }
+          
+          for (const e of edges.value) {
             if (allowed.has(e.source) && allowed.has(e.target)) {
               removeClass(e, 'hidden-edge');
             } else {
               addClass(e, 'hidden-edge');
             }
-          });
-          hiddenCount.value = nodes.value.filter((n) => n.data && n.data.hidden).length;
+          }
+          
+          hiddenCount.value = hiddenNodeCount;
         }
 
         function computeRelatives() {
@@ -1142,29 +1186,34 @@
               isLoading.value = false;
             }
           } else {
-            // Show loading for single-click (bloodline highlighting)
-            isLoading.value = true;
+            // For single-click, update UI immediately then do expensive highlighting
+            selected.value = { ...evt.node.data, spouseId: '' };
+            useBirthApprox.value = !!selected.value.birthApprox;
+            useDeathApprox.value = !!selected.value.deathApprox;
+            birthExactBackup.value = selected.value.dateOfBirth || '';
+            deathExactBackup.value = selected.value.dateOfDeath || '';
+            computeChildren(evt.node.data.id);
+            editing.value = false;
+            showModal.value = false;
             
-            try {
-              selected.value = { ...evt.node.data, spouseId: '' };
-              useBirthApprox.value = !!selected.value.birthApprox;
-              useDeathApprox.value = !!selected.value.deathApprox;
-              birthExactBackup.value = selected.value.dateOfBirth || '';
-              deathExactBackup.value = selected.value.dateOfDeath || '';
-              computeChildren(evt.node.data.id);
-              editing.value = false;
-              showModal.value = false;
-              
-              // Use nextTick to ensure UI updates before heavy computation
-              await nextTick();
-              await highlightBloodlineAsync(evt.node.data.id);
-            } finally {
-              isLoading.value = false;
-            }
-            
-            clickTimer = setTimeout(() => {
+            // Delay highlighting to avoid blocking the UI update
+            clickTimer = setTimeout(async () => {
               clickTimer = null;
-            }, 250);
+              
+              // Only do expensive highlighting for large graphs
+              if (nodes.value.length > 200) {
+                isLoading.value = true;
+                try {
+                  await nextTick();
+                  await highlightBloodlineAsync(evt.node.data.id);
+                } finally {
+                  isLoading.value = false;
+                }
+              } else {
+                // For smaller graphs, use the faster synchronous version
+                highlightBloodline(evt.node.data.id);
+              }
+            }, 50); // Very short delay to ensure UI updates first
           }
         }
 
@@ -1403,12 +1452,16 @@
           const f = filters.value;
           filterActive.value =
             f.missingParents || f.missingBirth || f.missingDeath || f.missingMaiden;
-          nodes.value.forEach((n) => {
-            if (!n.data || n.data.helper) return;
-            if (!filterActive.value) {
-              n.data.highlight = false;
-              return;
-            }
+          
+          // Clear previous filter highlights first
+          clearHighlights();
+          
+          if (!filterActive.value) return;
+          
+          // Use for..of for better performance than forEach
+          for (const n of nodes.value) {
+            if (!n.data || n.data.helper) continue;
+            
             let h = false;
             if (f.missingParents && (!n.data.fatherId || !n.data.motherId)) h = true;
             if (f.missingBirth && !(n.data.dateOfBirth || n.data.birthApprox)) h = true;
@@ -1419,8 +1472,12 @@
               !n.data.maidenName
             )
               h = true;
-            n.data.highlight = h;
-          });
+            
+            if (h) {
+              n.data.highlight = true;
+              highlightedNodes.add(n.id);
+            }
+          }
         }
 
 
@@ -1468,14 +1525,14 @@
 
         function buildHierarchy() {
           const map = {};
-          nodes.value.forEach((n) => {
-            if (!n.data || n.data.helper) return;
+          for (const n of nodes.value) {
+            if (!n.data || n.data.helper) continue;
             map[n.data.id] = { ...n.data, children: [] };
-          });
-          Object.values(map).forEach((p) => {
+          }
+          for (const p of Object.values(map)) {
             const parent = map[p.fatherId] || map[p.motherId];
             if (parent) parent.children.push(p);
-          });
+          }
           return {
             children: Object.values(map).filter(
               (p) => !map[p.fatherId] && !map[p.motherId]
