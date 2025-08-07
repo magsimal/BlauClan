@@ -33,12 +33,13 @@
       svg.setAttribute('width', bb.width);
       svg.setAttribute('height', bb.height);
     } else if (data) {
-      // Enhanced tree layout with better spacing
+      // Layout tree using d3.hierarchy
       var root = hierarchy(data);
-      var layout = d3tree().nodeSize([140, 180]);
+      var layout = d3tree().nodeSize([220, 130]);
       layout(root);
       var nodes = root.descendants();
       var links = root.links();
+
       var extX = extent(nodes, function (d) { return d.x; });
       var extY = extent(nodes, function (d) { return d.y; });
       var minX = extX[0];
@@ -48,81 +49,26 @@
       var pad = 40;
       var w = maxX - minX + pad * 2;
       var h = maxY - minY + pad * 2;
-      
-      // Create SVG with better styling
+
+      // Create SVG matching in-app vibe (light card look)
       svg = create('svg')
         .attr('xmlns', 'http://www.w3.org/2000/svg')
         .attr('width', w)
         .attr('height', h)
         .attr('viewBox', (minX - pad) + ' ' + (minY - pad) + ' ' + w + ' ' + h)
-        .style('background', 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)');
+        .style('background', 'transparent');
 
-      // Add background rectangle for better visual appeal
-      svg.append('rect')
-        .attr('width', w)
-        .attr('height', h)
-        .attr('fill', 'url(#backgroundGradient)')
-        .attr('rx', 8);
-
-      // Define gradients for better visual appeal
       var defs = svg.append('defs');
-      
-      // Background gradient
-      defs.append('linearGradient')
-        .attr('id', 'backgroundGradient')
-        .attr('x1', '0%')
-        .attr('y1', '0%')
-        .attr('x2', '100%')
-        .attr('y2', '100%')
-        .selectAll('stop')
-        .data([
-          { offset: '0%', color: '#f5f7fa' },
-          { offset: '100%', color: '#c3cfe2' }
-        ])
-        .join('stop')
-        .attr('offset', function(d) { return d.offset; })
-        .attr('stop-color', function(d) { return d.color; });
+      // subtle shadow
+      var filter = defs.append('filter').attr('id', 'nodeShadow').attr('x', '-20%').attr('y', '-20%').attr('width', '140%').attr('height', '140%');
+      filter.append('feDropShadow').attr('dx', '0').attr('dy', '4').attr('stdDeviation', '6').attr('flood-color', 'rgba(99, 102, 241, 0.25)');
 
-      // Node gradients
-      defs.append('radialGradient')
-        .attr('id', 'maleGradient')
-        .selectAll('stop')
-        .data([
-          { offset: '0%', color: '#4e79a7' },
-          { offset: '100%', color: '#2c5aa0' }
-        ])
-        .join('stop')
-        .attr('offset', function(d) { return d.offset; })
-        .attr('stop-color', function(d) { return d.color; });
-
-      defs.append('radialGradient')
-        .attr('id', 'femaleGradient')
-        .selectAll('stop')
-        .data([
-          { offset: '0%', color: '#f28e2b' },
-          { offset: '100%', color: '#e67e22' }
-        ])
-        .join('stop')
-        .attr('offset', function(d) { return d.offset; })
-        .attr('stop-color', function(d) { return d.color; });
-
-      defs.append('radialGradient')
-        .attr('id', 'unknownGradient')
-        .selectAll('stop')
-        .data([
-          { offset: '0%', color: '#bab0ab' },
-          { offset: '100%', color: '#8a8178' }
-        ])
-        .join('stop')
-        .attr('offset', function(d) { return d.offset; })
-        .attr('stop-color', function(d) { return d.color; });
-
-      // Enhanced links with better styling
+      // edges
       svg.append('g')
         .attr('fill', 'none')
-        .attr('stroke', '#666')
-        .attr('stroke-width', 3)
-        .attr('stroke-linecap', 'round')
+        .attr('stroke', '#6366f1')
+        .attr('stroke-width', 2)
+        .style('filter', 'drop-shadow(0 2px 4px rgba(99, 102, 241, 0.2))')
         .selectAll('path')
         .data(links)
         .join('path')
@@ -130,78 +76,64 @@
           .x(function (d) { return d.x; })
           .y(function (d) { return d.y; })
           .source(function (d) { return d.source; })
-          .target(function (d) { return d.target; }))
-        .style('filter', 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))');
+          .target(function (d) { return d.target; }));
 
-      // Enhanced nodes with better styling
       var nodeG = svg.append('g');
       var node = nodeG.selectAll('g')
         .data(nodes)
         .join('g')
         .attr('transform', function (d) { return 'translate(' + d.x + ',' + d.y + ')'; });
 
-      // Add shadow filter for nodes
-      defs.append('filter')
-        .attr('id', 'nodeShadow')
-        .append('feDropShadow')
-        .attr('dx', '0')
-        .attr('dy', '2')
-        .attr('stdDeviation', '3')
-        .attr('flood-color', 'rgba(0,0,0,0.2)');
+      // card background
+      node.append('rect')
+        .attr('x', -85)
+        .attr('y', -28)
+        .attr('rx', 16)
+        .attr('ry', 16)
+        .attr('width', 170)
+        .attr('height', 56)
+        .attr('fill', '#ffffff')
+        .attr('stroke', '#e2e8f0')
+        .attr('stroke-width', 2)
+        .style('filter', 'url(#nodeShadow)')
+        .attr('opacity', 1);
 
-      // Create enhanced node circles with gradients
+      // top accent bar like UI
+      node.append('rect')
+        .attr('x', -85)
+        .attr('y', -28)
+        .attr('width', 170)
+        .attr('height', 3)
+        .attr('fill', '#667eea');
+
+      // avatar circle as gradient-ish solid
       node.append('circle')
-        .attr('r', 35)
-        .attr('fill', function (d) { 
-          var gender = d.data.gender || '?';
-          return gender === 'male' ? 'url(#maleGradient)' : 
-                 gender === 'female' ? 'url(#femaleGradient)' : 
-                 'url(#unknownGradient)';
-        })
-        .attr('stroke', function(d) {
-          // Highlight selected node with special border
-          if (selectedNodeId && d.data.id == selectedNodeId) {
-            return '#2c3e50';
-          }
-          return '#fff';
-        })
-        .attr('stroke-width', function(d) {
-          return (selectedNodeId && d.data.id == selectedNodeId) ? 4 : 2;
-        })
-        .style('filter', 'url(#nodeShadow)');
+        .attr('cx', -60)
+        .attr('cy', 0)
+        .attr('r', 16)
+        .attr('fill', '#667eea')
+        .attr('stroke', 'rgba(255,255,255,0.2)')
+        .attr('stroke-width', 2);
 
-      // Add generation indicator for bloodline view
-      if (bloodlineOnly) {
-        node.append('circle')
-          .attr('r', 8)
-          .attr('cx', 25)
-          .attr('cy', -25)
-          .attr('fill', '#e74c3c')
-          .attr('stroke', '#fff')
-          .attr('stroke-width', 1);
-      }
+      // name
+      node.append('text')
+        .attr('x', -34)
+        .attr('y', -2)
+        .attr('text-anchor', 'start')
+        .attr('font-family', 'Inter, Arial, sans-serif')
+        .attr('font-size', 12)
+        .attr('font-weight', '700')
+        .attr('fill', '#1e293b')
+        .text(function (d) { return (d.data.firstName || '') + ' ' + (d.data.lastName || ''); });
 
-      // Enhanced text with better typography
-      var textGroup = node.append('g')
-        .attr('text-anchor', 'middle');
-
-      // Name text
-      textGroup.append('text')
-        .attr('font-family', 'Arial, sans-serif')
-        .attr('font-size', 11)
-        .attr('font-weight', 'bold')
-        .attr('fill', '#fff')
-        .attr('y', -8)
-        .text(function (d) { 
-          return d.data.firstName + ' ' + d.data.lastName; 
-        });
-
-      // Birth/death dates
-      textGroup.append('text')
-        .attr('font-family', 'Arial, sans-serif')
-        .attr('font-size', 9)
-        .attr('fill', '#fff')
-        .attr('y', 4)
+      // dates
+      node.append('text')
+        .attr('x', -34)
+        .attr('y', 12)
+        .attr('text-anchor', 'start')
+        .attr('font-family', 'Inter, Arial, sans-serif')
+        .attr('font-size', 10)
+        .attr('fill', '#475569')
         .text(function (d) {
           var born = '';
           if (d.data.dateOfBirth) born = String(d.data.dateOfBirth).slice(0, 4);
@@ -212,27 +144,22 @@
           return born + (died ? '\u2013' + died : '');
         });
 
-      // Add place of birth if available
-      textGroup.append('text')
-        .attr('font-family', 'Arial, sans-serif')
-        .attr('font-size', 8)
-        .attr('fill', '#fff')
-        .attr('y', 16)
-        .text(function (d) {
-          return d.data.placeOfBirth || '';
-        });
-
-      // Add title for bloodline view
+      // highlight selected in bloodline mode
       if (bloodlineOnly && selectedNodeId) {
+        node.selectAll('rect')
+          .attr('stroke', function (d) { return d.data.id == selectedNodeId ? '#3b82f6' : '#e2e8f0'; })
+          .attr('stroke-width', function (d) { return d.data.id == selectedNodeId ? 3 : 2; });
+
+        // title
         svg.append('text')
-          .attr('x', w / 2)
-          .attr('y', 30)
+          .attr('x', minX + w / 2 - pad)
+          .attr('y', minY - pad + 24)
           .attr('text-anchor', 'middle')
-          .attr('font-family', 'Arial, sans-serif')
+          .attr('font-family', 'Inter, Arial, sans-serif')
+          .attr('font-weight', '700')
           .attr('font-size', 16)
-          .attr('font-weight', 'bold')
           .attr('fill', '#2c3e50')
-          .text('Family Bloodline Tree');
+          .text('Family Bloodline');
       }
     } else {
       throw new Error('exportFamilyTree: supply either svgEl or data');

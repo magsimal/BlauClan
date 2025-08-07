@@ -994,6 +994,9 @@
             addNode(pid);
             nodes.value.forEach((child) => {
               if (child.data.fatherId === pid || child.data.motherId === pid) {
+                // Ensure both parents of any included child are part of the bloodline export
+                if (child.data.fatherId) addNode(child.data.fatherId);
+                if (child.data.motherId) addNode(child.data.motherId);
                 if (child.data.fatherId && child.data.motherId) {
                   addNode(unionId(child.data.fatherId, child.data.motherId));
                 }
@@ -1581,8 +1584,13 @@
             map[n.data.id] = { ...n.data, children: [] };
           }
           for (const p of Object.values(map)) {
-            const parent = map[p.fatherId] || map[p.motherId];
-            if (parent) parent.children.push(p);
+            // Attach to father and mother separately so both parents appear in hierarchy
+            if (map[p.fatherId]) {
+              map[p.fatherId].children.push(p);
+            }
+            if (map[p.motherId]) {
+              map[p.motherId].children.push(p);
+            }
           }
           return {
             children: Object.values(map).filter(
@@ -1606,10 +1614,14 @@
             }
           });
           
-          // Build parent-child relationships within bloodline
+          // Build parent-child relationships within bloodline, including both parents when present
           Object.values(map).forEach((p) => {
-            const parent = map[p.fatherId] || map[p.motherId];
-            if (parent) parent.children.push(p);
+            if (map[p.fatherId]) {
+              map[p.fatherId].children.push(p);
+            }
+            if (map[p.motherId]) {
+              map[p.motherId].children.push(p);
+            }
           });
           
           return {
