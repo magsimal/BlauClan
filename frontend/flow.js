@@ -287,6 +287,15 @@
           });
         }
 
+        // Helper function to refresh both node data and search efficiently
+        async function refreshNodeData(preservePositions = false) {
+          await load(preservePositions);
+          // Refresh search data to keep it in sync with node changes
+          if (window.SearchApp && typeof window.SearchApp.refresh === 'function') {
+            await window.SearchApp.refresh();
+          }
+        }
+
         async function load(preservePositions = false) {
           setLoading(true);
           try {
@@ -652,7 +661,7 @@
             if (rel) {
               await FrontendApp.deleteSpouse(fatherId, rel.marriageId);
             }
-              await load(true);
+              await refreshNodeData(true);
               return;
           }
 
@@ -673,7 +682,7 @@
           } else if (edge.source.startsWith('u-') || edge.target.startsWith('u-')) {
             const cid = edge.source.startsWith('u-') ? parseInt(edge.target, 10) : parseInt(edge.source, 10);
             await FrontendApp.updatePerson(cid, { fatherId: null, motherId: null });
-              await load(true);
+              await refreshNodeData(true);
               return;
           } else {
             return;
@@ -692,7 +701,7 @@
           }
             if (Object.keys(updates).length) {
               await FrontendApp.updatePerson(childId, updates);
-              await load(true);
+              await refreshNodeData(true);
             }
         }
 
@@ -1288,11 +1297,7 @@
             if (spouseId) {
               await FrontendApp.linkSpouse(updated.id, parseInt(spouseId));
             }
-              await load(true);
-              // Refresh search data so updated person info is searchable
-              if (window.SearchApp && typeof window.SearchApp.refresh === 'function') {
-                await window.SearchApp.refresh();
-              }
+              await refreshNodeData(true);
               computeChildren(updated.id);
               fetchScore();
           }, 200);
@@ -1382,7 +1387,7 @@
             placeOfBirth: full,
             geonameId: s.geonameId,
           });
-          await load(true);
+          await refreshNodeData(true);
           const node = getNodeById(selected.value.id);
           if (node) {
             selected.value = { ...node.data, spouseId: '' };
@@ -1668,8 +1673,14 @@
           await FrontendApp.clearDatabase();
           nodes.value = [];
           rebuildNodeMap();
+          buildChildrenCache();
           edges.value = [];
           try { localStorage.removeItem(TEMP_KEY); } catch (e) { /* ignore */ }
+          
+          // Refresh search data so all deleted people are removed from search
+          if (window.SearchApp && typeof window.SearchApp.refresh === 'function') {
+            await window.SearchApp.refresh();
+          }
         }
 
         async function finishImport() {
@@ -1730,12 +1741,7 @@
           pendingPeople = [];
           pendingFamilies = [];
           pendingIdMap = {};
-          await load(true);
-          
-          // Refresh search data so newly imported people are searchable
-          if (window.SearchApp && typeof window.SearchApp.refresh === 'function') {
-            await window.SearchApp.refresh();
-          }
+          await refreshNodeData(true);
           
           importProgress.value.visible = false;
         }
@@ -1875,7 +1881,7 @@
                 parseInt(params.source),
                 parseInt(params.target)
               );
-              await load(true);
+              await refreshNodeData(true);
               return;
           }
 
@@ -1906,7 +1912,7 @@
           else return;
 
           await FrontendApp.updatePerson(childNode.data.id, updates);
-          await load(true);
+          await refreshNodeData(true);
         }
 
         const isNew = ref(false);
@@ -2028,11 +2034,7 @@
           showModal.value = false;
           await FrontendApp.deletePerson(selected.value.id);
           selected.value = null;
-          await load(true);
-          // Refresh search data so deleted person is removed from search
-          if (window.SearchApp && typeof window.SearchApp.refresh === 'function') {
-            await window.SearchApp.refresh();
-          }
+          await refreshNodeData(true);
         }
 
         async function cancelEdit() {
@@ -2050,7 +2052,7 @@
           if (spouseId) {
             await FrontendApp.linkSpouse(originalSelected.id, parseInt(spouseId));
           }
-          await load(true);
+          await refreshNodeData(true);
           selected.value = { ...originalSelected };
           computeChildren(originalSelected.id);
           useBirthApprox.value = !!selected.value.birthApprox;
@@ -2063,14 +2065,14 @@
           if (child.fatherId === selected.value.id) updates.fatherId = null;
           if (child.motherId === selected.value.id) updates.motherId = null;
           await FrontendApp.updatePerson(child.id, updates);
-          await load(true);
+          await refreshNodeData(true);
           computeChildren(selected.value.id);
         }
 
         async function removeFather() {
           if (!selected.value || !selected.value.fatherId) return;
           await FrontendApp.updatePerson(selected.value.id, { fatherId: null });
-          await load(true);
+          await refreshNodeData(true);
           // Update the selected person's data
           const node = nodes.value.find((n) => n.id === String(selected.value.id));
           if (node) {
@@ -2081,7 +2083,7 @@
         async function removeMother() {
           if (!selected.value || !selected.value.motherId) return;
           await FrontendApp.updatePerson(selected.value.id, { motherId: null });
-          await load(true);
+          await refreshNodeData(true);
           // Update the selected person's data
           const node = nodes.value.find((n) => n.id === String(selected.value.id));
           if (node) {
@@ -2608,11 +2610,7 @@
               await FrontendApp.updatePerson(rel.childId, update);
             }
           }
-          await load(true);
-          // Refresh search data so newly created person is searchable
-          if (window.SearchApp && typeof window.SearchApp.refresh === 'function') {
-            await window.SearchApp.refresh();
-          }
+          await refreshNodeData(true);
           if (newNodePos) {
             const node = getNodeById(p.id);
             if (node) {
