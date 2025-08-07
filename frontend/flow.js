@@ -362,6 +362,7 @@
           }
           
           nodes.value = newNodes;
+          rebuildNodeMap();
 
           unions = {};
           edges.value = [];
