@@ -1212,7 +1212,7 @@
             editing.value = false;
             showModal.value = false;
             
-            // Delay highlighting to avoid blocking the UI update
+            // Set timer immediately to enable double-click detection
             clickTimer = setTimeout(async () => {
               clickTimer = null;
               
@@ -1228,7 +1228,7 @@
               } finally {
                 isLoading.value = false;
               }
-            }, 10); // Very short delay to ensure UI updates first
+            }, 250); // Standard double-click window
           }
         }
 
