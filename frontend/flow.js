@@ -3521,8 +3521,8 @@
                     </div>
                   </div>
                   <div class="form-row">
-                    <div class="col mb-2">
-                      <label class="small" data-i18n="gender">Gender</label>
+                    <div class="col mb-2 d-flex align-items-center">
+                      <label class="small mb-0 mr-2" data-i18n="gender">Gender</label>
                       <div class="custom-control custom-switch">
                         <input
                           type="checkbox"
@@ -3541,12 +3541,14 @@
                   </div>
                   <div class="form-row">
                     <div class="col mb-2">
-                      <label class="small" data-i18n="dateOfBirth">Date of Birth</label>
-                      <input v-if="!useBirthApprox" class="form-control" v-model="selected.dateOfBirth" type="date" title="Birth date" />
-                      <input v-else class="form-control" v-model="selected.birthApprox" placeholder="e.g., ABT 1900" title="Approximate birth" data-i18n-placeholder="approxExample" />
-                      <div class="custom-control custom-switch ml-2 align-self-center">
-                        <input type="checkbox" class="custom-control-input" id="birthApproxSwitch" v-model="useBirthApprox" />
-                        <label class="custom-control-label" for="birthApproxSwitch" data-i18n="approx">Approx</label>
+                      <label class="small d-block" data-i18n="dateOfBirth">Date of Birth</label>
+                      <div class="d-flex align-items-center">
+                        <input v-if="!useBirthApprox" class="form-control" v-model="selected.dateOfBirth" type="date" title="Birth date" />
+                        <input v-else class="form-control" v-model="selected.birthApprox" placeholder="e.g., ABT 1900" title="Approximate birth" data-i18n-placeholder="approxExample" />
+                        <div class="custom-control custom-switch ml-2">
+                          <input type="checkbox" class="custom-control-input" id="birthApproxSwitch" v-model="useBirthApprox" />
+                          <label class="custom-control-label" for="birthApproxSwitch" data-i18n="approx">Approx</label>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -3564,12 +3566,14 @@
                   </div>
                   <div class="form-row">
                     <div class="col mb-2">
-                      <label class="small" data-i18n="dateOfDeath">Date of Death</label>
-                      <input v-if="!useDeathApprox" class="form-control" v-model="selected.dateOfDeath" type="date" title="Death date" />
-                      <input v-else class="form-control" v-model="selected.deathApprox" placeholder="e.g., BEF 1950" title="Approximate death" data-i18n-placeholder="approxExample" />
-                      <div class="custom-control custom-switch ml-2 align-self-center">
-                        <input type="checkbox" class="custom-control-input" id="deathApproxSwitch" v-model="useDeathApprox" />
-                        <label class="custom-control-label" for="deathApproxSwitch" data-i18n="approx">Approx</label>
+                      <label class="small d-block" data-i18n="dateOfDeath">Date of Death</label>
+                      <div class="d-flex align-items-center">
+                        <input v-if="!useDeathApprox" class="form-control" v-model="selected.dateOfDeath" type="date" title="Death date" />
+                        <input v-else class="form-control" v-model="selected.deathApprox" placeholder="e.g., BEF 1950" title="Approximate death" data-i18n-placeholder="approxExample" />
+                        <div class="custom-control custom-switch ml-2">
+                          <input type="checkbox" class="custom-control-input" id="deathApproxSwitch" v-model="useDeathApprox" />
+                          <label class="custom-control-label" for="deathApproxSwitch" data-i18n="approx">Approx</label>
+                        </div>
                       </div>
                     </div>
                   </div>
