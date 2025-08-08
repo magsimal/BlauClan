@@ -82,6 +82,7 @@
           snapToGrid,
           snapGrid,
           viewport,
+          updateNodeInternals,
         } = useVueFlow({ id: 'main-flow' });
         const { fitView, zoomTo } = useZoomPanHelper('main-flow');
         const horizontalGridSize =
@@ -2271,6 +2272,7 @@
                     2 +
                   UNION_Y_OFFSET,
               };
+              updateNodeInternals(helper.id);
 
               const spEdge = edges.value.find(
                 (e) => e.id === `spouse-line-${u.id}`
