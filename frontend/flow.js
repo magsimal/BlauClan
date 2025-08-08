@@ -82,6 +82,7 @@
           snapToGrid,
           snapGrid,
           viewport,
+          updateNodeInternals,
         } = useVueFlow({ id: 'main-flow' });
         const { fitView, zoomTo } = useZoomPanHelper('main-flow');
         const horizontalGridSize =
@@ -1183,6 +1184,8 @@
         }
 
         async function onNodeClick(evt) {
+          // ensure spouse/helper positions are up to date before focusing
+          refreshUnions();
           const e = evt.event || evt;
           if (e.shiftKey || shiftPressed.value) {
             if (evt.node.selected) removeSelectedNodes([evt.node]);
@@ -2248,50 +2251,58 @@
           }
         }
 
-        function refreshUnions() {
-          Object.values(unions).forEach((u) => {
-            const father = getNodeById(u.fatherId);
-            const mother = getNodeById(u.motherId);
-            const helper = getNodeById(u.id);
-            if (father && mother && helper) {
-              const fatherWidth = father.dimensions?.width || 0;
-              const motherWidth = mother.dimensions?.width || 0;
-              const fatherHeight = father.dimensions?.height || 0;
-              const motherHeight = mother.dimensions?.height || 0;
-              helper.position = {
-                x:
-                  (father.position.x + fatherWidth / 2 +
-                    mother.position.x +
-                    motherWidth / 2) /
-                  2,
-                y:
-                  (father.position.y + fatherHeight / 2 +
-                    mother.position.y +
-                    motherHeight / 2) /
-                    2 +
-                  UNION_Y_OFFSET,
-              };
+                 function refreshUnions() {
+           const updatedNodeIds = new Set();
+           Object.values(unions).forEach((u) => {
+             const father = getNodeById(u.fatherId);
+             const mother = getNodeById(u.motherId);
+             const helper = getNodeById(u.id);
+             if (father && mother && helper) {
+               const fatherWidth = father.dimensions?.width || 0;
+               const motherWidth = mother.dimensions?.width || 0;
+               const fatherHeight = father.dimensions?.height || 0;
+               const motherHeight = mother.dimensions?.height || 0;
+               helper.position = {
+                 x:
+                   (father.position.x + fatherWidth / 2 +
+                     mother.position.x +
+                     motherWidth / 2) /
+                   2,
+                 y:
+                   (father.position.y + fatherHeight / 2 +
+                     mother.position.y +
+                     motherHeight / 2) /
+                     2 +
+                   UNION_Y_OFFSET,
+               };
+               updatedNodeIds.add(helper.id);
+               updatedNodeIds.add(String(father.id || father.data?.id || u.fatherId));
+               updatedNodeIds.add(String(mother.id || mother.data?.id || u.motherId));
 
-              const spEdge = edges.value.find(
-                (e) => e.id === `spouse-line-${u.id}`
-              );
-              if (spEdge) {
-                const handles = spouseHandles(father, mother);
-                spEdge.sourceHandle = handles.source;
-                spEdge.targetHandle = handles.target;
-              }
+               const spEdge = edges.value.find(
+                 (e) => e.id === `spouse-line-${u.id}`
+               );
+               if (spEdge) {
+                 const handles = spouseHandles(father, mother);
+                 spEdge.sourceHandle = handles.source;
+                 spEdge.targetHandle = handles.target;
+               }
 
-              u.children.forEach((cid) => {
-                const edge = edges.value.find((e) => e.id === `${u.id}-${cid}`);
-                const childNode = getNodeById(cid);
-                if (edge && childNode) {
-                  edge.sourceHandle = 's-bottom';
-                  edge.targetHandle = 't-top';
-                }
-              });
-            }
-          });
-        }
+               u.children.forEach((cid) => {
+                 const edge = edges.value.find((e) => e.id === `${u.id}-${cid}`);
+                 const childNode = getNodeById(cid);
+                 if (edge && childNode) {
+                   edge.sourceHandle = 's-bottom';
+                   edge.targetHandle = 't-top';
+                   updatedNodeIds.add(String(childNode.id || childNode.data?.id || cid));
+                 }
+               });
+             }
+           });
+           if (typeof updateNodeInternals === 'function' && updatedNodeIds.size) {
+             updateNodeInternals(Array.from(updatedNodeIds));
+           }
+         }
 
         // Chunked version of tidyUp for large datasets
         async function tidyUpChunked(list) {
