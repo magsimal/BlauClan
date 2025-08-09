@@ -2,7 +2,7 @@
   "name": "family-tree-frontend",
   "version": "0.1.18",
   "scripts": {
-    "test": "node ../backend/node_modules/jest/bin/jest.js",
+    "test": "jest",
     "lint": "eslint app.js flow.js src/utils/exportSvg.js src/utils/assignGenerations.js src/utils/gedcom.js test/**/*.js"
   },
   "devDependencies": {
