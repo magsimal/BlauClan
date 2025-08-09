@@ -20,6 +20,20 @@
   <link rel="stylesheet" href="assets/vendor/flatpickr.min.css">
   <link rel="stylesheet" href="assets/fonts/fonts.css">
   <script src="assets/vendor/flatpickr.min.js"></script>
+  <script>(function(){
+    try {
+      var ua = navigator.userAgent || '';
+      var isIOS = /iP(hone|od|ad)/.test(navigator.platform || '') || (/Mac/.test(ua) && 'ontouchend' in document);
+      var supportsBackdrop = false;
+      try {
+        if (window.CSS && CSS.supports) {
+          supportsBackdrop = CSS.supports('backdrop-filter', 'blur(1px)') || CSS.supports('-webkit-backdrop-filter', 'blur(1px)') || CSS.supports('(backdrop-filter: blur(1px))') || CSS.supports('(-webkit-backdrop-filter: blur(1px))');
+        }
+      } catch(e) { supportsBackdrop = false; }
+      var hasBackdropFilterBug = isIOS && !supportsBackdrop;
+      if (isIOS || !supportsBackdrop || hasBackdropFilterBug) { document.documentElement.classList.add('ios'); }
+    } catch(e) { /* ignore */ }
+  })();</script>
   <style>
     html, body { height: 100%; }
     body { font-family: "Inter", sans-serif; }
@@ -54,6 +68,9 @@
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
       border: none;
     }
+    /* iOS safe-mode: disable heavy GPU effects that can crash WebKit */
+    .ios #top-bar, .ios #footer, .ios #multiIndicator, .ios #flashBanner, .ios .modal-content { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+    .ios body.dark-theme, .ios body.bright-theme { background-attachment: scroll !important; background-image: none !important; }
     body.dark-theme #top-bar,
     body.dark-theme #footer {
       background-color: rgba(30,30,30,0.6);
@@ -314,6 +331,7 @@
       box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
       border: 1px solid rgba(255, 255, 255, 0.1);
     }
+
     #multiIndicator {
       position: absolute;
       top: 10px;
@@ -329,6 +347,7 @@
       box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
       backdrop-filter: blur(10px);
     }
+
     .modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; }
     .modal-content {
       padding: 24px;
@@ -340,6 +359,7 @@
       box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
       backdrop-filter: blur(20px);
     }
+
     body.dark-theme .modal { background: rgba(0,0,0,0.6); }
     body.bright-theme .modal { background: rgba(0,0,0,0.3); }
     body.dark-theme .modal-content {
