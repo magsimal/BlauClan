@@ -55,9 +55,15 @@ async function geonamesPostalCode(lat, lng, cc) {
 
 async function geonamesSuggest(query, lang = 'en', cc = '') {
   if (!geonamesEnabled) return [];
-  let q = (query || '')
-    .normalize('NFKC')
-    .replace(/[\u0000-\u001F\u007F]/g, '')
+  function stripControlChars(str) {
+    let out = '';
+    for (let i = 0; i < str.length; i++) {
+      const code = str.charCodeAt(i);
+      if (code >= 32 && code !== 127) out += str[i];
+    }
+    return out;
+  }
+  let q = stripControlChars((query || '').normalize('NFKC'))
     .trim()
     .replace(/[\u2013\u2014]/g, '-')
     .replace(/\s*-\s*/g, '-')
