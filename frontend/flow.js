@@ -196,6 +196,8 @@
         let unions = {};
         let newNodePos = null;
         let scoreTimer = null;
+        // Touch capability detection for mobile-specific UI affordances
+        const isTouchDevice = ref(('ontouchstart' in window) || (navigator.maxTouchPoints > 0));
         function addClass(edge, cls) {
           const parts = (edge.class || '').split(' ').filter(Boolean);
           if (!parts.includes(cls)) parts.push(cls);
@@ -1278,22 +1280,60 @@
           }
         }
 
-       async function onPaneClick() {
-         // Clear VueFlow selection first
-         if (selectedNodes.value.length > 0) {
-           removeSelectedNodes(selectedNodes.value);
-         }
-         
-         // Immediate UI updates for responsiveness
-         selected.value = null;
-         showModal.value = false;
-         editing.value = false;
-         contextMenuVisible.value = false;
-         
-         // Clear highlights immediately (this is fast and needs to be visible right away)
-         clearHighlights();
-       }
+              async function onPaneClick() {
+          // Clear VueFlow selection first
+          if (selectedNodes.value.length > 0) {
+            removeSelectedNodes(selectedNodes.value);
+          }
+          
+          // Immediate UI updates for responsiveness
+          selected.value = null;
+          showModal.value = false;
+          editing.value = false;
+          contextMenuVisible.value = false;
+          
+          // Clear highlights immediately (this is fast and needs to be visible right away)
+          clearHighlights();
+        }
 
+        function openEditFor(pid) {
+          const node = getNodeById(pid);
+          if (!node) return;
+          // Keep VueFlow selection in sync
+          if (selectedNodes.value.length > 0 && !selectedNodes.value.includes(node)) {
+            removeSelectedNodes(selectedNodes.value);
+          }
+          if (!node.selected) addSelectedNodes([node]);
+          selected.value = { ...node.data, spouseId: '' };
+          useBirthApprox.value = !!selected.value.birthApprox;
+          useDeathApprox.value = !!selected.value.deathApprox;
+          birthExactBackup.value = selected.value.dateOfBirth || '';
+          deathExactBackup.value = selected.value.dateOfDeath || '';
+          isNew.value = false;
+          editing.value = true;
+          computeChildren(pid);
+          showModal.value = true;
+        }
+
+        function openInfoFor(pid) {
+          const node = getNodeById(pid);
+          if (!node) return;
+          // Keep VueFlow selection in sync
+          if (selectedNodes.value.length > 0 && !selectedNodes.value.includes(node)) {
+            removeSelectedNodes(selectedNodes.value);
+          }
+          if (!node.selected) addSelectedNodes([node]);
+          selected.value = { ...node.data, spouseId: '' };
+          useBirthApprox.value = !!selected.value.birthApprox;
+          useDeathApprox.value = !!selected.value.deathApprox;
+          birthExactBackup.value = selected.value.dateOfBirth || '';
+          deathExactBackup.value = selected.value.dateOfDeath || '';
+          isNew.value = false;
+          editing.value = false;
+          computeChildren(pid);
+          showModal.value = true;
+        }
+ 
         function gotoMe() {
           if (window.gotoMe) window.gotoMe();
         }
@@ -3091,6 +3131,9 @@
         flash,
         notifyTap,
         I18n: I18nGlobal,
+        isTouchDevice,
+        openEditFor,
+        openInfoFor,
       };
       },
       template: `
@@ -3196,6 +3239,22 @@
             <template #node-person="{ data }">
               <div class="person-node" :class="{ 'highlight-node': data.highlight, 'faded-node': (selected || filterActive) && !data.highlight, 'connected-node': hasConnection(data.id), 'hidden-node': data.hidden }" :style="{ borderColor: data.gender === 'female' ? '#f8c' : (data.gender === 'male' ? '#88f' : '#ccc') }">
                 <span v-if="data.me" style="position:absolute;top:-8px;right:-8px;color:#f39c12;">&#9733;</span>
+                <button
+                  class="icon-button node-edit-btn"
+                  v-if="isTouchDevice && selectedNodes && selectedNodes.length === 1 && selectedNodes[0].data && selectedNodes[0].data.id === data.id && !showModal"
+                  @click.stop="openEditFor(data.id)"
+                  aria-label="Edit"
+                >
+                  <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm2.92 1.83l-.01-.01h-.01v-.01l.01.01zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                </button>
+                <button
+                  class="icon-button node-info-btn"
+                  v-if="isTouchDevice && selectedNodes && selectedNodes.length === 1 && selectedNodes[0].data && selectedNodes[0].data.id === data.id && !showModal"
+                  @click.stop="openInfoFor(data.id)"
+                  aria-label="Info"
+                >
+                  <svg viewBox="0 0 24 24"><path d="M11 17h2v-6h-2v6zm0-8h2V7h-2v2zm1-7C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></svg>
+                </button>
                 <div class="header">
                   <div class="avatar" :style="avatarStyle(data.gender, 40)">{{ initials(data) }}</div>
                   <div class="name-container">
