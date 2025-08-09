@@ -5,6 +5,14 @@
     global.Dedupe = factory();
   }
 })(this, function () {
+  const THRESHOLDS = {
+    GIVEN_NAME_STRONG: 0.82,
+    GIVEN_NAME_GATE: 0.82,
+    PLACE_SIM_CONFLICT: 0.6,
+    PLACE_SIM_STRONG: 0.8,
+    YEAR_CONFLICT_DIFF: 5,
+    YEAR_STRONG_DIFF: 1,
+  };
   function levenshtein(a = '', b = '') {
     const dp = Array.from({ length: b.length + 1 }, (_, i) => i);
     for (let i = 1; i <= a.length; i++) {
@@ -50,7 +58,7 @@
     const aParts = a.toLowerCase().split(/\s+/);
     const bParts = b.toLowerCase().split(/\s+/);
     if (aParts.length > 1 && bParts.length > 1) {
-      if (similarity(aParts[1], bParts[1]) < 0.82) {
+      if (similarity(aParts[1], bParts[1]) < THRESHOLDS.GIVEN_NAME_STRONG) {
         return 0;
       }
     }
@@ -75,18 +83,18 @@
   function hasConflictingInfo(p, e) {
     const yearBirthP = getYear(p.dateOfBirth || p.birthApprox);
     const yearBirthE = getYear(e.dateOfBirth || e.birthApprox);
-    if (yearBirthP && yearBirthE && Math.abs(yearBirthP - yearBirthE) >= 5) {
+    if (yearBirthP && yearBirthE && Math.abs(yearBirthP - yearBirthE) >= THRESHOLDS.YEAR_CONFLICT_DIFF) {
       return true;
     }
     const yearDeathP = getYear(p.dateOfDeath || p.deathApprox);
     const yearDeathE = getYear(e.dateOfDeath || e.deathApprox);
-    if (yearDeathP && yearDeathE && Math.abs(yearDeathP - yearDeathE) >= 5) {
+    if (yearDeathP && yearDeathE && Math.abs(yearDeathP - yearDeathE) >= THRESHOLDS.YEAR_CONFLICT_DIFF) {
       return true;
     }
-    if (p.placeOfBirth && e.placeOfBirth && similarity(normalizePlace(p.placeOfBirth), normalizePlace(e.placeOfBirth)) < 0.6) {
+    if (p.placeOfBirth && e.placeOfBirth && similarity(normalizePlace(p.placeOfBirth), normalizePlace(e.placeOfBirth)) < THRESHOLDS.PLACE_SIM_CONFLICT) {
       return true;
     }
-    if (p.placeOfDeath && e.placeOfDeath && similarity(normalizePlace(p.placeOfDeath), normalizePlace(e.placeOfDeath)) < 0.6) {
+    if (p.placeOfDeath && e.placeOfDeath && similarity(normalizePlace(p.placeOfDeath), normalizePlace(e.placeOfDeath)) < THRESHOLDS.PLACE_SIM_CONFLICT) {
       return true;
     }
     return false;
@@ -111,7 +119,7 @@
     if (yearP && yearE) {
       const diff = Math.abs(yearP - yearE);
       if (diff === 0) score += 2;
-      else if (diff <= 1) score += 1.5;
+      else if (diff <= THRESHOLDS.YEAR_STRONG_DIFF) score += 1.5;
       else if (diff <= 3) score += 1;
     }
 
@@ -127,13 +135,13 @@
     if ((ln && ln2 && ln === ln2) || (ln && mn2 && ln === mn2)) count += 1;
 
     const givenSim = bestGivenNameSimilarity(p, e);
-    if (givenSim >= 0.82) count += 1;
+    if (givenSim >= THRESHOLDS.GIVEN_NAME_STRONG) count += 1;
 
     const yearP = getYear(p.dateOfBirth || p.birthApprox);
     const yearE = getYear(e.dateOfBirth || e.birthApprox);
-    if (yearP && yearE && Math.abs(yearP - yearE) <= 1) count += 1;
+    if (yearP && yearE && Math.abs(yearP - yearE) <= THRESHOLDS.YEAR_STRONG_DIFF) count += 1;
 
-    if (similarity(normalizePlace(p.placeOfBirth), normalizePlace(e.placeOfBirth)) >= 0.8) count += 1;
+    if (similarity(normalizePlace(p.placeOfBirth), normalizePlace(e.placeOfBirth)) >= THRESHOLDS.PLACE_SIM_STRONG) count += 1;
 
     return count;
   }
@@ -154,7 +162,7 @@
       const hasGiven = (person.firstName || person.callName) && (e.firstName || e.callName);
       if (hasGiven) {
         const givenSim = bestGivenNameSimilarity(person, e);
-        if (givenSim < 0.72) {
+        if (givenSim < THRESHOLDS.GIVEN_NAME_GATE) {
           continue;
         }
       }
