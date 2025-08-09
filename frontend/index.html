@@ -488,8 +488,18 @@
       height: 28px;
       z-index: 12;
     }
+    /* Floating info button with comfortable spacing from edit for touch */
+    .node-info-btn {
+      position: absolute;
+      top: 26px; /* 36px below to avoid accidental taps */
+      right: -10px;
+      width: 28px;
+      height: 28px;
+      z-index: 12;
+    }
     @media (hover: none) and (pointer: coarse) {
       .node-edit-btn { display: inline-flex; }
+      .node-info-btn { display: inline-flex; }
     }
     .edit-btn {
       position: absolute;

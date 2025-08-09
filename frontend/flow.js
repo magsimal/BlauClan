@@ -1314,6 +1314,25 @@
           computeChildren(pid);
           showModal.value = true;
         }
+
+        function openInfoFor(pid) {
+          const node = getNodeById(pid);
+          if (!node) return;
+          // Keep VueFlow selection in sync
+          if (selectedNodes.value.length > 0 && !selectedNodes.value.includes(node)) {
+            removeSelectedNodes(selectedNodes.value);
+          }
+          if (!node.selected) addSelectedNodes([node]);
+          selected.value = { ...node.data, spouseId: '' };
+          useBirthApprox.value = !!selected.value.birthApprox;
+          useDeathApprox.value = !!selected.value.deathApprox;
+          birthExactBackup.value = selected.value.dateOfBirth || '';
+          deathExactBackup.value = selected.value.dateOfDeath || '';
+          isNew.value = false;
+          editing.value = false;
+          computeChildren(pid);
+          showModal.value = true;
+        }
  
         function gotoMe() {
           if (window.gotoMe) window.gotoMe();
@@ -3114,6 +3133,7 @@
         I18n: I18nGlobal,
         isTouchDevice,
         openEditFor,
+        openInfoFor,
       };
       },
       template: `
@@ -3226,6 +3246,14 @@
                   aria-label="Edit"
                 >
                   <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm2.92 1.83l-.01-.01h-.01v-.01l.01.01zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                </button>
+                <button
+                  class="icon-button node-info-btn"
+                  v-if="isTouchDevice && selectedNodes && selectedNodes.length === 1 && selectedNodes[0].data && selectedNodes[0].data.id === data.id && !showModal"
+                  @click.stop="openInfoFor(data.id)"
+                  aria-label="Info"
+                >
+                  <svg viewBox="0 0 24 24"><path d="M11 17h2v-6h-2v6zm0-8h2V7h-2v2zm1-7C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></svg>
                 </button>
                 <div class="header">
                   <div class="avatar" :style="avatarStyle(data.gender, 40)">{{ initials(data) }}</div>
