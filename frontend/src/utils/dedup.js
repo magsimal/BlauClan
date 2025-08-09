@@ -57,6 +57,21 @@
     return similarity(a, b);
   }
 
+  // New: consider callName as alternative given name and take best similarity
+  function bestGivenNameSimilarity(p, e) {
+    const pNames = [p && p.firstName, p && p.callName].filter(Boolean);
+    const eNames = [e && e.firstName, e && e.callName].filter(Boolean);
+    if (pNames.length === 0 || eNames.length === 0) return 0;
+    let best = 0;
+    for (const pn of pNames) {
+      for (const en of eNames) {
+        const s = firstNameSimilarity(pn, en);
+        if (s > best) best = s;
+      }
+    }
+    return best;
+  }
+
   function hasConflictingInfo(p, e) {
     const yearBirthP = getYear(p.dateOfBirth || p.birthApprox);
     const yearBirthE = getYear(e.dateOfBirth || e.birthApprox);
@@ -88,7 +103,8 @@
     if (ln && ln2 && ln === ln2) score += 1.5;
     else if (ln && mn2 && ln === mn2) score += 1.5;
 
-    score += firstNameSimilarity(p.firstName, e.firstName) * 2;
+    const givenSim = bestGivenNameSimilarity(p, e);
+    score += givenSim * 2.5;
 
     const yearP = getYear(p.dateOfBirth || p.birthApprox);
     const yearE = getYear(e.dateOfBirth || e.birthApprox);
@@ -110,7 +126,8 @@
     const mn2 = (e.maidenName || '').toLowerCase();
     if ((ln && ln2 && ln === ln2) || (ln && mn2 && ln === mn2)) count += 1;
 
-    if (firstNameSimilarity(p.firstName, e.firstName) >= 0.82) count += 1;
+    const givenSim = bestGivenNameSimilarity(p, e);
+    if (givenSim >= 0.82) count += 1;
 
     const yearP = getYear(p.dateOfBirth || p.birthApprox);
     const yearE = getYear(e.dateOfBirth || e.birthApprox);
@@ -132,6 +149,14 @@
       }
       if (hasConflictingInfo(person, e)) {
         continue;
+      }
+      // Stricter: if both have given-name info but similarity is low, skip
+      const hasGiven = (person.firstName || person.callName) && (e.firstName || e.callName);
+      if (hasGiven) {
+        const givenSim = bestGivenNameSimilarity(person, e);
+        if (givenSim < 0.72) {
+          continue;
+        }
       }
       const sc = matchScore(person, e);
       const matches = attributeMatchCount(person, e);

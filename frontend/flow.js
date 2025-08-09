@@ -1924,7 +1924,7 @@
           pendingPeople = [];
           pendingFamilies = families;
           pendingIdMap = {};
-          const THRESHOLD = 4;
+          const THRESHOLD = 5;
           
           importProgress.value.phase = 'Checking for duplicates...';
           
@@ -1964,7 +1964,7 @@
         async function runDedup() {
           const people = await FrontendApp.fetchPeople();
           const conflictList = [];
-          const THRESHOLD = 4;
+          const THRESHOLD = 5;
           for (let i = 0; i < people.length; i += 1) {
             for (let j = i + 1; j < people.length; j += 1) {
               const score = matchScore(people[i], people[j]);
