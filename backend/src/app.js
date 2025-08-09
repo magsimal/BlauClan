@@ -14,12 +14,24 @@ const trustedProxies = process.env.TRUSTED_PROXY_IPS
   : [];
 app.set('trust proxy', (addr) => trustedProxies.includes(addr));
 
+const sessionSecret = process.env.SESSION_SECRET || (process.env.NODE_ENV === 'test' ? 'test-secret' : '');
+if (!sessionSecret && process.env.NODE_ENV !== 'test') {
+  // Fail hard in production-like environments
+  throw new Error('SESSION_SECRET must be set');
+}
 app.use(
   session({
-    secret: process.env.SESSION_SECRET || 'secret',
+    secret: sessionSecret,
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+    },
+    proxy: true,
   }),
 );
 

@@ -2,35 +2,45 @@ const express = require('express');
 const { sequelize, Person, Marriage, Layout } = require('../models');
 const { requireAdmin } = require('../middleware/auth');
 
-async function buildAncestors(id) {
+async function buildAncestors(id, options = {}, visited = new Set()) {
+  const { maxDepth = 16, depth = 0 } = options;
   const numericId = parseInt(id, 10);
   if (Number.isNaN(numericId)) return null;
+  if (depth >= maxDepth) return null;
+  if (visited.has(numericId)) return null;
+  visited.add(numericId);
   const person = await Person.findByPk(numericId);
   if (!person) return null;
   const node = person.toJSON();
   node.father = null;
   node.mother = null;
-  if (person.fatherId) node.father = await buildAncestors(person.fatherId);
-  if (person.motherId) node.mother = await buildAncestors(person.motherId);
+  if (person.fatherId) node.father = await buildAncestors(person.fatherId, { maxDepth, depth: depth + 1 }, visited);
+  if (person.motherId) node.mother = await buildAncestors(person.motherId, { maxDepth, depth: depth + 1 }, visited);
   return node;
 }
 
-async function buildDescendants(id) {
+async function buildDescendants(id, options = {}, visited = new Set()) {
+  const { maxDepth = 16, depth = 0 } = options;
   const numericId = parseInt(id, 10);
   if (Number.isNaN(numericId)) return null;
+  if (depth >= maxDepth) return null;
+  if (visited.has(numericId)) return null;
+  visited.add(numericId);
   const person = await Person.findByPk(numericId);
   if (!person) return null;
   const node = person.toJSON();
-  const marriages = await Marriage.findAll({ where: { [require('sequelize').Op.or]: [{ personId: id }, { spouseId: id }] } });
+  const Op = require('sequelize').Op;
+  const marriages = await Marriage.findAll({ where: { [Op.or]: [{ personId: numericId }, { spouseId: numericId }] } });
   node.spouseRelationships = [];
   for (const m of marriages) {
-    const spouseId = m.personId == id ? m.spouseId : m.personId;
+    const spouseId = m.personId === numericId ? m.spouseId : m.personId;
     const spouse = await Person.findByPk(spouseId);
     if (!spouse) continue;
-    const children = await Person.findAll({ where: { [require('sequelize').Op.or]: [ { fatherId: id, motherId: spouseId }, { fatherId: spouseId, motherId: id } ] } });
+    const children = await Person.findAll({ where: { [Op.or]: [ { fatherId: numericId, motherId: spouseId }, { fatherId: spouseId, motherId: numericId } ] } });
     const childNodes = [];
     for (const child of children) {
-      childNodes.push(await buildDescendants(child.id));
+      const sub = await buildDescendants(child.id, { maxDepth, depth: depth + 1 }, visited);
+      if (sub) childNodes.push(sub);
     }
     node.spouseRelationships.push({
       spouse: spouse.toJSON(),
@@ -48,12 +58,13 @@ const router = express.Router();
 router.get('/tree/:id', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
-  const { type = 'both' } = req.query;
+  const { type = 'both', maxDepth } = req.query;
+  const limit = Math.max(1, Math.min(64, parseInt(maxDepth || '16', 10) || 16));
   const person = await Person.findByPk(id);
   if (!person) return res.sendStatus(404);
   const result = { id: person.id };
-  if (type === 'ancestors' || type === 'both') result.ancestors = await buildAncestors(person.id);
-  if (type === 'descendants' || type === 'both') result.descendants = await buildDescendants(person.id);
+  if (type === 'ancestors' || type === 'both') result.ancestors = await buildAncestors(person.id, { maxDepth: limit });
+  if (type === 'descendants' || type === 'both') result.descendants = await buildDescendants(person.id, { maxDepth: limit });
   res.json(result);
 });
 

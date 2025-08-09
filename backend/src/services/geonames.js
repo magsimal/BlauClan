@@ -1,3 +1,12 @@
+/**
+ * GeoNames service utilities.
+ *
+ * Exposes cached suggest and postal-code lookups and a simple validation helper.
+ * All functions are safe to call when the service is disabled (returning empty/null results).
+ *
+ * @module services/geonames
+ */
+
 const crypto = require('crypto');
 const cache = require('../cache');
 
@@ -46,13 +55,16 @@ async function geonamesPostalCode(lat, lng, cc) {
 
 async function geonamesSuggest(query, lang = 'en', cc = '') {
   if (!geonamesEnabled) return [];
-  const q = (query || '')
+  let q = (query || '')
+    .normalize('NFKC')
+    .replace(/[\u0000-\u001F\u007F]/g, '')
     .trim()
     .replace(/[\u2013\u2014]/g, '-')
     .replace(/\s*-\s*/g, '-')
-    .replace(/\s+/g, ' ');
+    .replace(/\s+/g, ' ')
+    .slice(0, 128);
   if (!q) return [];
-  const hash = crypto.createHash('sha1').update(q + lang + cc).digest('hex');
+  const hash = crypto.createHash('sha1').update((q + lang + cc).toLowerCase()).digest('hex');
   const key = `gn:${hash}`;
   const cached = await cache.get(key);
   if (cached) return cached;
@@ -60,8 +72,8 @@ async function geonamesSuggest(query, lang = 'en', cc = '') {
   const queryParam = q.length < 4 ? `name_startsWith=${encoded}` : `q=${encoded}&fuzzy=0.8`;
   const url = `http://api.geonames.org/searchJSON?${queryParam}`
     + `&maxRows=100&username=${GEONAMES_USER}`
-    + `&lang=${lang}`
-    + (cc ? `&country=${cc}` : '')
+    + `&lang=${encodeURIComponent(String(lang || 'en').slice(0, 5))}`
+    + (cc ? `&country=${encodeURIComponent(String(cc).toUpperCase().slice(0, 2))}` : '')
     + '&isNameRequired=true';
   try {
     const resp = await fetch(url);
@@ -75,7 +87,7 @@ async function geonamesSuggest(query, lang = 'en', cc = '') {
       const pa = regionPriority(a.countryCode);
       const pb = regionPriority(b.countryCode);
       if (pa !== pb) return pa - pb;
-      return b.score - a.score;
+      return (b.score || 0) - (a.score || 0);
     });
     const seen = new Set();
     const unique = res.filter((r) => {

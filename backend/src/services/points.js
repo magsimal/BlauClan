@@ -1,3 +1,8 @@
+/**
+ * Points and activity logging service.
+ *
+ * @module services/points
+ */
 const { Score, Activity } = require('../models');
 
 async function addPoints(username, delta, description) {

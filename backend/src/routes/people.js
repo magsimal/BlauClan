@@ -82,10 +82,14 @@ router.get('/:id/spouses', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
   const marriages = await Marriage.findAll({ where: { [Op.or]: [{ personId: id }, { spouseId: id }] } });
+  const spouseIds = marriages.map((m) => (m.personId === id ? m.spouseId : m.personId));
+  const uniqueIds = Array.from(new Set(spouseIds));
+  const spouses = await Person.findAll({ where: { id: uniqueIds } });
+  const byId = new Map(spouses.map((s) => [s.id, s]));
   const result = [];
   for (const m of marriages) {
-    const spouseId = m.personId == id ? m.spouseId : m.personId;
-    const spouse = await Person.findByPk(spouseId);
+    const spouseId = m.personId === id ? m.spouseId : m.personId;
+    const spouse = byId.get(spouseId);
     if (spouse) {
       result.push({
         marriageId: m.id,
