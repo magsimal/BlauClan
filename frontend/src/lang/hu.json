@@ -105,6 +105,11 @@
   "loading": "Betöltés...",
   "processingLargeDataset": "A(z) {count} csomópont feldolgozása, kérem várjon...",
   "defineMeFirst": "Először határozz meg egy saját csomópontot",
-  "personsHidden": "személy elrejtve"
+  "personsHidden": "személy elrejtve",
+  "pointsLegend": "Hogyan szerezhetsz pontokat:",
+  "newPersonPoints": "• Új személy hozzáadása: 5 pont",
+  "editPersonPoints": "• Meglévő személy szerkesztése: 1-2 pont mezőnként",
+  "newInfoPoints": "  - Új információk hozzáadása: 2 pont",
+  "updateInfoPoints": "  - Meglévő információk frissítése: 1 pont"
 }
 

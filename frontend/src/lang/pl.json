@@ -106,4 +106,9 @@
   ,"processingLargeDataset": "Przetwarzanie {count} wezlow, prosze czekac..."
   ,"defineMeFirst": "Najpierw zdefiniuj wezel 'me'"
   ,"personsHidden": "os\u00f3b ukrytych"
+  ,"pointsLegend": "Jak zdobywac punkty:"
+  ,"newPersonPoints": "• Dodaj nowa osobe: 5 punktow"
+  ,"editPersonPoints": "• Edytuj istniejaca osobe: 1-2 punkty za pole"
+  ,"newInfoPoints": "  - Dodawanie nowych informacji: 2 punkty"
+  ,"updateInfoPoints": "  - Aktualizacja istniejacych informacji: 1 punkt"
 }

@@ -106,4 +106,9 @@
   ,"processingLargeDataset": "Processing {count} nodes, please wait..."
   ,"defineMeFirst": "Please define a me-node first"
   ,"personsHidden": "persons hidden"
+  ,"pointsLegend": "How to earn points:"
+  ,"newPersonPoints": "• Add new person: 5 points"
+  ,"editPersonPoints": "• Edit existing person: 1-2 points per field"
+  ,"newInfoPoints": "  - Adding new information: 2 points"
+  ,"updateInfoPoints": "  - Updating existing information: 1 point"
 }
