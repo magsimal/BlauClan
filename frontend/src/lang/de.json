@@ -106,4 +106,9 @@
   ,"processingLargeDataset": "Verarbeite {count} Knoten, bitte warten..."
   ,"defineMeFirst": "Bitte zuerst einen Me-Knoten festlegen"
   ,"personsHidden": "Personen ausgeblendet"
+  ,"pointsLegend": "Wie man Punkte sammelt:"
+  ,"newPersonPoints": "• Neue Person hinzufügen: 5 Punkte"
+  ,"editPersonPoints": "• Vorhandene Person bearbeiten: 1-2 Punkte pro Feld"
+  ,"newInfoPoints": "  - Neue Informationen hinzufügen: 2 Punkte"
+  ,"updateInfoPoints": "  - Vorhandene Informationen aktualisieren: 1 Punkt"
 }

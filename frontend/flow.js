@@ -2896,6 +2896,15 @@
                 </tr>
               </tbody>
             </table>
+            <div class="mt-3 p-3 bg-light rounded">
+              <h6 data-i18n="pointsLegend">How to earn points:</h6>
+              <div class="small">
+                <div data-i18n="newPersonPoints">• Add new person: 5 points</div>
+                <div data-i18n="editPersonPoints">• Edit existing person: 1-2 points per field</div>
+                <div data-i18n="newInfoPoints">  - Adding new information: 2 points</div>
+                <div data-i18n="updateInfoPoints">  - Updating existing information: 1 point</div>
+              </div>
+            </div>
             <div class="text-right mt-2">
               <button v-if="admin" class="btn btn-danger btn-sm mr-2" @click="resetScores" data-i18n="resetScores">Reset</button>
               <button class="btn btn-primary btn-sm" @click="showScores = false" data-i18n="close">Close</button>
