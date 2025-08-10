@@ -201,6 +201,9 @@
         const focusedView = ref(false);
         const hiddenCount = ref(0);
         let longPressTimer = null;
+        let touchStartX = 0;
+        let touchStartY = 0;
+        const LONG_PRESS_MOVE_TOLERANCE = 10;
         const UNION_Y_OFFSET = 20;
         let unions = {};
         let newNodePos = null;
@@ -743,9 +746,10 @@
           const flowEl = document.getElementById('flow-app');
           if (flowEl) {
             flowEl.addEventListener('contextmenu', handleContextMenu);
-            flowEl.addEventListener('touchstart', handleTouchStart);
-            flowEl.addEventListener('touchend', handleTouchEnd);
-            flowEl.addEventListener('touchcancel', handleTouchEnd);
+            flowEl.addEventListener('touchstart', handleTouchStart, { capture: true, passive: true });
+            flowEl.addEventListener('touchmove', handleTouchMove, { capture: true, passive: true });
+            flowEl.addEventListener('touchend', handleTouchEnd, { capture: true, passive: true });
+            flowEl.addEventListener('touchcancel', handleTouchEnd, { capture: true, passive: true });
           }
           fetchScore();
           scoreTimer = setInterval(fetchScore, 10000);
@@ -757,9 +761,10 @@
           const flowEl = document.getElementById('flow-app');
           if (flowEl) {
             flowEl.removeEventListener('contextmenu', handleContextMenu);
-            flowEl.removeEventListener('touchstart', handleTouchStart);
-            flowEl.removeEventListener('touchend', handleTouchEnd);
-            flowEl.removeEventListener('touchcancel', handleTouchEnd);
+            flowEl.removeEventListener('touchstart', handleTouchStart, { capture: true });
+            flowEl.removeEventListener('touchmove', handleTouchMove, { capture: true });
+            flowEl.removeEventListener('touchend', handleTouchEnd, { capture: true });
+            flowEl.removeEventListener('touchcancel', handleTouchEnd, { capture: true });
           }
           if (scoreTimer) clearInterval(scoreTimer);
         });
@@ -2460,17 +2465,33 @@
          openContextMenu(ev);
        }
 
-      function handleTouchStart(ev) {
-        const point = ev.touches ? ev.touches[0] : ev;
-        const x = point.clientX;
-        const y = point.clientY;
-        longPressTimer = setTimeout(() => {
-          openContextMenuAt(x, y);
-        }, 500);
-      }
+             function handleTouchStart(ev) {
+         clearTimeout(longPressTimer);
+         const main = document.getElementById('main-flow');
+         if (main && ev && ev.target && !main.contains(ev.target)) return;
+         if (ev.touches && ev.touches.length > 1) return;
+         const point = ev.touches ? ev.touches[0] : ev;
+         touchStartX = point.clientX;
+         touchStartY = point.clientY;
+         longPressTimer = setTimeout(() => {
+           openContextMenuAt(touchStartX, touchStartY);
+         }, 500);
+       }
+
+       function handleTouchMove(ev) {
+         if (!longPressTimer) return;
+         const point = ev.touches ? ev.touches[0] : ev;
+         const dx = Math.abs(point.clientX - touchStartX);
+         const dy = Math.abs(point.clientY - touchStartY);
+         if (dx > LONG_PRESS_MOVE_TOLERANCE || dy > LONG_PRESS_MOVE_TOLERANCE) {
+           clearTimeout(longPressTimer);
+           longPressTimer = null;
+         }
+       }
 
        function handleTouchEnd() {
          clearTimeout(longPressTimer);
+         longPressTimer = null;
        }
 
        function menuAdd() {
@@ -2539,6 +2560,7 @@
         onNodeDragStop,
         handleContextMenu,
         handleTouchStart,
+        handleTouchMove,
         handleTouchEnd,
         contextMenuVisible,
         contextX,
@@ -2638,7 +2660,7 @@
                 <path d="M19.36,2.72L20.78,4.14L15.06,9.85C16.13,11.39 16.28,13.24 15.38,14.44L9.06,8.12C10.26,7.22 12.11,7.37 13.65,8.44L19.36,2.72M5.93,17.57C3.92,15.56 2.69,13.16 2.35,10.92L7.23,8.83L14.67,16.27L12.58,21.15C10.34,20.81 7.94,19.58 5.93,17.57Z" />
               </svg>
             </button>
-            <button class="icon-button" @click="loadLayout" v-tooltip="I18n.t('loadLayout')">
+            <button v-if="false" class="icon-button" @click="loadLayout" v-tooltip="I18n.t('loadLayout')">
               <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M4.755 10.059a7.5 7.5 0 0 1 12.548-3.364l1.903 1.903h-3.183a.75.75 0 1 0 0 1.5h4.992a.75.75 0 0 0 .75-.75V4.356a.75.75 0 0 0-1.5 0v3.18l-1.9-1.9A9 9 0 0 0 3.306 9.67a.75.75 0 1 0 1.45.388Zm15.408 3.352a.75.75 0 0 0-.919.53 7.5 7.5 0 0 1-12.548 3.364l-1.902-1.903h3.183a.75.75 0 0 0 0-1.5H2.984a.75.75 0 0 0-.75.75v4.992a.75.75 0 0 0 1.5 0v-3.18l1.9 1.9a9 9 0 0 0 15.059-4.035.75.75 0 0 0-.53-.918Z" clip-rule="evenodd"/></svg>
             </button>
             <button class="icon-button" @click="fitView()" v-tooltip="I18n.t('fitToScreen')">
@@ -2650,7 +2672,7 @@
             <button class="icon-button" @click="zoomOutStep" v-tooltip="I18n.t('zoomOut')">
               <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM9 11.5h5v1.5H9z"/></svg>
             </button>
-            <button class="icon-button" @click="toggleFocused" :class="{ active: focusedView }" :disabled="!hasMe" v-tooltip="I18n.t('focusedView')">
+            <button v-if="false" class="icon-button" @click="toggleFocused" :class="{ active: focusedView }" :disabled="!hasMe" v-tooltip="I18n.t('focusedView')">
               <svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/><path d="M12 15.4 8.24 17.67l.99-4.28L6 9.5l4.38-.38L12 5l1.62 4.12 4.38.38-3.23 2.89.99 4.28z"/></svg>
             </button>
             <button class="icon-button" @click="gotoMe" v-tooltip="I18n.t('gotoMe')">
@@ -2664,7 +2686,7 @@
             </button>
           </div>
           <div id="sidebar">
-            <button v-if="loggedIn" class="icon-button" @click="saveLayout" v-tooltip="I18n.t('saveLayout')">
+            <button v-if="false && loggedIn" class="icon-button" @click="saveLayout" v-tooltip="I18n.t('saveLayout')">
               <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2.25a.75.75 0 0 1 .75.75v11.69l3.22-3.22a.75.75 0 1 1 1.06 1.06l-4.5 4.5a.75.75 0 0 1-1.06 0l-4.5-4.5a.75.75 0 1 1 1.06-1.06l3.22 3.22V3a.75.75 0 0 1 .75-.75Zm-9 13.5a.75.75 0 0 1 .75.75v2.25a1.5 1.5 0 0 0 1.5 1.5h13.5a1.5 1.5 0 0 0 1.5-1.5V16.5a.75.75 0 0 1 1.5 0v2.25a3 3 0 0 1-3 3H5.25a3 3 0 0 1-3-3V16.5a.75.75 0 0 1 .75-.75Z" clip-rule="evenodd"/></svg>
             </button>
             <button class="icon-button" @click="downloadSvg" v-tooltip="I18n.t('downloadSvg')">
@@ -2673,7 +2695,7 @@
             <button class="icon-button" @click="downloadBloodlineSvg" v-tooltip="I18n.t('downloadBloodlineSvg')" :disabled="selectedNodes.length !== 1">
               <svg viewBox="0 0 24 24"><path d="M12 2L2 7v10c0 5.55 3.84 9.74 9 11 5.16-1.26 9-5.45 9-11V7l-10-5zM12 20c-4.41 0-8-3.59-8-8V9l8-4 8 4v3c0 4.41-3.59 8-8 8z"/></svg>
             </button>
-            <button class="icon-button" @click="toggleSnap" :class="{ active: snapToGrid }" v-tooltip="snapToGrid ? I18n.t('disableSnap') : I18n.t('enableSnap')">
+            <button v-if="false" class="icon-button" @click="toggleSnap" :class="{ active: snapToGrid }" v-tooltip="snapToGrid ? I18n.t('disableSnap') : I18n.t('enableSnap')">
               <svg viewBox="0 0 24 24"><path d="M3 3h18v18H3V3m2 2v14h14V5H5Z" /></svg>
             </button>
             <button v-if="showDeleteAllButton" class="icon-button" @click="deleteAll" style="border-color:#dc3545;color:#dc3545;" v-tooltip="I18n.t('deleteAll')">
@@ -2703,6 +2725,7 @@
             @edge-click="onEdgeClick"
             @contextmenu.prevent="handleContextMenu"
             @touchstart="handleTouchStart"
+            @touchmove="handleTouchMove"
             @touchend="handleTouchEnd"
             @touchcancel="handleTouchEnd"
             @nodes-change="handleNodesChange"
