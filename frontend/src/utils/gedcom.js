@@ -11,13 +11,16 @@
   };
 
   function toIso(str) {
-    const m = str.match(/^(\d{1,2}) ([A-Z]{3}) (\d{4})$/);
+    if (!str || typeof str !== 'string') return null;
+    const trimmed = str.trim();
+    const m = trimmed.match(/^(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})$/);
     if (m) {
       const d = m[1].padStart(2, '0');
-      const mo = monthMap[m[2]];
+      const mo = monthMap[m[2].toUpperCase()];
+      if (!mo) return null;
       return `${m[3]}-${mo}-${d}`;
     }
-    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
     return null;
   }
 

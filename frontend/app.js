@@ -164,7 +164,7 @@
             s.name
             + (s.postalCode ? ` (${s.postalCode})` : '')
             + (s.adminName1 ? `, ${s.adminName1}` : '')
-            + ` ${s.countryCode}`;
+            + (s.countryCode ? ` ${s.countryCode}` : '');
           this.$nextTick(() => {
             console.log('[applyPob] updating selected person', this.selectedPerson);
             if (this.selectedPerson) {

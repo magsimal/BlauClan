@@ -6,7 +6,7 @@
   <title>Tree of Life</title>
   <link rel="icon" type="image/png" href="favicon.png?v=0.1.5">
   <script src="vue.global.js"></script>
-  <script>var production = 'development';</script>
+  <script>(function(){try{var h=location.hostname||'';var devHosts=['','localhost','127.0.0.1'];window.production=devHosts.includes(h)?'development':'production';}catch(e){window.production='development';}})();</script>
   <link rel="stylesheet" href="vue-flow-style.css">
   <script src="vue-flow-core.iife.js"></script>
   <script src="assets/vendor/d3.min.js"></script>
