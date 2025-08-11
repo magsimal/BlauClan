@@ -223,7 +223,6 @@
           if (!linkPickerVisible.value || !selected.value) return [];
           const q = (debouncedLinkInput.value || '').toLowerCase();
           const selId = selected.value.id;
-          const selGender = (selected.value.gender || '').toLowerCase();
           // Build candidate list from current nodes (persons only)
           const candidates = nodes.value
             .filter((n) => n.type === 'person' && n.data && n.data.id !== selId)
