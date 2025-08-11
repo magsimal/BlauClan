@@ -111,4 +111,9 @@
   ,"editPersonPoints": "• Edit existing person: 1-2 points per field"
   ,"newInfoPoints": "  - Adding new information: 2 points"
   ,"updateInfoPoints": "  - Updating existing information: 1 point"
+  ,"link": "Link"
+  ,"unlink": "Unlink"
+  ,"noChildren": "No children yet"
+  ,"noResults": "No results"
+  ,"bothParentsExist": "Child already has both parents"
 }

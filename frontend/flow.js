@@ -210,6 +210,109 @@
         let scoreTimer = null;
         // Touch capability detection for mobile-specific UI affordances
         const isTouchDevice = ref((typeof window !== 'undefined' && 'ontouchstart' in window) || (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0));
+
+        // Link picker state for connecting existing nodes as father/mother/child
+        const linkPickerVisible = ref(false);
+        const linkType = ref(''); // 'father' | 'mother' | 'child'
+        const linkInput = ref('');
+        // Debounced search input for large datasets
+        const debouncedLinkInput = ref('');
+        const updateDebouncedLink = debounce((v) => { debouncedLinkInput.value = v || ''; }, 250);
+        watch(linkInput, (v) => updateDebouncedLink(v));
+        const linkOptions = computed(() => {
+          if (!linkPickerVisible.value || !selected.value) return [];
+          const q = (debouncedLinkInput.value || '').toLowerCase();
+          const selId = selected.value.id;
+          // Build candidate list from current nodes (persons only)
+          const candidates = nodes.value
+            .filter((n) => n.type === 'person' && n.data && n.data.id !== selId)
+            .map((n) => n.data)
+            .filter((p) => {
+              // Parent linking constraints
+              if (linkType.value === 'father') {
+                const g = (p.gender || '').toLowerCase();
+                if (g && g !== 'male') return false;
+                if (selected.value.fatherId && selected.value.fatherId !== p.id) return true; // UI hides icon when set; keep generic
+              }
+              if (linkType.value === 'mother') {
+                const g = (p.gender || '').toLowerCase();
+                if (g && g !== 'female') return false;
+                if (selected.value.motherId && selected.value.motherId !== p.id) return true;
+              }
+              if (linkType.value === 'child') {
+                // Exclude those already a child of selected
+                if (childrenCache.get(selId)?.some((c) => c.id === p.id)) return false;
+              }
+              // Simple text match on names
+              if (!q) return true;
+              const name = `${p.callName || ''} ${p.firstName || ''} ${p.lastName || ''}`.toLowerCase();
+              return name.includes(q);
+            })
+            .slice(0, 20)
+            .map((p) => {
+              const born = p.dateOfBirth || p.birthApprox || '';
+              const died = p.dateOfDeath || p.deathApprox || '';
+              const life = [born, died].filter(Boolean).join(' - ');
+              const primary = p.callName ? `${p.callName}${p.firstName ? ` (${p.firstName})` : ''}` : (p.firstName || '');
+              const display = `${primary} ${p.lastName || ''}`.trim();
+              return { ...p, display, life };
+            });
+          return candidates;
+        });
+        function openLinkPicker(type) {
+          linkType.value = type;
+          linkInput.value = '';
+          linkPickerVisible.value = true;
+          // slight delay to allow input focus in template nextTick
+          try { setTimeout(() => {
+            const el = document.getElementById('link-picker-input');
+            if (el) el.focus();
+          }, 0); } catch (e) { /* ignore */ }
+        }
+        function closeLinkPicker() {
+          linkPickerVisible.value = false;
+          linkType.value = '';
+          linkInput.value = '';
+        }
+        async function linkWith(person) {
+          if (!person || !selected.value) return;
+          const selId = selected.value.id;
+          try {
+            if (linkType.value === 'father') {
+              if (selected.value.fatherId) return; // UI should not allow, but guard
+              await FrontendApp.updatePerson(selId, { fatherId: person.id });
+              await refreshNodeData(true);
+            } else if (linkType.value === 'mother') {
+              if (selected.value.motherId) return;
+              await FrontendApp.updatePerson(selId, { motherId: person.id });
+              await refreshNodeData(true);
+            } else if (linkType.value === 'child') {
+              // Determine which parent field to set on the child
+              const childUpdates = {};
+              const selGender = (selected.value.gender || '').toLowerCase();
+              if (selGender === 'male') {
+                if (person.fatherId === selId) { closeLinkPicker(); return; }
+                childUpdates.fatherId = selId;
+              } else if (selGender === 'female') {
+                if (person.motherId === selId) { closeLinkPicker(); return; }
+                childUpdates.motherId = selId;
+              } else {
+                // Fallback: fill the missing slot, prefer fatherId first
+                if (!person.fatherId) childUpdates.fatherId = selId;
+                else if (!person.motherId) childUpdates.motherId = selId;
+                else {
+                  flash(I18nGlobal.t ? I18nGlobal.t('bothParentsExist') : 'Child already has both parents');
+                  closeLinkPicker();
+                  return;
+                }
+              }
+              await FrontendApp.updatePerson(person.id, childUpdates);
+              await refreshNodeData(true);
+            }
+          } finally {
+            closeLinkPicker();
+          }
+        }
         function addClass(edge, cls) {
           const parts = (edge.class || '').split(' ').filter(Boolean);
           if (!parts.includes(cls)) parts.push(cls);
@@ -2638,6 +2741,14 @@
         isTouchDevice,
         openEditFor,
         openInfoFor,
+        // Link picker bindings
+        linkPickerVisible,
+        linkType,
+        linkInput,
+        linkOptions,
+        openLinkPicker,
+        closeLinkPicker,
+        linkWith,
       };
       },
       template: `
@@ -3037,11 +3148,9 @@
                       </span>
                     </template>
                     <template v-else>
-                      <span class="ml-1" style="cursor: pointer;" @click="startAddParent('father')">
-                        <svg viewBox="0 0 24 24" class="text-success" style="width: 16px; height: 16px; vertical-align: middle;">
-                          <path d="M12 4v16M4 12h16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
-                        </svg>
-                      </span>
+                      <button class="icon-button ml-1" style="padding:4px;" @click="openLinkPicker('father')" v-tooltip="I18n.t('link')">
+                        <svg viewBox="0 0 24 24" style="width:16px;height:16px;"><path d="M10.59 13.41a1.98 1.98 0 0 0 2.82 0l3.59-3.59a2 2 0 0 0-2.82-2.82l-1.29 1.29" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.41 10.59a1.98 1.98 0 0 0-2.82 0L7 14.18a2 2 0 1 0 2.82 2.82l1.29-1.29" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                      </button>
                     </template>
                   </p>
                   <p>
@@ -3055,26 +3164,45 @@
                       </span>
                     </template>
                     <template v-else>
-                      <span class="ml-1" style="cursor: pointer;" @click="startAddParent('mother')">
-                        <svg viewBox="0 0 24 24" class="text-success" style="width: 16px; height: 16px; vertical-align: middle;">
-                          <path d="M12 4v16M4 12h16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
-                        </svg>
-                      </span>
+                      <button class="icon-button ml-1" style="padding:4px;" @click="openLinkPicker('mother')" v-tooltip="I18n.t('link')">
+                        <svg viewBox="0 0 24 24" style="width:16px;height:16px;"><path d="M10.59 13.41a1.98 1.98 0 0 0 2.82 0l3.59-3.59a2 2 0 0 0-2.82-2.82l-1.29 1.29" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.41 10.59a1.98 1.98 0 0 0-2.82 0L7 14.18a2 2 0 1 0 2.82 2.82l1.29-1.29" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                      </button>
                     </template>
                   </p>
                   <p v-if="selected.notes"><strong data-i18n="notesLabel">Notes:</strong> {{ selected.notes }}</p>
-                  <div v-if="children.length" class="mb-2">
-                    <strong data-i18n="childrenLabel">Children:</strong>
-                    <ul>
-                      <li v-for="c in children" :key="c.id">
+                  <div class="mb-2">
+                    <div class="d-flex align-items-center">
+                      <strong class="mr-1" data-i18n="childrenLabel">Children:</strong>
+                      <button class="icon-button ml-1" style="padding:4px;" @click="openLinkPicker('child')" v-tooltip="I18n.t('link')">
+                        <svg viewBox="0 0 24 24" style="width:16px;height:16px;"><path d="M10.59 13.41a1.98 1.98 0 0 0 2.82 0l3.59-3.59a2 2 0 0 0-2.82-2.82l-1.29 1.29" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.41 10.59a1.98 1.98 0 0 0-2.82 0L7 14.18a2 2 0 1 0 2.82 2.82l1.29-1.29" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                      </button>
+                    </div>
+                    <ul v-if="children.length">
+                      <li v-for="c in children" :key="c.id" class="d-flex align-items-center justify-content-between" style="min-height: 36px;">
                         <a href="#" @click.prevent="gotoPerson(c.id)">{{ personName(c.id) }}</a>
-                        <span class="ml-1" style="cursor: pointer;" @click="unlinkChild(c)" title="Remove child relationship">
-                          <svg viewBox="0 0 24 24" class="text-danger" style="width: 14px; height: 14px; vertical-align: middle;">
+                        <button class="icon-button ml-2" style="padding:4px;" @click="unlinkChild(c)" v-tooltip="I18n.t('unlink')">
+                          <svg viewBox="0 0 24 24" class="text-danger" style="width: 16px; height: 16px;">
                             <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
                           </svg>
-                        </span>
+                        </button>
                       </li>
                     </ul>
+                    <div v-else class="text-muted small" data-i18n="noChildren">No children yet</div>
+                  </div>
+                  <div v-if="linkPickerVisible" class="mt-2">
+                    <div class="card p-2" style="background: var(--bg-secondary);">
+                      <div class="d-flex align-items-center">
+                        <input id="link-picker-input" type="text" class="form-control" v-model="linkInput" :placeholder="I18n.t('search')" />
+                        <button class="btn btn-sm btn-secondary ml-2" @click="closeLinkPicker" data-i18n="cancel">Cancel</button>
+                      </div>
+                      <ul class="list-group mt-2" style="max-height: 200px; overflow-y: auto;">
+                        <li v-for="p in linkOptions" :key="p.id" class="list-group-item list-group-item-action" @click="linkWith(p)" style="min-height:44px;">
+                          <div>{{ p.display }}</div>
+                          <div v-if="p.life" class="small text-muted">{{ p.life }}</div>
+                        </li>
+                        <li v-if="!linkOptions.length" class="list-group-item text-muted" data-i18n="noResults">No results</li>
+                      </ul>
+                    </div>
                   </div>
                   <div class="text-right mt-3">
                     <button class="btn btn-primary btn-sm mr-2" @click="setMe" data-i18n="setAsMe">Set as Me</button>
