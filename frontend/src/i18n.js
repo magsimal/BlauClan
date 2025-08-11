@@ -1,38 +1,52 @@
 (function (global) {
   const translations = {};
   const STORAGE_KEY = 'preferredLang';
+
+  function normalizeLang(lang) {
+    return (lang || 'EN').toString().trim().replace('-', '_').toUpperCase();
+  }
+
   let current = 'EN';
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) current = saved;
+    if (saved) current = normalizeLang(saved);
   } catch (e) {
     /* ignore */
   }
 
   async function load(lang) {
-    if (!translations[lang]) {
-      const res = await fetch(`src/lang/${lang.toLowerCase()}.json`);
-      translations[lang] = await res.json();
+    const key = normalizeLang(lang);
+    if (!translations[key]) {
+      try {
+        const res = await fetch(`src/lang/${key.toLowerCase()}.json`);
+        if (!res.ok) throw new Error('i18n file load failed');
+        translations[key] = await res.json();
+      } catch (e) {
+        translations[key] = translations[key] || {};
+      }
     }
+    return translations[key];
   }
 
   function t(key) {
-    return (translations[current] && translations[current][key]) ||
+    const upper = normalizeLang(current);
+    return (translations[upper] && translations[upper][key]) ||
            (translations.EN && translations.EN[key]) || key;
   }
 
   async function setLang(lang) {
-    current = lang;
+    current = normalizeLang(lang);
     try {
-      localStorage.setItem(STORAGE_KEY, lang);
+      localStorage.setItem(STORAGE_KEY, current);
     } catch (e) {
       /* ignore */
     }
-    await load(lang);
+    await load(current);
     updateDom();
   }
 
   function updateDom() {
+    if (typeof document === 'undefined') return;
     const map = {
       'data-i18n': (el, k) => { el.textContent = t(k); },
       'data-i18n-placeholder': (el, k) => el.setAttribute('placeholder', t(k)),
@@ -45,6 +59,21 @@
       });
     });
   }
+
+  // Preload current language and EN fallback; update DOM on ready
+  (async function initI18n() {
+    try {
+      await load('EN');
+      await load(current);
+    } catch (e) { /* ignore */ }
+    if (typeof document !== 'undefined') {
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', updateDom, { once: true });
+      } else {
+        updateDom();
+      }
+    }
+  })();
 
   global.I18n = { t, setLang, getLang: () => current, updateDom, load };
 })(this);

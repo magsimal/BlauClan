@@ -94,7 +94,7 @@
     const list = document.getElementById('search-results');
     list.innerHTML = '';
     if (!q) return;
-    const results = fuse.search(q, { limit: 10 });
+    const results = (fuse && typeof fuse.search === 'function') ? fuse.search(q, { limit: 10 }) : [];
     results.forEach(({ item }) => {
       const li = document.createElement('li');
       li.className = 'list-group-item list-group-item-action';
