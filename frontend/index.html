@@ -647,15 +647,7 @@
         <textarea class="form-control mb-2" v-model="selectedPerson.notes" placeholder="Notes" data-i18n-placeholder="notes"></textarea>
         <button class="btn btn-success mr-2" @click="savePerson" data-i18n="save">Save</button>
         <button class="btn btn-danger" @click="deleteSelected" data-i18n="delete">Delete</button>
-        <div v-if="childrenOfSelected.length" class="card">
-          <h3 data-i18n="children">Children</h3>
-          <ul>
-            <li v-for="c in childrenOfSelected" :key="c.id">
-              {{ c.callName ? c.callName + ' (' + c.firstName + ')' : c.firstName }} {{ c.lastName }}
-              <button class="btn btn-sm btn-danger ml-1" @click="unlinkChild(c)">x</button>
-            </li>
-          </ul>
-        </div>
+        
       </div>
     </div>
         <div id="flow-app" style="touch-action: none; overflow: hidden; position: relative;"></div>
