@@ -1090,12 +1090,17 @@
           people.forEach((p) => {
             posMap[p.id] = { x: p.x, y: p.y };
           });
+          const updatedIds = new Set();
           list.forEach((n) => {
             if (n.type === 'person' && posMap[n.data.id]) {
               n.position.x = posMap[n.data.id].x;
               n.position.y = posMap[n.data.id].y;
+              updatedIds.add(String(n.id));
             }
           });
+          if (typeof updateNodeInternals === 'function' && updatedIds.size) {
+            updateNodeInternals(Array.from(updatedIds));
+          }
           list.forEach((n) => {
             if (n.id.startsWith('u-')) {
               const parts = n.id.split('-');
@@ -2358,12 +2363,14 @@
 
         // Update node positions in chunks for large datasets
         const personNodes = nodes.value.filter((n) => n.type === 'person');
+        const updatedIds = new Set();
         for (let i = 0; i < personNodes.length; i += CHUNK_SIZE) {
           const chunk = personNodes.slice(i, i + CHUNK_SIZE);
           chunk.forEach((n) => {
             if (posMap[n.data.id]) {
               n.position.x = posMap[n.data.id].x;
               n.position.y = posMap[n.data.id].y;
+              updatedIds.add(String(n.id));
             }
           });
           
@@ -2371,6 +2378,9 @@
           if (personNodes.length > CHUNK_SIZE && i + CHUNK_SIZE < personNodes.length) {
             await nextTick();
           }
+        }
+        if (typeof updateNodeInternals === 'function' && updatedIds.size) {
+          updateNodeInternals(Array.from(updatedIds));
         }
 
         refreshUnions();
