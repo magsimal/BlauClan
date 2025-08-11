@@ -11,8 +11,15 @@
         return;
       }
 
+      const GRID = Number.isFinite(horizontalGridSize) && horizontalGridSize > 0 ? horizontalGridSize : 30;
+      const ATTR = Math.max(0, Math.min(1, Number.isFinite(relativeAttraction) ? relativeAttraction : 0.5));
+      const baseSpacing = GRID * 4;
+      const H_SPACING_RAW = baseSpacing - (baseSpacing - GRID) * ATTR;
+      const H_SPACING = Number.isFinite(H_SPACING_RAW) && H_SPACING_RAW > 0 ? H_SPACING_RAW : GRID * 3;
+      const DEFAULT_WIDTH = Math.max(120, GRID * 4);
+
       const map = new Map(
-        list.map((n) => [n.id, { ...n, children: [], width: n.width || 0 }])
+        list.map((n) => [n.id, { ...n, children: [], width: n.width || DEFAULT_WIDTH }])
       );
       map.forEach((n) => {
         if (n.fatherId && map.has(n.fatherId)) {
@@ -31,8 +38,6 @@
         if (!hasParent) roots.push(n);
       });
       const fakeRoot = { id: 'root', children: roots };
-      const baseSpacing = horizontalGridSize * 4;
-      const H_SPACING = baseSpacing - (baseSpacing - horizontalGridSize) * relativeAttraction;
       const layout = d3.tree().nodeSize([H_SPACING, 1]);
       const rootNode = d3.hierarchy(fakeRoot);
       layout(rootNode);
@@ -43,7 +48,7 @@
       function walk(h) {
         const d = map.get(h.data.id);
         if (d) {
-          d.x = h.x;
+          d.x = Number.isFinite(h.x) ? h.x : (Number.isFinite(d.x) ? d.x : 0);
         }
         h.children && h.children.forEach(walk);
       }
@@ -92,11 +97,11 @@
       const linkForce = d3
         .forceLink(links)
         .id((d) => d.id)
-        .distance((d) => (d.type === 'spouse' ? H_SPACING / 2 : 0))
+        .distance((d) => (d.type === 'spouse' ? H_SPACING / 2 : H_SPACING))
         .strength(1);
       const collideForce = d3
         .forceCollide()
-        .radius((d) => (d.width || 0) / 2 + H_SPACING / 2)
+        .radius((d) => (d.width || DEFAULT_WIDTH) / 2 + H_SPACING / 2)
         .strength(1);
       const sim = d3
         .forceSimulation(nodesForSim)
@@ -202,8 +207,15 @@
 
       const CHUNK_SIZE = Math.min(500, Math.max(50, Math.floor(list.length / 10)));
 
+      const GRID = Number.isFinite(horizontalGridSize) && horizontalGridSize > 0 ? horizontalGridSize : 30;
+      const ATTR = Math.max(0, Math.min(1, Number.isFinite(relativeAttraction) ? relativeAttraction : 0.5));
+      const baseSpacing = GRID * 4;
+      const H_SPACING_RAW = baseSpacing - (baseSpacing - GRID) * ATTR;
+      const H_SPACING = Number.isFinite(H_SPACING_RAW) && H_SPACING_RAW > 0 ? H_SPACING_RAW : GRID * 3;
+      const DEFAULT_WIDTH = Math.max(120, GRID * 4);
+
       const map = new Map(
-        list.map((n) => [n.id, { ...n, children: [], width: n.width || 0 }])
+        list.map((n) => [n.id, { ...n, children: [], width: n.width || DEFAULT_WIDTH }])
       );
 
       let processed = 0;
@@ -229,8 +241,6 @@
       });
 
       const fakeRoot = { id: 'root', children: roots };
-      const baseSpacing = horizontalGridSize * 4;
-      const H_SPACING = baseSpacing - (baseSpacing - horizontalGridSize) * relativeAttraction;
       const layout = d3.tree().nodeSize([H_SPACING, 1]);
       const rootNode = d3.hierarchy(fakeRoot);
       layout(rootNode);
@@ -241,7 +251,7 @@
       function walk(h) {
         const d = map.get(h.data.id);
         if (d) {
-          d.x = h.x;
+          d.x = Number.isFinite(h.x) ? h.x : (Number.isFinite(d.x) ? d.x : 0);
         }
         h.children && h.children.forEach(walk);
       }
@@ -302,11 +312,11 @@
       const linkForce = d3
         .forceLink(links)
         .id((d) => d.id)
-        .distance((d) => (d.type === 'spouse' ? H_SPACING / 2 : 0))
+        .distance((d) => (d.type === 'spouse' ? H_SPACING / 2 : H_SPACING))
         .strength(1);
       const collideForce = d3
         .forceCollide()
-        .radius((d) => (d.width || 0) / 2 + H_SPACING / 2)
+        .radius((d) => (d.width || DEFAULT_WIDTH) / 2 + H_SPACING / 2)
         .strength(1);
       const sim = d3
         .forceSimulation(nodesForSim)
@@ -342,10 +352,10 @@
         rowNodes.sort((a, b) => a.x - b.x);
         let lastX = Number.NEGATIVE_INFINITY;
         rowNodes.forEach((n) => {
-          if (n.x < lastX + (n.width || 0) / 2 + H_SPACING / 2) {
-            n.x = lastX + (n.width || 0) / 2 + H_SPACING / 2;
+          if (n.x < lastX + (n.width || DEFAULT_WIDTH) / 2 + H_SPACING / 2) {
+            n.x = lastX + (n.width || DEFAULT_WIDTH) / 2 + H_SPACING / 2;
           }
-          lastX = n.x + (n.width || 0) / 2;
+          lastX = n.x + (n.width || DEFAULT_WIDTH) / 2;
         });
       });
 
