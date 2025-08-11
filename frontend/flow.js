@@ -1098,9 +1098,6 @@
               updatedIds.add(String(n.id));
             }
           });
-          if (typeof updateNodeInternals === 'function' && updatedIds.size) {
-            updateNodeInternals(Array.from(updatedIds));
-          }
           list.forEach((n) => {
             if (n.id.startsWith('u-')) {
               const parts = n.id.split('-');
@@ -1124,9 +1121,13 @@
                       2 +
                     UNION_Y_OFFSET,
                 };
+                updatedIds.add(String(n.id));
               }
             }
           });
+          if (typeof updateNodeInternals === 'function' && updatedIds.size) {
+            updateNodeInternals(Array.from(updatedIds));
+          }
         }
 
         function tidyRelatives() {

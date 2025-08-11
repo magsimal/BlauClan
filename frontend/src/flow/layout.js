@@ -72,6 +72,48 @@
         }
       });
 
+      // Pre-compute target X for children groups per parents to enforce sibling ordering by birth
+      const childTargets = new Map();
+      const childrenByParents = new Map();
+      list.forEach((c) => {
+        const father = c.fatherId ? map.get(c.fatherId) : null;
+        const mother = c.motherId ? map.get(c.motherId) : null;
+        if (!father && !mother) return;
+        const key = father && mother ? `${c.fatherId}-${c.motherId}` : father ? `f-${c.fatherId}` : `m-${c.motherId}`;
+        if (!childrenByParents.has(key)) childrenByParents.set(key, { father, mother, children: [] });
+        childrenByParents.get(key).children.push(map.get(c.id));
+      });
+      childrenByParents.forEach(({ father, mother, children }) => {
+        if (!children || children.length === 0) return;
+        const center = (() => {
+          if (father && mother) {
+            return (
+              father.x + father.width / 2 + (mother.x + mother.width / 2)
+            ) / 2;
+          }
+          const p = father || mother;
+          return p.x + p.width / 2;
+        })();
+        children.sort((a, b) => {
+          const ak = Number.isFinite(a.birthSortKey) ? a.birthSortKey : 99999;
+          const bk = Number.isFinite(b.birthSortKey) ? b.birthSortKey : 99999;
+          return ak - bk;
+        });
+        const totalWidth = children.reduce((sum, n, i) => sum + (n.width || DEFAULT_WIDTH) + (i > 0 ? H_SPACING : 0), 0);
+        let x = center - totalWidth / 2;
+        children.forEach((n, idx) => {
+          const w = n.width || DEFAULT_WIDTH;
+          // place child at left edge x; we align nodes by their left side consistently with other code
+          childTargets.set(n.id, x);
+          x += w + H_SPACING;
+        });
+        // also compute a helper target for the union midpoint if both parents present
+        if (father && mother) {
+          const unionKey = `u-${father.id}-${mother.id}`;
+          childTargets.set(unionKey, center);
+        }
+      });
+
       const links = [];
       list.forEach((p) => {
         if (p.fatherId && map.has(p.fatherId)) {
@@ -92,6 +134,18 @@
         const g = gen.get(n.id) ?? 0;
         n.y = g * ROW_HEIGHT;
         n.fy = n.y;
+        // Precompute birth sort key if available (year first, then month/day fallback)
+        if (n.dateOfBirth || n.birthApprox) {
+          const str = String(n.dateOfBirth || n.birthApprox);
+          // Extract year-month-day when present; fallback to year only
+          const m = str.match(/^(\d{4})(?:[-/.](\d{1,2}))?(?:[-/.](\d{1,2}))?/);
+          if (m) {
+            const year = parseInt(m[1], 10);
+            const month = m[2] ? parseInt(m[2], 10) : 6; // mid-year default
+            const day = m[3] ? parseInt(m[3], 10) : 15; // mid-month default
+            n.birthSortKey = year * 372 + (month - 1) * 31 + day; // monotonic mapping
+          }
+        }
       });
 
       const linkForce = d3
@@ -124,7 +178,11 @@
 
       rows.forEach((row) => {
         row.forEach((p) => {
-          if (typeof p.x !== 'number') p.x = 0;
+          if (childTargets.has(p.id)) {
+            p.x = childTargets.get(p.id);
+          } else if (typeof p.x !== 'number') {
+            p.x = 0;
+          }
         });
         row.sort((a, b) => a.x - b.x);
         for (let i = 1; i < row.length; i++) {
@@ -349,13 +407,23 @@
       });
 
       rows.forEach((rowNodes) => {
-        rowNodes.sort((a, b) => a.x - b.x);
+        // Prefer childTargets when available; else use current x
+        rowNodes.forEach((n) => {
+          if (childTargets.has(n.id)) {
+            n.x = childTargets.get(n.id);
+          } else if (!Number.isFinite(n.x)) {
+            n.x = 0;
+          }
+        });
+        // Sort by x, then by birthSortKey to stabilize
+        rowNodes.sort((a, b) => (a.x - b.x) || ((a.birthSortKey ?? 99999999) - (b.birthSortKey ?? 99999999)));
         let lastX = Number.NEGATIVE_INFINITY;
         rowNodes.forEach((n) => {
-          if (n.x < lastX + (n.width || DEFAULT_WIDTH) / 2 + H_SPACING / 2) {
-            n.x = lastX + (n.width || DEFAULT_WIDTH) / 2 + H_SPACING / 2;
+          const half = (n.width || DEFAULT_WIDTH) / 2;
+          if (n.x < lastX + half + H_SPACING / 2) {
+            n.x = lastX + half + H_SPACING / 2;
           }
-          lastX = n.x + (n.width || DEFAULT_WIDTH) / 2;
+          lastX = n.x + half;
         });
       });
 
