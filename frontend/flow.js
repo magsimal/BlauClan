@@ -215,9 +215,13 @@
         const linkPickerVisible = ref(false);
         const linkType = ref(''); // 'father' | 'mother' | 'child'
         const linkInput = ref('');
+        // Debounced search input for large datasets
+        const debouncedLinkInput = ref('');
+        const updateDebouncedLink = debounce((v) => { debouncedLinkInput.value = v || ''; }, 250);
+        watch(linkInput, (v) => updateDebouncedLink(v));
         const linkOptions = computed(() => {
           if (!linkPickerVisible.value || !selected.value) return [];
-          const q = (linkInput.value || '').toLowerCase();
+          const q = (debouncedLinkInput.value || '').toLowerCase();
           const selId = selected.value.id;
           const selGender = (selected.value.gender || '').toLowerCase();
           // Build candidate list from current nodes (persons only)
