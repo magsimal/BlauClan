@@ -59,7 +59,8 @@
   }
   function mount() {
     const { createApp, ref, onMounted, onBeforeUnmount, watch, nextTick, computed } = Vue;
-    const { VueFlow, MarkerType, Handle, useZoomPanHelper, useVueFlow } = window.VueFlow;
+    const FlowLib = (window.VueFlowCore || window.VueFlow || {});
+    const { VueFlow, MarkerType, Handle, useZoomPanHelper, useVueFlow } = FlowLib;
 
     const app = createApp({
       components: { VueFlow, Handle },

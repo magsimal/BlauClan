@@ -5,21 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>Tree of Life</title>
   <link rel="icon" type="image/png" href="favicon.png?v=0.1.5">
-  <script src="vue.global.js"></script>
+  <script src="vue.global.js" defer></script>
   <script>(function(){try{var h=location.hostname||'';var devHosts=['','localhost','127.0.0.1'];window.production=devHosts.includes(h)?'development':'production';}catch(e){window.production='development';}})();</script>
   <link rel="stylesheet" href="vue-flow-style.css">
-  <script src="vue-flow-core.iife.js"></script>
-  <script src="assets/vendor/d3.min.js"></script>
-  <script>window.VueFlow = window.VueFlowCore;</script>
-  <script src="assets/vendor/jquery.min.js"></script>
-  <script src="assets/vendor/bootstrap.bundle.min.js"></script>
-  <script src="assets/vendor/perfect-scrollbar.min.js"></script>
-  <script src="assets/vendor/perfect-scrollbar.jquery.js"></script>
-  <link rel="stylesheet" href="assets/css/argon-design-system.min.css">
+  <script src="vue-flow-core.iife.js" defer></script>
+  <script src="assets/vendor/d3.min.js" defer></script>
+  <link rel="stylesheet" href="assets/vendor/bootstrap.min.css">
   <link rel="stylesheet" href="assets/css/vibrant-ui.css">
-  <link rel="stylesheet" href="assets/vendor/flatpickr.min.css">
   <link rel="stylesheet" href="assets/fonts/fonts.css">
-  <script src="assets/vendor/flatpickr.min.js"></script>
   <script>(function(){
     try {
       var ua = navigator.userAgent || '';
@@ -698,19 +691,17 @@
       <button id="logoutBtn" class="btn btn-sm btn-secondary" style="display:none;" data-i18n="logout">Logout</button>
     </div>
   </div>
-  <script src="assets/js/argon-design-system.min.js"></script>
-  <script src="src/i18n.js"></script>
-  <script src="app.js"></script>
-  <script src="src/utils/exportSvg.js"></script>
-  <script src="src/utils/assignGenerations.js"></script>
-  <script src="src/flow/layout.js"></script>
-  <script src="src/utils/gedcom.js"></script>
-  <script src="src/utils/dedup.js"></script>
-  <script src="src/config.js"></script>
-  <script src="flow.js"></script>
-  <script src="assets/vendor/fuse.min.js"></script>
-  <script src="search.js"></script>
-  <script src="assets/vendor/html2canvas.min.js"></script>
+  <script src="src/i18n.js" defer></script>
+  <script src="app.js" defer></script>
+  <script src="src/utils/exportSvg.js" defer></script>
+  <script src="src/utils/assignGenerations.js" defer></script>
+  <script src="src/flow/layout.js" defer></script>
+  <script src="src/utils/gedcom.js" defer></script>
+  <script src="src/utils/dedup.js" defer></script>
+  <script src="src/config.js" defer></script>
+  <script src="flow.js" defer></script>
+  <script src="assets/vendor/fuse.min.js" defer></script>
+  <script src="search.js" defer></script>
   <script>
     function updateVh() {
       document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
