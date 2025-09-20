@@ -101,6 +101,214 @@
           30;
         const baseGridSize =
           (horizontalGridSize + verticalGridSize) / 2;
+        const peopleState = ref([]);
+        const peopleById = new Map();
+
+        function syncPeopleState(list) {
+          peopleState.value = list.map((p) => ({ ...p }));
+          peopleById.clear();
+          peopleState.value.forEach((p) => peopleById.set(p.id, { ...p }));
+        }
+
+        function upsertPersonLocal(person) {
+          const stored = { ...person };
+          peopleById.set(person.id, stored);
+          const idx = peopleState.value.findIndex((p) => p.id === person.id);
+          if (idx >= 0) {
+            peopleState.value.splice(idx, 1, stored);
+          } else {
+            peopleState.value.push(stored);
+          }
+          const node = getNodeById(person.id);
+          if (node && node.data) {
+            Object.assign(node.data, stored);
+            node.data.me = window.meNodeId && person.id === window.meNodeId;
+          }
+        }
+
+        function removePersonLocal(id, prevData = null) {
+          const prev = prevData || peopleById.get(id) || null;
+          const removeChild = (parentId) => {
+            if (!parentId) return;
+            const list = childrenCache.get(parentId);
+            if (!list) return;
+            const index = list.findIndex((c) => c.id === id);
+            if (index !== -1) list.splice(index, 1);
+            if (list.length === 0) childrenCache.delete(parentId);
+          };
+          if (prev) {
+            removeChild(prev.fatherId);
+            if (prev.motherId && prev.motherId !== prev.fatherId) {
+              removeChild(prev.motherId);
+            }
+          }
+          peopleById.delete(id);
+          const idx = peopleState.value.findIndex((p) => p.id === id);
+          if (idx !== -1) peopleState.value.splice(idx, 1);
+          const nodeIdx = nodes.value.findIndex((n) => String(n.id) === String(id));
+          if (nodeIdx !== -1) nodes.value.splice(nodeIdx, 1);
+        }
+
+        function updateChildrenCacheFor(person, prev) {
+          const removeChild = (parentId) => {
+            if (!parentId) return;
+            const list = childrenCache.get(parentId);
+            if (!list) return;
+            const idx = list.findIndex((c) => c.id === person.id);
+            if (idx !== -1) list.splice(idx, 1);
+            if (list.length === 0) childrenCache.delete(parentId);
+          };
+          if (prev) {
+            removeChild(prev.fatherId);
+            if (prev.motherId && prev.motherId !== prev.fatherId) {
+              removeChild(prev.motherId);
+            }
+          }
+          const addChild = (parentId) => {
+            if (!parentId) return;
+            if (!childrenCache.has(parentId)) childrenCache.set(parentId, []);
+            const list = childrenCache.get(parentId);
+            if (!list.some((c) => c.id === person.id)) {
+              const node = getNodeById(person.id);
+              if (node && node.data) list.push(node.data);
+            }
+          };
+          addChild(person.fatherId);
+          if (person.motherId && person.motherId !== person.fatherId) {
+            addChild(person.motherId);
+          }
+        }
+
+        const scheduleSearchRefresh = debounce(() => {
+          if (window.SearchApp && typeof window.SearchApp.refresh === 'function') {
+            window.SearchApp.refresh();
+          }
+        }, 500);
+
+        function rebuildRelationshipsFast() {
+          const personNodes = nodes.value.filter((n) => n.type === 'person');
+          const unionsMap = {};
+          const helperNodes = [];
+          const newEdges = [];
+
+          childrenCache.clear();
+
+          personNodes.forEach((node) => {
+            const idNum = parseInt(node.id, 10);
+            const person = peopleById.get(idNum);
+            if (!person || !node.data) return;
+            Object.assign(node.data, person);
+            node.data.me = window.meNodeId && person.id === window.meNodeId;
+
+            if (person.fatherId) {
+              if (!childrenCache.has(person.fatherId)) childrenCache.set(person.fatherId, []);
+              const list = childrenCache.get(person.fatherId);
+              if (!list.includes(node.data)) list.push(node.data);
+            }
+            if (person.motherId && person.motherId !== person.fatherId) {
+              if (!childrenCache.has(person.motherId)) childrenCache.set(person.motherId, []);
+              const list = childrenCache.get(person.motherId);
+              if (!list.includes(node.data)) list.push(node.data);
+            }
+            if (person.fatherId && person.motherId) {
+              const key = `${person.fatherId}-${person.motherId}`;
+              if (!unionsMap[key]) {
+                unionsMap[key] = {
+                  id: `u-${key}`,
+                  fatherId: person.fatherId,
+                  motherId: person.motherId,
+                  children: [],
+                };
+              }
+              unionsMap[key].children.push(person.id);
+            }
+          });
+
+          nodes.value = personNodes;
+
+          Object.values(unionsMap).forEach((u) => {
+            helperNodes.push({
+              id: u.id,
+              type: 'helper',
+              position: { x: 0, y: 0 },
+              data: { helper: true },
+              draggable: false,
+              selectable: false,
+            });
+            newEdges.push({
+              id: `spouse-line-${u.id}`,
+              source: String(u.fatherId),
+              target: String(u.motherId),
+              type: 'straight',
+              sourceHandle: 's-right',
+              targetHandle: 't-left',
+            });
+            u.children.forEach((cid) => {
+              newEdges.push({
+                id: `${u.id}-${cid}`,
+                source: u.id,
+                target: String(cid),
+                type: 'default',
+                markerEnd: MarkerType.ArrowClosed,
+                sourceHandle: 's-bottom',
+                targetHandle: 't-top',
+              });
+            });
+          });
+
+          personNodes.forEach((node) => {
+            const data = node.data || {};
+            const hasFather = !!data.fatherId;
+            const hasMother = !!data.motherId;
+            if ((hasFather && !hasMother) || (!hasFather && hasMother)) {
+              const parentId = data.fatherId || data.motherId;
+              newEdges.push({
+                id: `p-${data.id}`,
+                source: String(parentId),
+                target: String(data.id),
+                markerEnd: MarkerType.ArrowClosed,
+                sourceHandle: 's-bottom',
+                targetHandle: 't-top',
+              });
+            }
+          });
+
+          nodes.value = [...personNodes, ...helperNodes];
+          edges.value = newEdges.map((edge) => {
+            const { ref: _unused, ...rest } = edge;
+            void _unused;
+            return rest;
+          });
+          unions = unionsMap;
+          rebuildNodeMap();
+          selectedEdge.value = null;
+          refreshUnions();
+          applyFilters();
+          applyFocusedView();
+        }
+
+        function applyPersonResult(updated, prevOverride) {
+          const prev = prevOverride
+            || (peopleById.has(updated.id) ? { ...peopleById.get(updated.id) } : null);
+          upsertPersonLocal(updated);
+          const relationshipChanged = !prev
+            || prev.fatherId !== updated.fatherId
+            || prev.motherId !== updated.motherId;
+          if (relationshipChanged) {
+            rebuildRelationshipsFast();
+          } else {
+            updateChildrenCacheFor(updated, prev);
+          }
+          scheduleSearchRefresh();
+          if (selected.value && selected.value.id === updated.id) {
+            const spouseId = selected.value.spouseId;
+            selected.value = { ...selected.value, ...updated };
+            if (typeof spouseId !== 'undefined') selected.value.spouseId = spouseId;
+          }
+          if (relationshipChanged && selected.value) {
+            computeChildren(selected.value.id);
+          }
+        }
 
         function updateGridSize(zoom) {
           const el = document.getElementById('flow-app');
@@ -280,12 +488,14 @@
           try {
             if (linkType.value === 'father') {
               if (selected.value.fatherId) return; // UI should not allow, but guard
-              await FrontendApp.updatePerson(selId, { fatherId: person.id });
-              await refreshNodeData(true);
+              const prev = peopleById.has(selId) ? { ...peopleById.get(selId) } : null;
+              const updated = await FrontendApp.updatePerson(selId, { fatherId: person.id });
+              applyPersonResult(updated, prev);
             } else if (linkType.value === 'mother') {
               if (selected.value.motherId) return;
-              await FrontendApp.updatePerson(selId, { motherId: person.id });
-              await refreshNodeData(true);
+              const prev = peopleById.has(selId) ? { ...peopleById.get(selId) } : null;
+              const updated = await FrontendApp.updatePerson(selId, { motherId: person.id });
+              applyPersonResult(updated, prev);
             } else if (linkType.value === 'child') {
               // Determine which parent field to set on the child
               const childUpdates = {};
@@ -306,8 +516,10 @@
                   return;
                 }
               }
-              await FrontendApp.updatePerson(person.id, childUpdates);
-              await refreshNodeData(true);
+              const prevChild = peopleById.has(person.id) ? { ...peopleById.get(person.id) } : null;
+              const updatedChild = await FrontendApp.updatePerson(person.id, childUpdates);
+              applyPersonResult(updatedChild, prevChild);
+              if (selected.value) computeChildren(selected.value.id);
             }
           } finally {
             closeLinkPicker();
@@ -424,6 +636,7 @@
             });
           }
           const people = await FrontendApp.fetchPeople();
+          syncPeopleState(people);
           
           // Show progress for large datasets
           if (people.length > 1000) {
@@ -774,13 +987,32 @@
           if (edge.id.startsWith('spouse-line')) {
             const fatherId = parseInt(edge.source, 10);
             const motherId = parseInt(edge.target, 10);
-            const list = await FrontendApp.fetchSpouses(fatherId);
-            const rel = list.find((s) => s.spouse.id === motherId);
-            if (rel) {
-              await FrontendApp.deleteSpouse(fatherId, rel.marriageId);
+            try {
+              const list = await FrontendApp.fetchSpouses(fatherId);
+              const rel = list.find((s) => s.spouse.id === motherId);
+              if (rel) {
+                await FrontendApp.deleteSpouse(fatherId, rel.marriageId);
+                scheduleSearchRefresh();
+              }
+            } catch (err) {
+              console.error('Failed to delete spouse link', err);
             }
-              await refreshNodeData(true);
-              return;
+            rebuildRelationshipsFast();
+            return;
+          }
+
+          if (edge.source.startsWith('u-') || edge.target.startsWith('u-')) {
+            const cid = edge.source.startsWith('u-')
+              ? parseInt(edge.target, 10)
+              : parseInt(edge.source, 10);
+            const prev = peopleById.has(cid) ? { ...peopleById.get(cid) } : null;
+            const updated = await FrontendApp.updatePerson(cid, {
+              fatherId: null,
+              motherId: null,
+            });
+            applyPersonResult(updated, prev);
+            if (selected.value) computeChildren(selected.value.id);
+            return;
           }
 
           let parentId;
@@ -797,11 +1029,6 @@
           } else if (edge.targetHandle === 's-bottom' || edge.targetHandle === 't-bottom') {
             parentId = parseInt(edge.target, 10);
             childId = parseInt(edge.source, 10);
-          } else if (edge.source.startsWith('u-') || edge.target.startsWith('u-')) {
-            const cid = edge.source.startsWith('u-') ? parseInt(edge.target, 10) : parseInt(edge.source, 10);
-            await FrontendApp.updatePerson(cid, { fatherId: null, motherId: null });
-              await refreshNodeData(true);
-              return;
           } else {
             return;
           }
@@ -817,10 +1044,12 @@
             if (childNode.data.fatherId === parentId) updates.fatherId = null;
             if (childNode.data.motherId === parentId) updates.motherId = null;
           }
-            if (Object.keys(updates).length) {
-              await FrontendApp.updatePerson(childId, updates);
-              await refreshNodeData(true);
-            }
+          if (Object.keys(updates).length) {
+            const prev = peopleById.has(childId) ? { ...peopleById.get(childId) } : null;
+            const updated = await FrontendApp.updatePerson(childId, updates);
+            applyPersonResult(updated, prev);
+            if (selected.value) computeChildren(selected.value.id);
+          }
         }
 
         const shiftPressed = ref(false);
@@ -1333,14 +1562,17 @@
             ['maidenName', 'dateOfBirth', 'birthApprox', 'dateOfDeath', 'deathApprox', 'placeOfBirth', 'geonameId', 'notes', 'fatherId', 'motherId'].forEach((f) => {
               if (payload[f] === '') payload[f] = null;
             });
+            const prev = peopleById.has(selected.value.id)
+              ? { ...peopleById.get(selected.value.id) }
+              : null;
             const updated = await FrontendApp.updatePerson(selected.value.id, payload);
-            // Avoid overwriting fields the user may still be typing
             if (spouseId) {
-              await FrontendApp.linkSpouse(updated.id, parseInt(spouseId));
+              await FrontendApp.linkSpouse(updated.id, parseInt(spouseId, 10));
+              scheduleSearchRefresh();
             }
-              await refreshNodeData(true);
-              computeChildren(updated.id);
-              fetchScore();
+            applyPersonResult(updated, prev);
+            computeChildren(updated.id);
+            fetchScore();
           }, 200);
 
         watch(
@@ -1424,11 +1656,14 @@
           if (document.activeElement) document.activeElement.blur();
           showModal.value = false;
           await nextTick();
-          await FrontendApp.updatePerson(selected.value.id, {
+          const prev = peopleById.has(selected.value.id)
+            ? { ...peopleById.get(selected.value.id) }
+            : null;
+          const updated = await FrontendApp.updatePerson(selected.value.id, {
             placeOfBirth: full,
             geonameId: s.geonameId,
           });
-          await refreshNodeData(true);
+          applyPersonResult(updated, prev);
           const node = getNodeById(selected.value.id);
           if (node) {
             selected.value = { ...node.data, spouseId: '' };
@@ -2026,12 +2261,13 @@
             (sH.includes('left') || sH.includes('right')) &&
             (tH.includes('left') || tH.includes('right'))
           ) {
-              await FrontendApp.linkSpouse(
-                parseInt(params.source),
-                parseInt(params.target)
-              );
-              await refreshNodeData(true);
-              return;
+            await FrontendApp.linkSpouse(
+              parseInt(params.source, 10),
+              parseInt(params.target, 10)
+            );
+            scheduleSearchRefresh();
+            rebuildRelationshipsFast();
+            return;
           }
 
           let parentNode;
@@ -2060,8 +2296,17 @@
           else if (!childNode.data.motherId) updates.motherId = parentNode.data.id;
           else return;
 
-          await FrontendApp.updatePerson(childNode.data.id, updates);
-          await refreshNodeData(true);
+          const prev = peopleById.has(childNode.data.id)
+            ? { ...peopleById.get(childNode.data.id) }
+            : null;
+          const updated = await FrontendApp.updatePerson(childNode.data.id, updates);
+          applyPersonResult(updated, prev);
+          if (selected.value) {
+            const selId = selected.value.id;
+            if (selId === parentNode.data.id || selId === childNode.data.id) {
+              computeChildren(selId);
+            }
+          }
         }
 
         const isNew = ref(false);
@@ -2181,9 +2426,13 @@
         async function deleteSelected() {
           if (!selected.value) return;
           showModal.value = false;
-          await FrontendApp.deletePerson(selected.value.id);
+          const id = selected.value.id;
+          const prev = peopleById.has(id) ? { ...peopleById.get(id) } : null;
+          await FrontendApp.deletePerson(id);
+          removePersonLocal(id, prev);
+          rebuildRelationshipsFast();
+          scheduleSearchRefresh();
           selected.value = null;
-          await refreshNodeData(true);
         }
 
         async function cancelEdit() {
@@ -2197,11 +2446,15 @@
           ['maidenName', 'dateOfBirth', 'birthApprox', 'dateOfDeath', 'deathApprox', 'placeOfBirth', 'geonameId', 'notes', 'fatherId', 'motherId'].forEach((f) => {
             if (payload[f] === '') payload[f] = null;
           });
-          await FrontendApp.updatePerson(originalSelected.id, payload);
+          const prev = peopleById.has(originalSelected.id)
+            ? { ...peopleById.get(originalSelected.id) }
+            : null;
+          const updated = await FrontendApp.updatePerson(originalSelected.id, payload);
           if (spouseId) {
-            await FrontendApp.linkSpouse(originalSelected.id, parseInt(spouseId));
+            await FrontendApp.linkSpouse(originalSelected.id, parseInt(spouseId, 10));
+            scheduleSearchRefresh();
           }
-          await refreshNodeData(true);
+          applyPersonResult(updated, prev);
           selected.value = { ...originalSelected };
           computeChildren(originalSelected.id);
           useBirthApprox.value = !!selected.value.birthApprox;
@@ -2213,31 +2466,33 @@
           const updates = {};
           if (child.fatherId === selected.value.id) updates.fatherId = null;
           if (child.motherId === selected.value.id) updates.motherId = null;
-          await FrontendApp.updatePerson(child.id, updates);
-          await refreshNodeData(true);
+          if (Object.keys(updates).length === 0) return;
+          const prev = peopleById.has(child.id) ? { ...peopleById.get(child.id) } : null;
+          const updated = await FrontendApp.updatePerson(child.id, updates);
+          applyPersonResult(updated, prev);
           computeChildren(selected.value.id);
         }
 
         async function removeFather() {
           if (!selected.value || !selected.value.fatherId) return;
-          await FrontendApp.updatePerson(selected.value.id, { fatherId: null });
-          await refreshNodeData(true);
-          // Update the selected person's data
+          const prev = peopleById.has(selected.value.id)
+            ? { ...peopleById.get(selected.value.id) }
+            : null;
+          const updated = await FrontendApp.updatePerson(selected.value.id, { fatherId: null });
+          applyPersonResult(updated, prev);
           const node = nodes.value.find((n) => n.id === String(selected.value.id));
-          if (node) {
-            selected.value = { ...node.data };
-          }
+          if (node) selected.value = { ...node.data };
         }
 
         async function removeMother() {
           if (!selected.value || !selected.value.motherId) return;
-          await FrontendApp.updatePerson(selected.value.id, { motherId: null });
-          await refreshNodeData(true);
-          // Update the selected person's data
+          const prev = peopleById.has(selected.value.id)
+            ? { ...peopleById.get(selected.value.id) }
+            : null;
+          const updated = await FrontendApp.updatePerson(selected.value.id, { motherId: null });
+          applyPersonResult(updated, prev);
           const node = nodes.value.find((n) => n.id === String(selected.value.id));
-          if (node) {
-            selected.value = { ...node.data };
-          }
+          if (node) selected.value = { ...node.data };
         }
 
                  function refreshUnions() {
@@ -2408,32 +2663,51 @@
             motherId: selected.value.motherId || null,
           };
           const p = await FrontendApp.createPerson(payload);
+          upsertPersonLocal(p);
+          let node = getNodeById(p.id);
+          if (!node) {
+            node = {
+              id: String(p.id),
+              type: 'person',
+              position: newNodePos
+                ? { ...newNodePos }
+                : project({
+                    x: dimensions.value.width / 2,
+                    y: dimensions.value.height / 2,
+                  }),
+              data: { ...p, me: window.meNodeId && p.id === window.meNodeId },
+            };
+            nodes.value.push(node);
+            rebuildNodeMap();
+          }
           if (selected.value.spouseId) {
-            await FrontendApp.linkSpouse(p.id, parseInt(selected.value.spouseId));
+            await FrontendApp.linkSpouse(p.id, parseInt(selected.value.spouseId, 10));
+            scheduleSearchRefresh();
           }
           if (selected.value.relation) {
             const rel = selected.value.relation;
             if (rel.type === 'father' || rel.type === 'mother') {
               const update = {};
               update[rel.type === 'father' ? 'fatherId' : 'motherId'] = p.id;
-              await FrontendApp.updatePerson(rel.childId, update);
+              const prevChild = peopleById.has(rel.childId)
+                ? { ...peopleById.get(rel.childId) }
+                : null;
+              const updatedChild = await FrontendApp.updatePerson(rel.childId, update);
+              applyPersonResult(updatedChild, prevChild);
             }
           }
-          await refreshNodeData(true);
-          if (newNodePos) {
-            const node = getNodeById(p.id);
-            if (node) {
-              node.position = { ...newNodePos };
-            }
+          rebuildRelationshipsFast();
+          if (newNodePos && node) {
+            node.position = { ...newNodePos };
+          }
           await saveLayout();
-          refreshUnions();
           newNodePos = null;
+          scheduleSearchRefresh();
+          showModal.value = false;
+          fetchScore();
+          isNew.value = false;
+          selected.value = null;
         }
-        showModal.value = false;
-        fetchScore();
-        isNew.value = false;
-        selected.value = null;
-      }
 
        function cancelModal() {
          showModal.value = false;
