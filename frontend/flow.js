@@ -107,7 +107,9 @@
         function syncPeopleState(list) {
           peopleState.value = list.map((p) => ({ ...p }));
           peopleById.clear();
-          peopleState.value.forEach((p) => peopleById.set(p.id, { ...p }));
+          peopleState.value.forEach((p) => {
+            peopleById.set(p.id, p);
+          });
         }
 
         function upsertPersonLocal(person) {
@@ -236,7 +238,7 @@
               if (!list.includes(node.data)) list.push(node.data);
             }
             if (person.fatherId && person.motherId) {
-              const key = `${person.fatherId}-${person.motherId}`;
+              const key = unionKey(person.fatherId, person.motherId);
               if (!unionsMap[key]) {
                 unionsMap[key] = {
                   id: `u-${key}`,
@@ -245,11 +247,11 @@
                   children: [],
                 };
               }
-              unionsMap[key].children.push(person.id);
+              if (!unionsMap[key].children.includes(person.id)) {
+                unionsMap[key].children.push(person.id);
+              }
             }
           });
-
-          nodes.value = personNodes;
 
           Object.values(unionsMap).forEach((u) => {
             helperNodes.push({
@@ -298,13 +300,10 @@
             }
           });
 
-          nodes.value = [...personNodes, ...helperNodes];
-          edges.value = newEdges.map((edge) => {
-            const { ref: _unused, ...rest } = edge;
-            void _unused;
-            return rest;
-          });
+          const nextNodes = [...personNodes, ...helperNodes];
+          nodes.value = nextNodes;
           unions = unionsMap;
+          edges.value = newEdges.map((edge) => sanitizeEdge(edge));
           rebuildNodeMap();
           selectedEdge.value = null;
           refreshUnions();
@@ -320,7 +319,7 @@
             || prev.fatherId !== updated.fatherId
             || prev.motherId !== updated.motherId;
           if (relationshipChanged) {
-            rebuildRelationshipsFast();
+            refreshRelationshipsForPerson(updated, prev);
           } else {
             updateChildrenCacheFor(updated, prev);
           }
@@ -439,6 +438,170 @@
         const LONG_PRESS_MOVE_TOLERANCE = 10;
         const UNION_Y_OFFSET = 20;
         let unions = {};
+        const unionKey = (fatherId, motherId) => `${fatherId}-${motherId}`;
+
+        function sanitizeEdge(edge) {
+          if (!edge) return edge;
+          const { ref: _unused, ...rest } = edge;
+          void _unused;
+          return rest;
+        }
+
+        function removeEdgeById(id) {
+          if (!id) return;
+          const idx = edges.value.findIndex((e) => e.id === id);
+          if (idx !== -1) {
+            edges.value.splice(idx, 1);
+          }
+        }
+
+        function upsertEdge(edge) {
+          const clean = sanitizeEdge(edge);
+          if (!clean || !clean.id) return;
+          const idx = edges.value.findIndex((e) => e.id === clean.id);
+          if (idx === -1) {
+            edges.value.push(clean);
+          } else {
+            edges.value.splice(idx, 1, clean);
+          }
+        }
+
+        function ensureHelperNodeForUnion(union) {
+          if (!union) return null;
+          let helper = getNodeById(union.id);
+          if (helper) return helper;
+          const father = getNodeById(union.fatherId);
+          const mother = getNodeById(union.motherId);
+          let position = { x: 0, y: 0 };
+          if (father && mother) {
+            const fx = father.position?.x || 0;
+            const fy = father.position?.y || 0;
+            const mx = mother.position?.x || 0;
+            const my = mother.position?.y || 0;
+            const fHeight = father.dimensions?.height || 0;
+            const mHeight = mother.dimensions?.height || 0;
+            position = {
+              x: (fx + mx) / 2,
+              y: (fy + fHeight / 2 + my + mHeight / 2) / 2 + UNION_Y_OFFSET,
+            };
+          } else if (father || mother) {
+            const base = father || mother;
+            position = {
+              x: base.position?.x || 0,
+              y: (base.position?.y || 0) + UNION_Y_OFFSET,
+            };
+          }
+          helper = {
+            id: union.id,
+            type: 'helper',
+            position,
+            data: { helper: true },
+            draggable: false,
+            selectable: false,
+          };
+          nodes.value.push(helper);
+          nodeMap.set(helper.id, helper);
+          return helper;
+        }
+
+        function ensureSpouseEdge(union) {
+          if (!union) return;
+          const father = getNodeById(union.fatherId);
+          const mother = getNodeById(union.motherId);
+          const handles = spouseHandles(father, mother);
+          upsertEdge({
+            id: `spouse-line-${union.id}`,
+            source: String(union.fatherId),
+            target: String(union.motherId),
+            type: 'straight',
+            sourceHandle: handles.source,
+            targetHandle: handles.target,
+          });
+        }
+
+        function attachChildToUnion(fatherId, motherId, childId) {
+          if (!fatherId || !motherId || !childId) return;
+          const key = unionKey(fatherId, motherId);
+          let union = unions[key];
+          if (!union) {
+            union = {
+              id: `u-${key}`,
+              fatherId,
+              motherId,
+              children: [],
+            };
+            unions[key] = union;
+          }
+          if (!union.children.includes(childId)) {
+            union.children.push(childId);
+          }
+          const helper = ensureHelperNodeForUnion(union);
+          ensureSpouseEdge(union);
+          if (helper) {
+            upsertEdge({
+              id: `${union.id}-${childId}`,
+              source: helper.id,
+              target: String(childId),
+              type: 'default',
+              markerEnd: MarkerType.ArrowClosed,
+              sourceHandle: 's-bottom',
+              targetHandle: 't-top',
+            });
+          }
+        }
+
+        function detachChildFromUnion(fatherId, motherId, childId) {
+          if (!fatherId || !motherId || !childId) return;
+          const key = unionKey(fatherId, motherId);
+          const union = unions[key];
+          if (!union) return;
+          const idx = union.children.indexOf(childId);
+          if (idx !== -1) union.children.splice(idx, 1);
+          removeEdgeById(`${union.id}-${childId}`);
+          if (union.children.length === 0) {
+            removeEdgeById(`spouse-line-${union.id}`);
+            const nodeIdx = nodes.value.findIndex((n) => n.id === union.id);
+            if (nodeIdx !== -1) {
+              nodes.value.splice(nodeIdx, 1);
+            }
+            nodeMap.delete(union.id);
+            delete unions[key];
+          }
+        }
+
+        function syncSingleParentEdge(person) {
+          if (!person || !person.id) return;
+          removeEdgeById(`p-${person.id}`);
+          const hasFather = !!person.fatherId;
+          const hasMother = !!person.motherId;
+          if ((hasFather && !hasMother) || (!hasFather && hasMother)) {
+            const parentId = person.fatherId || person.motherId;
+            upsertEdge({
+              id: `p-${person.id}`,
+              source: String(parentId),
+              target: String(person.id),
+              markerEnd: MarkerType.ArrowClosed,
+              sourceHandle: 's-bottom',
+              targetHandle: 't-top',
+            });
+          }
+        }
+
+        function refreshRelationshipsForPerson(person, prev) {
+          if (!person) return;
+          if (prev && prev.fatherId && prev.motherId) {
+            detachChildFromUnion(prev.fatherId, prev.motherId, person.id);
+          }
+          if (person.fatherId && person.motherId) {
+            attachChildToUnion(person.fatherId, person.motherId, person.id);
+          }
+          syncSingleParentEdge(person);
+          updateChildrenCacheFor(person, prev);
+          selectedEdge.value = null;
+          refreshUnions();
+          applyFilters();
+          applyFocusedView();
+        }
         let newNodePos = null;
         let scoreTimer = null;
         // Touch capability detection for mobile-specific UI affordances
