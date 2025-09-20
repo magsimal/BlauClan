@@ -5,6 +5,15 @@
     global.FlowLayout = factory();
   }
 })(this, function () {
+  const Metrics =
+    typeof require === 'function'
+      ? (() => {
+        try { return require('../utils/perf-metrics'); } catch (e) { return null; }
+      })()
+      : (typeof window !== 'undefined'
+        ? (window.FlowMetrics || window.PerfMetrics || null)
+        : null);
+
   function createLayoutAPI({
     d3,
     GenerationLayout,
@@ -41,20 +50,34 @@
         ? 0.75
         : 1;
 
+    const metrics = Metrics && typeof Metrics.recordEvent === 'function' ? Metrics : null;
+
     async function yieldToMainThread(meta) {
+      if (metrics && typeof metrics.incrementCounter === 'function') {
+        metrics.incrementCounter('layout.yield.count', 1);
+      }
+      const timer = metrics && typeof metrics.startTimer === 'function'
+        ? metrics.startTimer('layout.yield', { phase: meta && meta.phase ? meta.phase : 'unspecified', lowPower: isLowPower })
+        : null;
+      let strategy = 'timeout';
       if (typeof profile.yieldControl === 'function') {
+        strategy = 'custom';
         await profile.yieldControl(meta);
+        if (metrics && typeof metrics.endTimer === 'function') metrics.endTimer(timer, { strategy });
         return;
       }
       if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+        strategy = 'idle-callback';
         await new Promise((resolve) =>
           window.requestIdleCallback(() => resolve(), { timeout: 16 })
         );
+        if (metrics && typeof metrics.endTimer === 'function') metrics.endTimer(timer, { strategy });
         return;
       }
       await new Promise((resolve) =>
         setTimeout(resolve, isLowPower ? 24 : 12)
       );
+      if (metrics && typeof metrics.endTimer === 'function') metrics.endTimer(timer, { strategy });
     }
 
     function shouldSkipForces(count) {
@@ -74,8 +97,18 @@
 
     function tidyUp(list) {
       if (list.length === 0) {
+        if (metrics && typeof metrics.recordEvent === 'function') {
+          metrics.recordEvent('layout.tidyUp.skipped', { reason: 'empty' });
+        }
         return;
       }
+
+      if (metrics && typeof metrics.recordSample === 'function') {
+        metrics.recordSample('layout.tidyUp.nodeCount', list.length);
+      }
+      const tidyTimer = metrics && typeof metrics.startTimer === 'function'
+        ? metrics.startTimer('layout.tidyUp', { nodes: list.length, lowPower: isLowPower })
+        : null;
 
       const GRID = Number.isFinite(horizontalGridSize) && horizontalGridSize > 0 ? horizontalGridSize : 30;
       const ATTR = Math.max(0, Math.min(1, Number.isFinite(relativeAttraction) ? relativeAttraction : 0.5));
@@ -217,7 +250,7 @@
         }
       });
 
-      const totalTicks = simulationTicks(nodesForSim.length);
+      totalTicks = simulationTicks(nodesForSim.length);
       if (totalTicks > 0) {
         const linkForce = d3
           .forceLink(links)
@@ -328,10 +361,22 @@
         const g = gen.get(n.id) ?? 0;
         n.y = g * ROW_HEIGHT;
       });
+
+      if (metrics && typeof metrics.endTimer === 'function') {
+        metrics.endTimer(tidyTimer, {
+          nodes: list.length,
+          totalTicks,
+          skipForces: totalTicks === 0 && shouldSkipForces(nodesForSim.length),
+          lowPower: isLowPower,
+        });
+      }
     }
 
     async function tidyUpChunked(list) {
       if (list.length === 0) {
+        if (metrics && typeof metrics.recordEvent === 'function') {
+          metrics.recordEvent('layout.tidyUpChunked.skipped', { reason: 'empty' });
+        }
         return;
       }
 
@@ -341,6 +386,15 @@
         isLowPower ? 250 : 500,
         Math.max(isLowPower ? 25 : 50, baseChunk || (isLowPower ? 40 : 60))
       );
+
+      const tidyTimer = metrics && typeof metrics.startTimer === 'function'
+        ? metrics.startTimer('layout.tidyUpChunked', { nodes: list.length, chunkSize: CHUNK_SIZE, lowPower: isLowPower })
+        : null;
+      let totalTicks = 0;
+      if (metrics && typeof metrics.recordSample === 'function') {
+        metrics.recordSample('layout.tidyUpChunked.nodeCount', list.length);
+        metrics.recordSample('layout.tidyUpChunked.chunkSize', CHUNK_SIZE);
+      }
 
       const GRID = Number.isFinite(horizontalGridSize) && horizontalGridSize > 0 ? horizontalGridSize : 30;
       const ATTR = Math.max(0, Math.min(1, Number.isFinite(relativeAttraction) ? relativeAttraction : 0.5));
@@ -355,6 +409,9 @@
 
       for (let i = 0; i < list.length; i += CHUNK_SIZE) {
         const chunk = list.slice(i, i + CHUNK_SIZE);
+        if (metrics && typeof metrics.recordSample === 'function') {
+          metrics.recordSample('layout.tidyUpChunked.parentsChunk', chunk.length);
+        }
         chunk.forEach((original) => {
           const node = map.get(original.id);
           if (!node) return;
@@ -402,6 +459,9 @@
       const childrenByParents = new Map();
       for (let i = 0; i < list.length; i += CHUNK_SIZE) {
         const chunk = list.slice(i, i + CHUNK_SIZE);
+        if (metrics && typeof metrics.recordSample === 'function') {
+          metrics.recordSample('layout.tidyUpChunked.childChunk', chunk.length);
+        }
         chunk.forEach((child) => {
           const childNode = map.get(child.id);
           if (!childNode) return;
@@ -473,6 +533,9 @@
       const links = [];
       for (let i = 0; i < list.length; i += CHUNK_SIZE) {
         const chunk = list.slice(i, i + CHUNK_SIZE);
+        if (metrics && typeof metrics.recordSample === 'function') {
+          metrics.recordSample('layout.tidyUpChunked.linkChunk', chunk.length);
+        }
         chunk.forEach((p) => {
           if (p.fatherId && map.has(p.fatherId)) {
             links.push({ source: map.get(p.id), target: map.get(p.fatherId), type: 'parent' });
@@ -577,6 +640,16 @@
           original.y = updated.y;
         }
       });
+
+      if (metrics && typeof metrics.endTimer === 'function') {
+        metrics.endTimer(tidyTimer, {
+          nodes: list.length,
+          chunkSize: CHUNK_SIZE,
+          totalTicks,
+          skipForces: totalTicks === 0 && shouldSkipForces(nodesForSim.length),
+          lowPower: isLowPower,
+        });
+      }
     }
 
     return { tidyUp, tidyUpChunked };

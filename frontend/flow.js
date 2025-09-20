@@ -18,6 +18,9 @@
   const FlowHighlight = typeof require === 'function'
     ? (() => { try { return require('./src/flow/highlight'); } catch (e) { return {}; } })()
     : (typeof window !== 'undefined' ? (window.FlowHighlight || {}) : {});
+  const PerfMetrics = typeof require === 'function'
+    ? (() => { try { return require('./src/utils/perf-metrics'); } catch (e) { return null; } })()
+    : (typeof window !== 'undefined' ? (window.FlowMetrics || window.PerfMetrics || null) : null);
   const parseGedcom = GedcomUtil.parseGedcom || function () { return []; };
   const findBestMatch = DedupeUtil.findBestMatch || function () { return { match: null, score: 0 }; };
   const matchScore = DedupeUtil.matchScore || function () { return 0; };
@@ -66,6 +69,7 @@
       setup() {
         const nodes = ref([]);
         const nodeMap = new Map();
+        const metrics = PerfMetrics && typeof PerfMetrics.recordEvent === 'function' ? PerfMetrics : null;
         function rebuildNodeMap() {
           nodeMap.clear();
           nodes.value.forEach((n) => nodeMap.set(n.id, n));
@@ -129,29 +133,63 @@
             || Number(config.skipForceThreshold)
             || 1400;
           const highlightLimit = Number(config.highlightLimitNodeCount) || 800;
-          return {
+          const profile = {
             isLowPower: isLowPowerDevice,
             maxSimulationTicks: maxTicks,
             lowPowerTicks,
             skipForceSimulationThreshold: skipForce,
             highlightLimitNodeCount: highlightLimit,
           };
+          if (metrics) {
+            if (typeof metrics.recordEvent === 'function') {
+              metrics.recordEvent('performance.profile.detected', {
+                isLowPower: isLowPowerDevice,
+                concurrency,
+                deviceMemory,
+                saveData,
+                reducedMotion,
+                isIOS,
+                maxSimulationTicks: maxTicks,
+                lowPowerTicks,
+                skipForce,
+                highlightLimit,
+              });
+            }
+            if (typeof metrics.recordSample === 'function') {
+              metrics.recordSample('performance.concurrency', concurrency);
+              metrics.recordSample('performance.deviceMemory', deviceMemory);
+            }
+          }
+          return profile;
         }
 
         const runtimePerformanceProfile = detectPerformanceProfile();
+        if (metrics && typeof metrics.recordEvent === 'function') {
+          metrics.recordEvent('performance.profile.runtime', runtimePerformanceProfile);
+        }
 
         async function yieldForLayout() {
+          if (metrics && typeof metrics.incrementCounter === 'function') {
+            metrics.incrementCounter('layout.yieldForLayout.calls', 1);
+          }
+          const timer = metrics && typeof metrics.startTimer === 'function'
+            ? metrics.startTimer('layout.yieldForLayout', { lowPower: runtimePerformanceProfile.isLowPower })
+            : null;
+          let strategy = 'timeout';
           if (
             typeof window !== 'undefined'
             && typeof window.requestIdleCallback === 'function'
             && !runtimePerformanceProfile.isLowPower
           ) {
+            strategy = 'idle-callback';
             await new Promise((resolve) =>
               window.requestIdleCallback(() => resolve(), { timeout: 16 })
             );
+            if (metrics && typeof metrics.endTimer === 'function') metrics.endTimer(timer, { strategy });
             return;
           }
           await sleep(runtimePerformanceProfile.isLowPower ? 28 : 14);
+          if (metrics && typeof metrics.endTimer === 'function') metrics.endTimer(timer, { strategy });
         }
         const peopleState = ref([]);
         const peopleById = new Map();
@@ -1372,6 +1410,8 @@
         let currentHighlightRoot = null;
         let highlight = null;
 
+        let highlightLimitActive = false;
+
         function isNodeRoughlyVisible(nodeOrId) {
           const node = typeof nodeOrId === 'object' ? nodeOrId : getNodeById(nodeOrId);
           if (!node) return false;
@@ -1395,9 +1435,25 @@
           );
         }
 
-        const shouldLimitHighlight = () =>
-          runtimePerformanceProfile.isLowPower
-          && nodes.value.length > runtimePerformanceProfile.highlightLimitNodeCount;
+        const shouldLimitHighlight = () => {
+          const limit = runtimePerformanceProfile.isLowPower
+            && nodes.value.length > runtimePerformanceProfile.highlightLimitNodeCount;
+          if (metrics && typeof metrics.recordEvent === 'function') {
+            if (limit && !highlightLimitActive) {
+              metrics.recordEvent('highlight.limit.enabled', {
+                totalNodes: nodes.value.length,
+                threshold: runtimePerformanceProfile.highlightLimitNodeCount,
+              });
+            } else if (!limit && highlightLimitActive) {
+              metrics.recordEvent('highlight.limit.disabled', {
+                totalNodes: nodes.value.length,
+                threshold: runtimePerformanceProfile.highlightLimitNodeCount,
+              });
+            }
+          }
+          highlightLimitActive = limit;
+          return limit;
+        };
 
         if (FlowHighlight && typeof FlowHighlight.createHighlightAPI === 'function') {
           highlight = FlowHighlight.createHighlightAPI({
@@ -2854,11 +2910,37 @@
 
         // Chunked version of tidyUp for large datasets
         async function tidyUpChunked(list) {
-          return tidyUpChunkedExternal(list);
+          const size = Array.isArray(list) ? list.length : 0;
+          if (metrics && typeof metrics.incrementCounter === 'function') {
+            metrics.incrementCounter('layout.tidyUpChunked.externalCalls', 1);
+          }
+          const timer = metrics && typeof metrics.startTimer === 'function'
+            ? metrics.startTimer('layout.tidyUpChunked.external', { nodes: size })
+            : null;
+          try {
+            return await tidyUpChunkedExternal(list);
+          } finally {
+            if (metrics && timer && typeof metrics.endTimer === 'function') {
+              metrics.endTimer(timer, { nodes: size });
+            }
+          }
         }
 
         function tidyUp(list) {
-          return tidyUpExternal(list);
+          const size = Array.isArray(list) ? list.length : 0;
+          if (metrics && typeof metrics.incrementCounter === 'function') {
+            metrics.incrementCounter('layout.tidyUp.externalCalls', 1);
+          }
+          const timer = metrics && typeof metrics.startTimer === 'function'
+            ? metrics.startTimer('layout.tidyUp.external', { nodes: size })
+            : null;
+          try {
+            return tidyUpExternal(list);
+          } finally {
+            if (metrics && timer && typeof metrics.endTimer === 'function') {
+              metrics.endTimer(timer, { nodes: size });
+            }
+          }
         }
 
 
@@ -2866,17 +2948,29 @@
       async function performTidyUpLayout() {
         notifyTap();
         setLoading(true);
+        let totalNodes = 0;
+        let useChunkedLayout = false;
+        let updatedNodesCount = 0;
+        const layoutTimer = metrics && typeof metrics.startTimer === 'function'
+          ? metrics.startTimer('layout.performTidyUp', { lowPower: runtimePerformanceProfile.isLowPower })
+          : null;
         try {
           await nextTick();
 
           const personNodes = nodes.value.filter((n) => n.type === 'person');
-          const totalNodes = personNodes.length;
+          totalNodes = personNodes.length;
+          if (metrics && typeof metrics.recordSample === 'function') {
+            metrics.recordSample('layout.performTidyUp.totalNodes', totalNodes);
+          }
           const chunkDivisor = runtimePerformanceProfile.isLowPower ? 14 : 9;
           const chunkBase = Math.floor(totalNodes / chunkDivisor);
           const CHUNK_SIZE = Math.min(
             runtimePerformanceProfile.isLowPower ? 240 : 480,
             Math.max(runtimePerformanceProfile.isLowPower ? 48 : 80, chunkBase || (runtimePerformanceProfile.isLowPower ? 60 : 100))
           );
+          if (metrics && typeof metrics.recordSample === 'function') {
+            metrics.recordSample('layout.performTidyUp.chunkSize', CHUNK_SIZE);
+          }
 
           if (totalNodes > 1000 || (runtimePerformanceProfile.isLowPower && totalNodes > 350)) {
             flash(I18nGlobal.t('processingLargeDataset', { count: totalNodes }));
@@ -2909,7 +3003,20 @@
             }
           }
 
-          const useChunkedLayout = totalNodes > 900 || runtimePerformanceProfile.isLowPower;
+          useChunkedLayout = totalNodes > 900 || runtimePerformanceProfile.isLowPower;
+          if (metrics && typeof metrics.recordEvent === 'function') {
+            metrics.recordEvent('layout.performTidyUp.mode', {
+              mode: useChunkedLayout ? 'chunked' : 'standard',
+              totalNodes,
+              lowPower: runtimePerformanceProfile.isLowPower,
+            });
+          }
+          if (metrics && typeof metrics.incrementCounter === 'function') {
+            metrics.incrementCounter(
+              useChunkedLayout ? 'layout.performTidyUp.chunkedRuns' : 'layout.performTidyUp.standardRuns',
+              1
+            );
+          }
           if (useChunkedLayout) {
             await tidyUpChunked(people);
           } else {
@@ -2947,39 +3054,79 @@
             updateNodeInternals(Array.from(updatedIds));
           }
 
+          updatedNodesCount = updatedIds.size;
+
           refreshUnions();
           saveTempLayout();
           flash(I18nGlobal.t('layoutTidied'));
         } finally {
           setLoading(false);
+          if (metrics && layoutTimer && typeof metrics.endTimer === 'function') {
+            metrics.endTimer(layoutTimer, {
+              totalNodes,
+              updatedNodes: updatedNodesCount,
+              mode: useChunkedLayout ? 'chunked' : 'standard',
+              lowPower: runtimePerformanceProfile.isLowPower,
+            });
+          }
         }
       }
 
       async function tidyUpLayout() {
         if (tidyInFlight) {
           tidyQueued = true;
+          if (metrics && typeof metrics.incrementCounter === 'function') {
+            metrics.incrementCounter('layout.tidyUpLayout.queuedWhileRunning', 1);
+          }
           return;
         }
         tidyInFlight = true;
+        const layoutLoopTimer = metrics && typeof metrics.startTimer === 'function'
+          ? metrics.startTimer('layout.tidyUpLayout', { lowPower: runtimePerformanceProfile.isLowPower, totalNodes: nodes.value.length })
+          : null;
+        let iterations = 0;
+        let throttledDelays = 0;
+        if (metrics && typeof metrics.recordSample === 'function') {
+          metrics.recordSample('layout.tidyUpLayout.totalNodes', nodes.value.length);
+        }
         try {
           const now = Date.now();
           const sinceLast = now - lastTidyAt;
           if (lastTidyAt > 0 && sinceLast < MIN_TIDY_INTERVAL) {
-            await sleep(MIN_TIDY_INTERVAL - sinceLast);
+            const delay = MIN_TIDY_INTERVAL - sinceLast;
+            if (metrics && typeof metrics.recordSample === 'function') {
+              metrics.recordSample('layout.tidyUpLayout.delayMs', delay);
+            }
+            throttledDelays += 1;
+            await sleep(delay);
           }
           do {
             tidyQueued = false;
+            iterations += 1;
             await performTidyUpLayout();
             lastTidyAt = Date.now();
             if (tidyQueued) {
               const elapsed = Date.now() - lastTidyAt;
               if (elapsed < MIN_TIDY_INTERVAL) {
-                await sleep(MIN_TIDY_INTERVAL - elapsed);
+                const delay = MIN_TIDY_INTERVAL - elapsed;
+                if (metrics && typeof metrics.recordSample === 'function') {
+                  metrics.recordSample('layout.tidyUpLayout.delayMs', delay);
+                }
+                throttledDelays += 1;
+                await sleep(delay);
               }
             }
           } while (tidyQueued);
         } finally {
           tidyInFlight = false;
+          if (metrics && layoutLoopTimer && typeof metrics.endTimer === 'function') {
+            metrics.endTimer(layoutLoopTimer, {
+              iterations,
+              throttledDelays,
+              totalNodes: nodes.value.length,
+              lowPower: runtimePerformanceProfile.isLowPower,
+            });
+          }
         }
       }
 

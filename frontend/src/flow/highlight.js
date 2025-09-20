@@ -5,6 +5,15 @@
     global.FlowHighlight = factory();
   }
 })(this, function () {
+  const Metrics =
+    typeof require === 'function'
+      ? (() => {
+        try { return require('../utils/perf-metrics'); } catch (e) { return null; }
+      })()
+      : (typeof window !== 'undefined'
+        ? (window.FlowMetrics || window.PerfMetrics || null)
+        : null);
+
   function createHighlightAPI({
     getNodes: _getNodes,
     getEdges,
@@ -18,6 +27,7 @@
     isNodeVisible,
     shouldLimitHighlight,
   }) {
+    const metrics = Metrics && typeof Metrics.recordEvent === 'function' ? Metrics : null;
     let activeRootId = null;
 
     function resetHighlights() {
@@ -211,25 +221,83 @@
 
     function highlightBloodline(id, options = {}) {
       const rootKey = String(id);
-      if (activeRootId === rootKey && highlightedNodes.size) return;
+      if (activeRootId === rootKey && highlightedNodes.size) {
+        if (metrics && typeof metrics.incrementCounter === 'function') {
+          metrics.incrementCounter('highlight.cacheHits', 1);
+        }
+        return;
+      }
       const limitToVisible = resolveLimitPreference(options);
+      if (metrics && limitToVisible && typeof metrics.incrementCounter === 'function') {
+        metrics.incrementCounter('highlight.limitApplied', 1);
+      }
+      const timer = metrics && typeof metrics.startTimer === 'function'
+        ? metrics.startTimer('highlight.sync', { rootId: rootKey, limitToVisible })
+        : null;
       resetHighlights();
       const targets = gatherTargets(rootKey);
       const combinedIds = [...targets.nodeIds, ...targets.unionIds];
       applyNodeHighlights(combinedIds, limitToVisible, rootKey);
       updateEdges(limitToVisible);
+      if (metrics) {
+        if (typeof metrics.recordSample === 'function') {
+          metrics.recordSample('highlight.targets.nodes', targets.nodeIds.size);
+          metrics.recordSample('highlight.targets.unions', targets.unionIds.size);
+          metrics.recordSample('highlight.nodesApplied', highlightedNodes.size);
+          metrics.recordSample('highlight.edgesApplied', highlightedEdges.size);
+        }
+        if (typeof metrics.endTimer === 'function') {
+          metrics.endTimer(timer, {
+            rootId: rootKey,
+            limitToVisible,
+            nodeTargets: targets.nodeIds.size,
+            unionTargets: targets.unionIds.size,
+            highlightedNodes: highlightedNodes.size,
+            highlightedEdges: highlightedEdges.size,
+          });
+        }
+      }
       activeRootId = rootKey;
     }
 
     async function highlightBloodlineAsync(id, options = {}) {
       const rootKey = String(id);
-      if (activeRootId === rootKey && highlightedNodes.size) return;
+      if (activeRootId === rootKey && highlightedNodes.size) {
+        if (metrics && typeof metrics.incrementCounter === 'function') {
+          metrics.incrementCounter('highlight.cacheHits', 1);
+        }
+        return;
+      }
       const limitToVisible = resolveLimitPreference(options);
+      if (metrics && limitToVisible && typeof metrics.incrementCounter === 'function') {
+        metrics.incrementCounter('highlight.limitApplied', 1);
+      }
+      const timer = metrics && typeof metrics.startTimer === 'function'
+        ? metrics.startTimer('highlight.async', { rootId: rootKey, limitToVisible })
+        : null;
       resetHighlights();
       const targets = gatherTargets(rootKey);
       const combinedIds = [...targets.nodeIds, ...targets.unionIds];
       await applyNodeHighlightsAsync(combinedIds, limitToVisible, rootKey);
       await updateEdgesAsync(limitToVisible);
+      if (metrics) {
+        if (typeof metrics.recordSample === 'function') {
+          metrics.recordSample('highlight.targets.nodes', targets.nodeIds.size);
+          metrics.recordSample('highlight.targets.unions', targets.unionIds.size);
+          metrics.recordSample('highlight.nodesApplied', highlightedNodes.size);
+          metrics.recordSample('highlight.edgesApplied', highlightedEdges.size);
+        }
+        if (typeof metrics.endTimer === 'function') {
+          metrics.endTimer(timer, {
+            rootId: rootKey,
+            limitToVisible,
+            nodeTargets: targets.nodeIds.size,
+            unionTargets: targets.unionIds.size,
+            highlightedNodes: highlightedNodes.size,
+            highlightedEdges: highlightedEdges.size,
+          });
+        }
+      }
       activeRootId = rootKey;
     }
 
