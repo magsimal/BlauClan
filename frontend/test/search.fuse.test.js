@@ -8,9 +8,8 @@ describe('Search with/without Fuse', () => {
 
   test('works without Fuse by not crashing and showing no results', async () => {
     // No global.Fuse
-    global.fetch = jest.fn().mockResolvedValue({ json: () => [] });
     const SearchApp = require('../search.js');
-    await SearchApp.init();
+    await SearchApp.init({ people: [] });
     const overlay = document.getElementById('search-overlay');
     const input = overlay.querySelector('#search-input');
     input.value = 'anything';
@@ -20,10 +19,13 @@ describe('Search with/without Fuse', () => {
   });
 
   test('works with Fuse and returns matches', async () => {
-    global.fetch = jest.fn().mockResolvedValue({ json: () => [{ id: 1, firstName: 'Alpha', lastName: 'Beta' }] });
-    global.Fuse = class { constructor(list){ this.list=list; } search(q){ return this.list.filter(p => (p.firstName+" "+p.lastName).toLowerCase().includes(q.toLowerCase())).map(item=>({item})); } };
+    const data = [{ id: 1, firstName: 'Alpha', lastName: 'Beta' }];
+    global.Fuse = class {
+      constructor(list){ this.list=list; }
+      search(q){ return this.list.filter(p => (p.firstName+" "+p.lastName).toLowerCase().includes(q.toLowerCase())).map(item=>({item})); }
+    };
     const SearchApp = require('../search.js');
-    await SearchApp.init();
+    await SearchApp.init({ people: data });
     const overlay = document.getElementById('search-overlay');
     const input = overlay.querySelector('#search-input');
     input.value = 'alpha';

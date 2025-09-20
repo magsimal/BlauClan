@@ -6,8 +6,6 @@
   }
 })(this, function () {
   /* global Fuse */
-  let people = [];
-  let fuse = null;
   const root = typeof globalThis !== 'undefined'
     ? globalThis
     : (typeof window !== 'undefined'
@@ -16,22 +14,97 @@
         ? self
         : (typeof global !== 'undefined' ? global : {})));
   const overlayId = 'search-overlay';
-  let initialized = false;
 
-  async function init() {
-    if (initialized) return;
-    try {
-      const res = await fetch('/api/people');
-      people = await res.json();
-      fuse = new Fuse(people, { keys: ['firstName', 'lastName', 'callName'], threshold: 0.3 });
-    } catch (e) {
-      console.error('Failed to load people', e);
-      people = [];
-      fuse = { search: () => [] };
+  let initialized = false;
+  let people = [];
+  let simpleIndex = [];
+  let fuse = null;
+  let buildIdleHandle = null;
+  let buildTimeoutHandle = null;
+  let scheduledFetchHandle = null;
+
+  function cancelScheduledFetch() {
+    if (scheduledFetchHandle) {
+      clearTimeout(scheduledFetchHandle);
+      scheduledFetchHandle = null;
     }
-    setupDom();
-    document.addEventListener('keydown', handleKeydown);
-    initialized = true;
+  }
+
+  function transformPerson(p) {
+    const normalized = {
+      id: p.id,
+      firstName: p.firstName || '',
+      lastName: p.lastName || '',
+      callName: p.callName || '',
+      dateOfBirth: p.dateOfBirth || '',
+      dateOfDeath: p.dateOfDeath || '',
+      birthApprox: p.birthApprox || '',
+      deathApprox: p.deathApprox || '',
+    };
+    normalized.searchKey = [normalized.callName, normalized.firstName, normalized.lastName]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    return normalized;
+  }
+
+  function rebuildSimpleIndex() {
+    simpleIndex = people.map((person) => ({
+      person,
+      haystack: person.searchKey,
+    }));
+  }
+
+  function cancelScheduledBuild() {
+    if (buildIdleHandle !== null && typeof cancelIdleCallback === 'function') {
+      cancelIdleCallback(buildIdleHandle);
+    }
+    if (buildTimeoutHandle !== null) {
+      clearTimeout(buildTimeoutHandle);
+    }
+    buildIdleHandle = null;
+    buildTimeoutHandle = null;
+  }
+
+  function buildFuseIndex() {
+    cancelScheduledBuild();
+    if (typeof Fuse !== 'function' || !people.length) {
+      fuse = null;
+      return;
+    }
+    try {
+      fuse = new Fuse(people, {
+        keys: ['firstName', 'lastName', 'callName'],
+        threshold: 0.3,
+        ignoreLocation: true,
+        minMatchCharLength: 2,
+      });
+    } catch (e) {
+      console.error('Failed to build Fuse index', e);
+      fuse = null;
+    }
+  }
+
+  function scheduleFuseBuild() {
+    cancelScheduledBuild();
+    if (!people.length) return;
+    const build = () => {
+      buildFuseIndex();
+    };
+    if (typeof requestIdleCallback === 'function') {
+      buildIdleHandle = requestIdleCallback(build, { timeout: 2000 });
+    } else {
+      buildTimeoutHandle = setTimeout(build, 250);
+    }
+  }
+
+  function setPeople(list) {
+    const arr = Array.isArray(list) ? list : [];
+    people = arr.map(transformPerson);
+    rebuildSimpleIndex();
+    fuse = null;
+    scheduleFuseBuild();
+    cancelScheduledFetch();
   }
 
   function setupDom() {
@@ -89,18 +162,43 @@
     if (items[idx]) items[idx].classList.add('active');
   }
 
+  function searchFallback(query) {
+    if (!query) return [];
+    const lower = query.toLowerCase();
+    return simpleIndex
+      .filter((entry) => entry.haystack.includes(lower))
+      .slice(0, 10)
+      .map((entry) => entry.person);
+  }
+
   function updateResults(ev) {
     const q = ev.target.value.trim();
     const list = document.getElementById('search-results');
+    if (!list) return;
     list.innerHTML = '';
     if (!q) return;
-    const results = (fuse && typeof fuse.search === 'function') ? fuse.search(q, { limit: 10 }) : [];
-    results.forEach(({ item }) => {
+
+    let results = [];
+    if (fuse && typeof fuse.search === 'function') {
+      try {
+        results = fuse.search(q, { limit: 10 }).map((res) => res.item);
+      } catch (e) {
+        console.error('Fuse search failed, using fallback', e);
+        results = searchFallback(q);
+      }
+    } else {
+      results = searchFallback(q);
+    }
+
+    results.forEach((item) => {
       const li = document.createElement('li');
       li.className = 'list-group-item list-group-item-action';
 
       const nameDiv = document.createElement('div');
-      nameDiv.textContent = `${item.firstName} ${item.lastName}`;
+      const parts = [];
+      if (item.firstName) parts.push(item.firstName);
+      if (item.lastName) parts.push(item.lastName);
+      nameDiv.textContent = parts.join(' ').trim() || String(item.id || '');
       li.appendChild(nameDiv);
 
       const born = item.dateOfBirth || item.birthApprox || '';
@@ -137,7 +235,6 @@
   function show() {
     let overlay = document.getElementById(overlayId);
     if (!overlay) {
-      // ensure DOM elements exist even if init() wasn't called yet
       setupDom();
       overlay = document.getElementById(overlayId);
     }
@@ -154,15 +251,50 @@
     if (overlay) overlay.style.display = 'none';
   }
 
-  async function refresh() {
+  async function fetchAndSetPeople() {
     try {
       const res = await fetch('/api/people');
-      people = await res.json();
-      fuse = new Fuse(people, { keys: ['firstName', 'lastName', 'callName'], threshold: 0.3 });
+      const data = await res.json();
+      setPeople(data);
     } catch (e) {
-      console.error('Failed to refresh people data for search', e);
+      console.error('Failed to load people for search', e);
+      setPeople([]);
     }
   }
 
-  return { init, show, hide, refresh };
+  function scheduleFetch() {
+    cancelScheduledFetch();
+    scheduledFetchHandle = setTimeout(() => {
+      fetchAndSetPeople();
+    }, 800);
+  }
+
+  async function init(options = {}) {
+    if (initialized) return;
+    setupDom();
+    document.addEventListener('keydown', handleKeydown);
+    initialized = true;
+
+    if (Array.isArray(options.people)) {
+      setPeople(options.people);
+    } else if (!people.length) {
+      scheduleFetch();
+    }
+  }
+
+  async function refresh(updated) {
+    if (Array.isArray(updated)) {
+      setPeople(updated);
+      return;
+    }
+    await fetchAndSetPeople();
+  }
+
+  return {
+    init,
+    show,
+    hide,
+    refresh,
+    setPeople,
+  };
 });
