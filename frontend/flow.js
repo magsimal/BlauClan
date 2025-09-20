@@ -101,6 +101,58 @@
           30;
         const baseGridSize =
           (horizontalGridSize + verticalGridSize) / 2;
+        const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+        function detectPerformanceProfile() {
+          const config = window.AppConfig || {};
+          const nav = typeof navigator !== 'undefined' ? navigator : null;
+          const concurrency = nav && nav.hardwareConcurrency ? nav.hardwareConcurrency : 4;
+          const deviceMemory = nav && typeof nav.deviceMemory === 'number' ? nav.deviceMemory : 4;
+          const saveData = !!(nav && nav.connection && nav.connection.saveData);
+          const reducedMotion =
+            typeof window !== 'undefined'
+            && typeof window.matchMedia === 'function'
+            && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          const ua = nav && typeof nav.userAgent === 'string' ? nav.userAgent : '';
+          const isIOS = /iphone|ipad|ipod/i.test(ua);
+          const cpuThreshold = Number(config.lowPowerCpuThreshold) || 2;
+          const isLowPowerDevice =
+            concurrency <= cpuThreshold
+            || deviceMemory <= 2
+            || saveData
+            || reducedMotion
+            || isIOS;
+          const maxTicks = Number(config.maxSimulationTicks) || 72;
+          const lowPowerTicks = Number(config.lowPowerSimulationTicks)
+            || Math.max(24, Math.round(maxTicks * 0.6));
+          const skipForce = Number(config.skipForceSimulationThreshold)
+            || Number(config.skipForceThreshold)
+            || 1400;
+          const highlightLimit = Number(config.highlightLimitNodeCount) || 800;
+          return {
+            isLowPower: isLowPowerDevice,
+            maxSimulationTicks: maxTicks,
+            lowPowerTicks,
+            skipForceSimulationThreshold: skipForce,
+            highlightLimitNodeCount: highlightLimit,
+          };
+        }
+
+        const runtimePerformanceProfile = detectPerformanceProfile();
+
+        async function yieldForLayout() {
+          if (
+            typeof window !== 'undefined'
+            && typeof window.requestIdleCallback === 'function'
+            && !runtimePerformanceProfile.isLowPower
+          ) {
+            await new Promise((resolve) =>
+              window.requestIdleCallback(() => resolve(), { timeout: 16 })
+            );
+            return;
+          }
+          await sleep(runtimePerformanceProfile.isLowPower ? 28 : 14);
+        }
         const peopleState = ref([]);
         const peopleById = new Map();
 
@@ -345,9 +397,28 @@
             (typeof AppConfig.relativeAttraction !== 'undefined'
               ? parseFloat(AppConfig.relativeAttraction)
               : null)) || 0.5;
-        const LayoutMod = FlowLayout && typeof FlowLayout.createLayoutAPI === 'function' ? FlowLayout.createLayoutAPI({ d3, GenerationLayout, horizontalGridSize, relativeAttraction }) : null;
+        const layoutPerformanceProfile = {
+          ...runtimePerformanceProfile,
+          lowPowerSimulationTicks: runtimePerformanceProfile.lowPowerTicks,
+          lowPowerTicks: runtimePerformanceProfile.lowPowerTicks,
+          tickChunkSize: runtimePerformanceProfile.isLowPower ? 6 : 10,
+          yieldControl: runtimePerformanceProfile.isLowPower ? yieldForLayout : undefined,
+        };
+        const LayoutMod = FlowLayout && typeof FlowLayout.createLayoutAPI === 'function'
+          ? FlowLayout.createLayoutAPI({
+            d3,
+            GenerationLayout,
+            horizontalGridSize,
+            relativeAttraction,
+            performanceProfile: layoutPerformanceProfile,
+          })
+          : null;
         const tidyUpExternal = LayoutMod ? LayoutMod.tidyUp : function() {};
         const tidyUpChunkedExternal = LayoutMod ? LayoutMod.tidyUpChunked : async function() {};
+        let tidyInFlight = false;
+        let tidyQueued = false;
+        let lastTidyAt = 0;
+        const MIN_TIDY_INTERVAL = runtimePerformanceProfile.isLowPower ? 1400 : 900;
         loggedIn = ref(window.currentUser && window.currentUser !== 'guest');
         admin = ref(window.isAdmin || false);
         const showDeleteAllButton = computed(
@@ -1298,7 +1369,36 @@
         // Cache for highlighting state to avoid unnecessary DOM updates
         const highlightedNodes = new Set();
         const highlightedEdges = new Set();
+        let currentHighlightRoot = null;
         let highlight = null;
+
+        function isNodeRoughlyVisible(nodeOrId) {
+          const node = typeof nodeOrId === 'object' ? nodeOrId : getNodeById(nodeOrId);
+          if (!node) return false;
+          if (!node.position) return true;
+          const dims = dimensions.value;
+          const vp = viewport.value;
+          if (!dims || !vp) return true;
+          const zoom = vp.zoom || 1;
+          const offsetX = vp.x || 0;
+          const offsetY = vp.y || 0;
+          const width = (node.dimensions?.width || 180) * zoom;
+          const height = (node.dimensions?.height || 120) * zoom;
+          const x = node.position.x * zoom + offsetX;
+          const y = node.position.y * zoom + offsetY;
+          const padding = runtimePerformanceProfile.isLowPower ? 200 : 150;
+          return (
+            x + width >= -padding
+            && x <= (dims.width || 0) + padding
+            && y + height >= -padding
+            && y <= (dims.height || 0) + padding
+          );
+        }
+
+        const shouldLimitHighlight = () =>
+          runtimePerformanceProfile.isLowPower
+          && nodes.value.length > runtimePerformanceProfile.highlightLimitNodeCount;
+
         if (FlowHighlight && typeof FlowHighlight.createHighlightAPI === 'function') {
           highlight = FlowHighlight.createHighlightAPI({
             getNodes: () => nodes.value,
@@ -1310,20 +1410,33 @@
             removeClass,
             highlightedNodes,
             highlightedEdges,
+            isNodeVisible: isNodeRoughlyVisible,
+            shouldLimitHighlight,
           });
         }
-        
+
         function clearHighlights() {
+          currentHighlightRoot = null;
           if (highlight) highlight.clearHighlights();
         }
 
         function highlightBloodline(id) {
-          if (highlight) highlight.highlightBloodline(id);
+          if (!highlight) return;
+          const key = String(id);
+          if (currentHighlightRoot === key && highlightedNodes.size) return;
+          currentHighlightRoot = key;
+          highlight.highlightBloodline(id, { limitToVisible: shouldLimitHighlight() });
         }
 
         // Optimized async version that breaks up work across frames
         async function highlightBloodlineAsync(id) {
-          if (highlight) await highlight.highlightBloodlineAsync(id);
+          if (!highlight) return;
+          const key = String(id);
+          if (currentHighlightRoot === key && highlightedNodes.size) return;
+          currentHighlightRoot = key;
+          await highlight.highlightBloodlineAsync(id, {
+            limitToVisible: shouldLimitHighlight(),
+          });
         }
 
         function getBloodlineSet(rootId) {
@@ -2750,90 +2863,124 @@
 
 
 
-      async function tidyUpLayout() {
+      async function performTidyUpLayout() {
         notifyTap();
         setLoading(true);
-        await nextTick();
-        
-        const totalNodes = nodes.value.filter((n) => n.type === 'person').length;
-        const CHUNK_SIZE = Math.min(500, Math.max(50, Math.floor(totalNodes / 10))); // Adaptive chunk size
-        
-        // Show progress for large datasets
-        if (totalNodes > 1000) {
-          flash(I18nGlobal.t('processingLargeDataset', { count: totalNodes }));
-        }
-        
-        const people = nodes.value
-          .filter((n) => n.type === 'person')
-          .map((n) => ({
+        try {
+          await nextTick();
+
+          const personNodes = nodes.value.filter((n) => n.type === 'person');
+          const totalNodes = personNodes.length;
+          const chunkDivisor = runtimePerformanceProfile.isLowPower ? 14 : 9;
+          const chunkBase = Math.floor(totalNodes / chunkDivisor);
+          const CHUNK_SIZE = Math.min(
+            runtimePerformanceProfile.isLowPower ? 240 : 480,
+            Math.max(runtimePerformanceProfile.isLowPower ? 48 : 80, chunkBase || (runtimePerformanceProfile.isLowPower ? 60 : 100))
+          );
+
+          if (totalNodes > 1000 || (runtimePerformanceProfile.isLowPower && totalNodes > 350)) {
+            flash(I18nGlobal.t('processingLargeDataset', { count: totalNodes }));
+          }
+
+          const people = personNodes.map((n) => ({
             id: n.data.id,
             fatherId: n.data.fatherId,
             motherId: n.data.motherId,
             spouseIds: [],
             width: n.dimensions?.width || 0,
-            x: 0,
-            y: 0,
+            x: n.position?.x || 0,
+            y: n.position?.y || 0,
           }));
 
-        const pMap = new Map(people.map((p) => [p.id, p]));
-        
-        // Process unions in chunks for large datasets
-        const unionEntries = Object.values(unions);
-        for (let i = 0; i < unionEntries.length; i += CHUNK_SIZE) {
-          const chunk = unionEntries.slice(i, i + CHUNK_SIZE);
-          chunk.forEach((u) => {
-            const a = pMap.get(u.fatherId);
-            const b = pMap.get(u.motherId);
-            if (a && b) {
-              if (!a.spouseIds.includes(b.id)) a.spouseIds.push(b.id);
-              if (!b.spouseIds.includes(a.id)) b.spouseIds.push(a.id);
+          const pMap = new Map(people.map((p) => [p.id, p]));
+          const unionEntries = Object.values(unions);
+          for (let i = 0; i < unionEntries.length; i += CHUNK_SIZE) {
+            const chunk = unionEntries.slice(i, i + CHUNK_SIZE);
+            chunk.forEach((u) => {
+              const a = pMap.get(u.fatherId);
+              const b = pMap.get(u.motherId);
+              if (a && b) {
+                if (!a.spouseIds.includes(b.id)) a.spouseIds.push(b.id);
+                if (!b.spouseIds.includes(a.id)) b.spouseIds.push(a.id);
+              }
+            });
+            if (unionEntries.length > CHUNK_SIZE && i + CHUNK_SIZE < unionEntries.length) {
+              await yieldForLayout();
             }
-          });
-          
-          // Yield control to prevent UI freezing
-          if (unionEntries.length > CHUNK_SIZE && i + CHUNK_SIZE < unionEntries.length) {
-            await nextTick();
           }
-        }
 
-        // Use chunked tidyUp for large datasets
-        if (totalNodes > 1000) {
-          await tidyUpChunked(people);
-        } else {
-          tidyUp(people);
-        }
+          const useChunkedLayout = totalNodes > 900 || runtimePerformanceProfile.isLowPower;
+          if (useChunkedLayout) {
+            await tidyUpChunked(people);
+          } else {
+            tidyUp(people);
+          }
 
-        const posMap = {};
-        people.forEach((p) => {
-          posMap[p.id] = { x: p.x, y: p.y };
-        });
+          const posMap = new Map();
+          people.forEach((p) => {
+            posMap.set(p.id, { x: p.x, y: p.y });
+          });
 
-        // Update node positions in chunks for large datasets
-        const personNodes = nodes.value.filter((n) => n.type === 'person');
-        const updatedIds = new Set();
-        for (let i = 0; i < personNodes.length; i += CHUNK_SIZE) {
-          const chunk = personNodes.slice(i, i + CHUNK_SIZE);
-          chunk.forEach((n) => {
-            if (posMap[n.data.id]) {
-              n.position.x = posMap[n.data.id].x;
-              n.position.y = posMap[n.data.id].y;
-              updatedIds.add(String(n.id));
+          const updatedIds = new Set();
+          const EPSILON = 0.5;
+          for (let i = 0; i < personNodes.length; i += CHUNK_SIZE) {
+            const chunk = personNodes.slice(i, i + CHUNK_SIZE);
+            chunk.forEach((n) => {
+              const coords = posMap.get(n.data.id);
+              if (!coords) return;
+              const px = n.position?.x || 0;
+              const py = n.position?.y || 0;
+              const dx = Math.abs(px - coords.x);
+              const dy = Math.abs(py - coords.y);
+              if (dx > EPSILON || dy > EPSILON) {
+                n.position.x = coords.x;
+                n.position.y = coords.y;
+                updatedIds.add(String(n.id));
+              }
+            });
+            if (personNodes.length > CHUNK_SIZE && i + CHUNK_SIZE < personNodes.length) {
+              await yieldForLayout();
             }
-          });
-          
-          // Yield control to prevent UI freezing
-          if (personNodes.length > CHUNK_SIZE && i + CHUNK_SIZE < personNodes.length) {
-            await nextTick();
           }
-        }
-        if (typeof updateNodeInternals === 'function' && updatedIds.size) {
-          updateNodeInternals(Array.from(updatedIds));
-        }
 
-        refreshUnions();
-        saveTempLayout();
-        setLoading(false);
-        flash(I18nGlobal.t('layoutTidied'));
+          if (typeof updateNodeInternals === 'function' && updatedIds.size) {
+            updateNodeInternals(Array.from(updatedIds));
+          }
+
+          refreshUnions();
+          saveTempLayout();
+          flash(I18nGlobal.t('layoutTidied'));
+        } finally {
+          setLoading(false);
+        }
+      }
+
+      async function tidyUpLayout() {
+        if (tidyInFlight) {
+          tidyQueued = true;
+          return;
+        }
+        tidyInFlight = true;
+        try {
+          const now = Date.now();
+          const sinceLast = now - lastTidyAt;
+          if (lastTidyAt > 0 && sinceLast < MIN_TIDY_INTERVAL) {
+            await sleep(MIN_TIDY_INTERVAL - sinceLast);
+          }
+          do {
+            tidyQueued = false;
+            await performTidyUpLayout();
+            lastTidyAt = Date.now();
+            if (tidyQueued) {
+              const elapsed = Date.now() - lastTidyAt;
+              if (elapsed < MIN_TIDY_INTERVAL) {
+                await sleep(MIN_TIDY_INTERVAL - elapsed);
+              }
+            }
+          } while (tidyQueued);
+        } finally {
+          tidyInFlight = false;
+        }
       }
 
         async function saveNewPerson() {
