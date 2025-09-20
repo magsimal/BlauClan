@@ -87,11 +87,6 @@
       const map = new Map(
         list.map((n) => [n.id, { ...n, children: [], width: n.width || DEFAULT_WIDTH }])
       );
-      const parentLookup = new Set();
-      list.forEach((n) => {
-        if (n.fatherId) parentLookup.add(n.fatherId);
-        if (n.motherId) parentLookup.add(n.motherId);
-      });
       map.forEach((n) => {
         if (n.fatherId && map.has(n.fatherId)) {
           map.get(n.fatherId).children.push(n);
@@ -105,7 +100,11 @@
 
       const roots = [];
       map.forEach((n) => {
-        if (!parentLookup.has(n.id)) roots.push(n);
+        const hasFatherRecord = n.fatherId && map.has(n.fatherId);
+        const hasMotherRecord = n.motherId && map.has(n.motherId);
+        if (!hasFatherRecord && !hasMotherRecord) {
+          roots.push(n);
+        }
       });
       const fakeRoot = { id: 'root', children: roots };
       const layout = d3.tree().nodeSize([H_SPACING, 1]);
@@ -354,12 +353,9 @@
         list.map((n) => [n.id, { ...n, children: [], width: n.width || DEFAULT_WIDTH }])
       );
 
-      const parentLookup = new Set();
       for (let i = 0; i < list.length; i += CHUNK_SIZE) {
         const chunk = list.slice(i, i + CHUNK_SIZE);
         chunk.forEach((original) => {
-          if (original.fatherId) parentLookup.add(original.fatherId);
-          if (original.motherId) parentLookup.add(original.motherId);
           const node = map.get(original.id);
           if (!node) return;
           if (node.fatherId && map.has(node.fatherId)) {
@@ -378,7 +374,11 @@
 
       const roots = [];
       map.forEach((n) => {
-        if (!parentLookup.has(n.id)) roots.push(n);
+        const hasFatherRecord = n.fatherId && map.has(n.fatherId);
+        const hasMotherRecord = n.motherId && map.has(n.motherId);
+        if (!hasFatherRecord && !hasMotherRecord) {
+          roots.push(n);
+        }
       });
 
       const fakeRoot = { id: 'root', children: roots };
