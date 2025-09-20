@@ -5,24 +5,22 @@ let SearchApp;
 describe('SearchApp', () => {
   beforeEach(async () => {
     jest.resetModules();
-    global.fetch = jest.fn().mockResolvedValue({
-      json: () => [
-        {
-          id: 1,
-          firstName: 'John',
-          lastName: 'Doe',
-          dateOfBirth: '1900-01-01',
-          dateOfDeath: '1980-01-01',
-        },
-        {
-          id: 2,
-          firstName: 'Jane',
-          lastName: 'Smith',
-          dateOfBirth: '1905-05-10',
-          dateOfDeath: '1990-05-10',
-        },
-      ],
-    });
+    const people = [
+      {
+        id: 1,
+        firstName: 'John',
+        lastName: 'Doe',
+        dateOfBirth: '1900-01-01',
+        dateOfDeath: '1980-01-01',
+      },
+      {
+        id: 2,
+        firstName: 'Jane',
+        lastName: 'Smith',
+        dateOfBirth: '1905-05-10',
+        dateOfDeath: '1990-05-10',
+      },
+    ];
     global.Fuse = class {
       constructor(list) {
         this.list = list;
@@ -36,7 +34,7 @@ describe('SearchApp', () => {
     };
     SearchApp = require('../search.js');
     document.body.innerHTML = '';
-    await SearchApp.init();
+    await SearchApp.init({ people });
   });
 
   test('creates overlay and populates results', () => {

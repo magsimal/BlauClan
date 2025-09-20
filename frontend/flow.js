@@ -208,7 +208,7 @@
 
         const scheduleSearchRefresh = debounce(() => {
           if (window.SearchApp && typeof window.SearchApp.refresh === 'function') {
-            window.SearchApp.refresh();
+            window.SearchApp.refresh(peopleState.value);
           }
         }, 500);
 
@@ -810,7 +810,7 @@
           await load(preservePositions);
           // Refresh search data to keep it in sync with node changes
           if (window.SearchApp && typeof window.SearchApp.refresh === 'function') {
-            await window.SearchApp.refresh();
+            await window.SearchApp.refresh(peopleState.value);
           }
         }
 
@@ -825,6 +825,9 @@
           }
           const people = await FrontendApp.fetchPeople();
           syncPeopleState(people);
+          if (window.SearchApp && typeof window.SearchApp.setPeople === 'function') {
+            window.SearchApp.setPeople(people);
+          }
           
           // Show progress for large datasets
           if (people.length > 1000) {
@@ -2251,7 +2254,7 @@
           
           // Refresh search data so all deleted people are removed from search
           if (window.SearchApp && typeof window.SearchApp.refresh === 'function') {
-            await window.SearchApp.refresh();
+            await window.SearchApp.refresh(peopleState.value);
           }
         }
 
