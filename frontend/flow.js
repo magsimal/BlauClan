@@ -128,6 +128,31 @@
 
         function removePersonLocal(id, prevData = null) {
           const prev = prevData || peopleById.get(id) || null;
+          const affectedChildren = [];
+          peopleById.forEach((child) => {
+            if (!child || child.id === id) return;
+            if (child.fatherId !== id && child.motherId !== id) return;
+            const prevChild = { ...child };
+            const updatedChild = { ...child };
+            if (child.fatherId === id) updatedChild.fatherId = null;
+            if (child.motherId === id) updatedChild.motherId = null;
+            affectedChildren.push({ prev: prevChild, updated: updatedChild });
+          });
+          affectedChildren.forEach(({ prev: prevChild, updated: updatedChild }) => {
+            upsertPersonLocal(updatedChild);
+            updateChildrenCacheFor(updatedChild, prevChild);
+            if (selected.value && selected.value.id === updatedChild.id) {
+              const spouseId = selected.value.spouseId;
+              selected.value = { ...selected.value, ...updatedChild };
+              if (typeof spouseId !== 'undefined') selected.value.spouseId = spouseId;
+            }
+          });
+          if (childrenCache.has(id)) {
+            childrenCache.delete(id);
+          }
+          if (selected.value && selected.value.id === id) {
+            children.value = [];
+          }
           const removeChild = (parentId) => {
             if (!parentId) return;
             const list = childrenCache.get(parentId);
