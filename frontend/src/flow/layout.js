@@ -5,11 +5,110 @@
     global.FlowLayout = factory();
   }
 })(this, function () {
-  function createLayoutAPI({ d3, GenerationLayout, horizontalGridSize, relativeAttraction }) {
-    function tidyUp(list) {
-      if (list.length === 0) {
+  const Metrics =
+    typeof require === 'function'
+      ? (() => {
+        try { return require('../utils/perf-metrics'); } catch (e) { return null; }
+      })()
+      : (typeof window !== 'undefined'
+        ? (window.FlowMetrics || window.PerfMetrics || null)
+        : null);
+
+  function createLayoutAPI({
+    d3,
+    GenerationLayout,
+    horizontalGridSize,
+    relativeAttraction,
+    performanceProfile,
+  }) {
+    const profile = performanceProfile || {};
+    const isLowPower = !!profile.isLowPower;
+    const maxTicks = Number.isFinite(profile.maxSimulationTicks)
+      ? profile.maxSimulationTicks
+      : 72;
+    const lowPowerTicks = Number.isFinite(profile.lowPowerTicks)
+      ? profile.lowPowerTicks
+      : Number.isFinite(profile.lowPowerSimulationTicks)
+        ? profile.lowPowerSimulationTicks
+        : Math.max(24, Math.round(maxTicks * 0.6));
+    const skipForceThreshold = Number.isFinite(profile.skipForceSimulationThreshold)
+      ? profile.skipForceSimulationThreshold
+      : Number.isFinite(profile.skipForceThreshold)
+        ? profile.skipForceThreshold
+        : Infinity;
+    const tickChunkSize = Number.isFinite(profile.tickChunkSize)
+      ? Math.max(1, Math.floor(profile.tickChunkSize))
+      : 10;
+    const collisionStrength = Number.isFinite(profile.collisionStrength)
+      ? profile.collisionStrength
+      : isLowPower
+        ? 0.75
+        : 1;
+    const linkStrength = Number.isFinite(profile.linkStrength)
+      ? profile.linkStrength
+      : isLowPower
+        ? 0.75
+        : 1;
+
+    const metrics = Metrics && typeof Metrics.recordEvent === 'function' ? Metrics : null;
+
+    async function yieldToMainThread(meta) {
+      if (metrics && typeof metrics.incrementCounter === 'function') {
+        metrics.incrementCounter('layout.yield.count', 1);
+      }
+      const timer = metrics && typeof metrics.startTimer === 'function'
+        ? metrics.startTimer('layout.yield', { phase: meta && meta.phase ? meta.phase : 'unspecified', lowPower: isLowPower })
+        : null;
+      let strategy = 'timeout';
+      if (typeof profile.yieldControl === 'function') {
+        strategy = 'custom';
+        await profile.yieldControl(meta);
+        if (metrics && typeof metrics.endTimer === 'function') metrics.endTimer(timer, { strategy });
         return;
       }
+      if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+        strategy = 'idle-callback';
+        await new Promise((resolve) =>
+          window.requestIdleCallback(() => resolve(), { timeout: 16 })
+        );
+        if (metrics && typeof metrics.endTimer === 'function') metrics.endTimer(timer, { strategy });
+        return;
+      }
+      await new Promise((resolve) =>
+        setTimeout(resolve, isLowPower ? 24 : 12)
+      );
+      if (metrics && typeof metrics.endTimer === 'function') metrics.endTimer(timer, { strategy });
+    }
+
+    function shouldSkipForces(count) {
+      return Number.isFinite(skipForceThreshold) && count >= skipForceThreshold;
+    }
+
+    function simulationTicks(count) {
+      if (shouldSkipForces(count)) return 0;
+      if (typeof profile.getSimulationTicks === 'function') {
+        const custom = profile.getSimulationTicks(count, { isLowPower });
+        if (Number.isFinite(custom) && custom >= 0) {
+          return custom;
+        }
+      }
+      return isLowPower ? lowPowerTicks : maxTicks;
+    }
+
+    function tidyUp(list) {
+      if (list.length === 0) {
+        if (metrics && typeof metrics.recordEvent === 'function') {
+          metrics.recordEvent('layout.tidyUp.skipped', { reason: 'empty' });
+        }
+        return;
+      }
+
+      if (metrics && typeof metrics.recordSample === 'function') {
+        metrics.recordSample('layout.tidyUp.nodeCount', list.length);
+      }
+      const tidyTimer = metrics && typeof metrics.startTimer === 'function'
+        ? metrics.startTimer('layout.tidyUp', { nodes: list.length, lowPower: isLowPower })
+        : null;
 
       const GRID = Number.isFinite(horizontalGridSize) && horizontalGridSize > 0 ? horizontalGridSize : 30;
       const ATTR = Math.max(0, Math.min(1, Number.isFinite(relativeAttraction) ? relativeAttraction : 0.5));
@@ -34,8 +133,11 @@
 
       const roots = [];
       map.forEach((n) => {
-        const hasParent = list.some((p) => p.id === n.motherId || p.id === n.fatherId);
-        if (!hasParent) roots.push(n);
+        const hasFatherRecord = n.fatherId && map.has(n.fatherId);
+        const hasMotherRecord = n.motherId && map.has(n.motherId);
+        if (!hasFatherRecord && !hasMotherRecord) {
+          roots.push(n);
+        }
       });
       const fakeRoot = { id: 'root', children: roots };
       const layout = d3.tree().nodeSize([H_SPACING, 1]);
@@ -148,23 +250,26 @@
         }
       });
 
-      const linkForce = d3
-        .forceLink(links)
-        .id((d) => d.id)
-        .distance((d) => (d.type === 'spouse' ? H_SPACING / 2 : H_SPACING))
-        .strength(1);
-      const collideForce = d3
-        .forceCollide()
-        .radius((d) => (d.width || DEFAULT_WIDTH) / 2 + H_SPACING / 2)
-        .strength(1);
-      const sim = d3
-        .forceSimulation(nodesForSim)
-        .force('link', linkForce)
-        .force('collide', collideForce)
-        .alphaDecay(0.05)
-        .velocityDecay(0.4)
-        .stop();
-      for (let i = 0; i < 120; i++) sim.tick();
+      totalTicks = simulationTicks(nodesForSim.length);
+      if (totalTicks > 0) {
+        const linkForce = d3
+          .forceLink(links)
+          .id((d) => d.id)
+          .distance((d) => (d.type === 'spouse' ? H_SPACING / 2 : H_SPACING))
+          .strength(linkStrength);
+        const collideForce = d3
+          .forceCollide()
+          .radius((d) => (d.width || DEFAULT_WIDTH) / 2 + H_SPACING / 2)
+          .strength(collisionStrength);
+        const sim = d3
+          .forceSimulation(nodesForSim)
+          .force('link', linkForce)
+          .force('collide', collideForce)
+          .alphaDecay(0.06)
+          .velocityDecay(0.45)
+          .stop();
+        for (let i = 0; i < totalTicks; i++) sim.tick();
+      }
       nodesForSim.forEach((n) => {
         delete n.fy;
       });
@@ -256,14 +361,40 @@
         const g = gen.get(n.id) ?? 0;
         n.y = g * ROW_HEIGHT;
       });
+
+      if (metrics && typeof metrics.endTimer === 'function') {
+        metrics.endTimer(tidyTimer, {
+          nodes: list.length,
+          totalTicks,
+          skipForces: totalTicks === 0 && shouldSkipForces(nodesForSim.length),
+          lowPower: isLowPower,
+        });
+      }
     }
 
     async function tidyUpChunked(list) {
       if (list.length === 0) {
+        if (metrics && typeof metrics.recordEvent === 'function') {
+          metrics.recordEvent('layout.tidyUpChunked.skipped', { reason: 'empty' });
+        }
         return;
       }
 
-      const CHUNK_SIZE = Math.min(500, Math.max(50, Math.floor(list.length / 10)));
+      const chunkDivisor = isLowPower ? 14 : 10;
+      const baseChunk = Math.floor(list.length / chunkDivisor);
+      const CHUNK_SIZE = Math.min(
+        isLowPower ? 250 : 500,
+        Math.max(isLowPower ? 25 : 50, baseChunk || (isLowPower ? 40 : 60))
+      );
+
+      const tidyTimer = metrics && typeof metrics.startTimer === 'function'
+        ? metrics.startTimer('layout.tidyUpChunked', { nodes: list.length, chunkSize: CHUNK_SIZE, lowPower: isLowPower })
+        : null;
+      let totalTicks = 0;
+      if (metrics && typeof metrics.recordSample === 'function') {
+        metrics.recordSample('layout.tidyUpChunked.nodeCount', list.length);
+        metrics.recordSample('layout.tidyUpChunked.chunkSize', CHUNK_SIZE);
+      }
 
       const GRID = Number.isFinite(horizontalGridSize) && horizontalGridSize > 0 ? horizontalGridSize : 30;
       const ATTR = Math.max(0, Math.min(1, Number.isFinite(relativeAttraction) ? relativeAttraction : 0.5));
@@ -276,16 +407,22 @@
         list.map((n) => [n.id, { ...n, children: [], width: n.width || DEFAULT_WIDTH }])
       );
 
-      let processed = 0;
-      for (const [, node] of map) {
-        if (node.fatherId && map.has(node.fatherId)) {
-          map.get(node.fatherId).children.push(node);
-        } else if (node.motherId && map.has(node.motherId)) {
-          map.get(node.motherId).children.push(node);
+      for (let i = 0; i < list.length; i += CHUNK_SIZE) {
+        const chunk = list.slice(i, i + CHUNK_SIZE);
+        if (metrics && typeof metrics.recordSample === 'function') {
+          metrics.recordSample('layout.tidyUpChunked.parentsChunk', chunk.length);
         }
-        processed++;
-        if (processed % CHUNK_SIZE === 0) {
-          await new Promise((r) => setTimeout(r, 0));
+        chunk.forEach((original) => {
+          const node = map.get(original.id);
+          if (!node) return;
+          if (node.fatherId && map.has(node.fatherId)) {
+            map.get(node.fatherId).children.push(node);
+          } else if (node.motherId && map.has(node.motherId)) {
+            map.get(node.motherId).children.push(node);
+          }
+        });
+        if (i + CHUNK_SIZE < list.length) {
+          await yieldToMainThread({ phase: 'build-children' });
         }
       }
 
@@ -294,8 +431,11 @@
 
       const roots = [];
       map.forEach((n) => {
-        const hasParent = list.some((p) => p.id === n.motherId || p.id === n.fatherId);
-        if (!hasParent) roots.push(n);
+        const hasFatherRecord = n.fatherId && map.has(n.fatherId);
+        const hasMotherRecord = n.motherId && map.has(n.motherId);
+        if (!hasFatherRecord && !hasMotherRecord) {
+          roots.push(n);
+        }
       });
 
       const fakeRoot = { id: 'root', children: roots };
@@ -315,33 +455,87 @@
       }
 
       const couples = new Set();
+      const childTargets = new Map();
+      const childrenByParents = new Map();
       for (let i = 0; i < list.length; i += CHUNK_SIZE) {
         const chunk = list.slice(i, i + CHUNK_SIZE);
+        if (metrics && typeof metrics.recordSample === 'function') {
+          metrics.recordSample('layout.tidyUpChunked.childChunk', chunk.length);
+        }
         chunk.forEach((child) => {
-          if (child.fatherId && child.motherId) {
+          const childNode = map.get(child.id);
+          if (!childNode) return;
+          const father = child.fatherId ? map.get(child.fatherId) : null;
+          const mother = child.motherId ? map.get(child.motherId) : null;
+          if (father && mother) {
             const key = `${child.fatherId}-${child.motherId}`;
             if (!couples.has(key)) {
               couples.add(key);
-              const father = map.get(child.fatherId);
-              const mother = map.get(child.motherId);
-              if (father && mother) {
-                const mid =
-                  (father.x + father.width / 2 + mother.x + mother.width / 2) /
-                  2;
-                father.x = mid - father.width / 2 - H_SPACING / 2;
-                mother.x = mid + H_SPACING / 2 - mother.width / 2;
-              }
+              const mid =
+                (father.x + father.width / 2 + mother.x + mother.width / 2) / 2;
+              father.x = mid - father.width / 2 - H_SPACING / 2;
+              mother.x = mid + H_SPACING / 2 - mother.width / 2;
             }
+          }
+          const parentsKey = father && mother
+            ? `${child.fatherId}-${child.motherId}`
+            : father
+              ? `f-${child.fatherId}`
+              : mother
+                ? `m-${child.motherId}`
+                : null;
+          if (parentsKey) {
+            if (!childrenByParents.has(parentsKey)) {
+              childrenByParents.set(parentsKey, { father, mother, children: [] });
+            }
+            const entry = childrenByParents.get(parentsKey);
+            if (entry) entry.children.push(childNode);
           }
         });
         if (i + CHUNK_SIZE < list.length) {
-          await new Promise((r) => setTimeout(r, 0));
+          await yieldToMainThread({ phase: 'align-couples' });
         }
       }
+
+      childrenByParents.forEach(({ father, mother, children }) => {
+        if (!children || children.length === 0) return;
+        const center = (() => {
+          if (father && mother) {
+            return (
+              father.x + father.width / 2 + (mother.x + mother.width / 2)
+            ) / 2;
+          }
+          const p = father || mother;
+          return p.x + p.width / 2;
+        })();
+        children.sort((a, b) => {
+          const ak = Number.isFinite(a.birthSortKey) ? a.birthSortKey : 99999;
+          const bk = Number.isFinite(b.birthSortKey) ? b.birthSortKey : 99999;
+          return ak - bk;
+        });
+        const totalWidth = children.reduce(
+          (sum, n, idx) =>
+            sum + (n.width || DEFAULT_WIDTH) + (idx > 0 ? H_SPACING : 0),
+          0
+        );
+        let x = center - totalWidth / 2;
+        children.forEach((childNode, idx) => {
+          const w = childNode.width || DEFAULT_WIDTH;
+          childTargets.set(childNode.id, x);
+          x += w + H_SPACING;
+        });
+        if (father && mother) {
+          const unionKey = `u-${father.id}-${mother.id}`;
+          childTargets.set(unionKey, center);
+        }
+      });
 
       const links = [];
       for (let i = 0; i < list.length; i += CHUNK_SIZE) {
         const chunk = list.slice(i, i + CHUNK_SIZE);
+        if (metrics && typeof metrics.recordSample === 'function') {
+          metrics.recordSample('layout.tidyUpChunked.linkChunk', chunk.length);
+        }
         chunk.forEach((p) => {
           if (p.fatherId && map.has(p.fatherId)) {
             links.push({ source: map.get(p.id), target: map.get(p.fatherId), type: 'parent' });
@@ -356,7 +550,7 @@
           });
         });
         if (i + CHUNK_SIZE < list.length) {
-          await new Promise((r) => setTimeout(r, 0));
+          await yieldToMainThread({ phase: 'links' });
         }
       }
 
@@ -365,33 +559,45 @@
         const g = gen.get(n.id) ?? 0;
         n.y = g * ROW_HEIGHT;
         n.fy = n.y;
+        if (n.dateOfBirth || n.birthApprox) {
+          const str = String(n.dateOfBirth || n.birthApprox);
+          const m = str.match(/^(\d{4})(?:[-/.](\d{1,2}))?(?:[-/.](\d{1,2}))?/);
+          if (m) {
+            const year = parseInt(m[1], 10);
+            const month = m[2] ? parseInt(m[2], 10) : 6;
+            const day = m[3] ? parseInt(m[3], 10) : 15;
+            n.birthSortKey = year * 372 + (month - 1) * 31 + day;
+          }
+        }
       });
 
-      const linkForce = d3
-        .forceLink(links)
-        .id((d) => d.id)
-        .distance((d) => (d.type === 'spouse' ? H_SPACING / 2 : H_SPACING))
-        .strength(1);
-      const collideForce = d3
-        .forceCollide()
-        .radius((d) => (d.width || DEFAULT_WIDTH) / 2 + H_SPACING / 2)
-        .strength(1);
-      const sim = d3
-        .forceSimulation(nodesForSim)
-        .force('link', linkForce)
-        .force('collide', collideForce)
-        .alphaDecay(0.05)
-        .velocityDecay(0.4)
-        .stop();
+      const totalTicks = simulationTicks(nodesForSim.length);
+      if (totalTicks > 0) {
+        const linkForce = d3
+          .forceLink(links)
+          .id((d) => d.id)
+          .distance((d) => (d.type === 'spouse' ? H_SPACING / 2 : H_SPACING))
+          .strength(linkStrength);
+        const collideForce = d3
+          .forceCollide()
+          .radius((d) => (d.width || DEFAULT_WIDTH) / 2 + H_SPACING / 2)
+          .strength(collisionStrength);
+        const sim = d3
+          .forceSimulation(nodesForSim)
+          .force('link', linkForce)
+          .force('collide', collideForce)
+          .alphaDecay(0.06)
+          .velocityDecay(0.45)
+          .stop();
 
-      const SIMULATION_CHUNK = 10;
-      for (let i = 0; i < 120; i += SIMULATION_CHUNK) {
-        const iterations = Math.min(SIMULATION_CHUNK, 120 - i);
-        for (let j = 0; j < iterations; j++) {
-          sim.tick();
-        }
-        if (i + SIMULATION_CHUNK < 120) {
-          await new Promise((r) => setTimeout(r, 0));
+        for (let i = 0; i < totalTicks; i += tickChunkSize) {
+          const iterations = Math.min(tickChunkSize, totalTicks - i);
+          for (let j = 0; j < iterations; j++) {
+            sim.tick();
+          }
+          if (i + tickChunkSize < totalTicks) {
+            await yieldToMainThread({ phase: 'simulation', progress: (i + iterations) / totalTicks });
+          }
         }
       }
 
@@ -434,6 +640,16 @@
           original.y = updated.y;
         }
       });
+
+      if (metrics && typeof metrics.endTimer === 'function') {
+        metrics.endTimer(tidyTimer, {
+          nodes: list.length,
+          chunkSize: CHUNK_SIZE,
+          totalTicks,
+          skipForces: totalTicks === 0 && shouldSkipForces(nodesForSim.length),
+          lowPower: isLowPower,
+        });
+      }
     }
 
     return { tidyUp, tidyUpChunked };
