@@ -76,10 +76,11 @@
   }
 
   function ensureBirthSortKey(node) {
-    if (Number.isFinite(node.birthSortKey)) return;
     const key = computeBirthSortKey(node.dateOfBirth || node.birthApprox);
     if (Number.isFinite(key)) {
       node.birthSortKey = key;
+    } else if ('birthSortKey' in node) {
+      delete node.birthSortKey;
     }
   }
 
