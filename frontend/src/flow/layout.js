@@ -14,6 +14,81 @@
         ? (window.FlowMetrics || window.PerfMetrics || null)
         : null);
 
+  const ROW_HEIGHT = 230;
+
+  function createMetricApi(metricsTarget) {
+    const metrics = metricsTarget && typeof metricsTarget === 'object' ? metricsTarget : null;
+    return {
+      recordEvent(name, payload) {
+        if (metrics && typeof metrics.recordEvent === 'function') {
+          metrics.recordEvent(name, payload);
+        }
+      },
+      recordSample(name, value) {
+        if (metrics && typeof metrics.recordSample === 'function') {
+          metrics.recordSample(name, value);
+        }
+      },
+      incrementCounter(name, value) {
+        if (metrics && typeof metrics.incrementCounter === 'function') {
+          metrics.incrementCounter(name, value);
+        }
+      },
+      startTimer(name, payload) {
+        return metrics && typeof metrics.startTimer === 'function'
+          ? metrics.startTimer(name, payload)
+          : null;
+      },
+      endTimer(token, payload) {
+        if (token && metrics && typeof metrics.endTimer === 'function') {
+          metrics.endTimer(token, payload);
+        }
+      },
+    };
+  }
+
+  function computeSpacingValues(horizontalGridSize, relativeAttraction) {
+    const GRID = Number.isFinite(horizontalGridSize) && horizontalGridSize > 0 ? horizontalGridSize : 30;
+    const ATTR = Math.max(0, Math.min(1, Number.isFinite(relativeAttraction) ? relativeAttraction : 0.5));
+    const baseSpacing = GRID * 4;
+    const H_SPACING_RAW = baseSpacing - (baseSpacing - GRID) * ATTR;
+    const H_SPACING = Number.isFinite(H_SPACING_RAW) && H_SPACING_RAW > 0 ? H_SPACING_RAW : GRID * 3;
+    const DEFAULT_WIDTH = Math.max(120, GRID * 4);
+    return { GRID, H_SPACING, DEFAULT_WIDTH };
+  }
+
+  function createNodeMap(list, defaultWidth) {
+    return new Map(
+      list.map((n) => [n.id, { ...n, children: [], width: n.width || defaultWidth }]),
+    );
+  }
+
+  function computeBirthSortKey(value) {
+    if (!value) return undefined;
+    const str = String(value);
+    const match = str.match(/^(\d{4})(?:[-/.](\d{1,2}))?(?:[-/.](\d{1,2}))?/);
+    if (!match) return undefined;
+    const year = parseInt(match[1], 10);
+    if (!Number.isFinite(year)) return undefined;
+    const month = match[2] ? parseInt(match[2], 10) : 6;
+    const day = match[3] ? parseInt(match[3], 10) : 15;
+    return year * 372 + (month - 1) * 31 + day;
+  }
+
+  function ensureBirthSortKey(node) {
+    if (Number.isFinite(node.birthSortKey)) return;
+    const key = computeBirthSortKey(node.dateOfBirth || node.birthApprox);
+    if (Number.isFinite(key)) {
+      node.birthSortKey = key;
+    }
+  }
+
+  function* iterateChunks(list, chunkSize) {
+    for (let i = 0; i < list.length; i += chunkSize) {
+      yield { chunk: list.slice(i, i + chunkSize), hasMore: i + chunkSize < list.length };
+    }
+  }
+
   function createLayoutAPI({
     d3,
     GenerationLayout,
@@ -51,19 +126,19 @@
         : 1;
 
     const metrics = Metrics && typeof Metrics.recordEvent === 'function' ? Metrics : null;
+    const metricApi = createMetricApi(metrics);
 
     async function yieldToMainThread(meta) {
-      if (metrics && typeof metrics.incrementCounter === 'function') {
-        metrics.incrementCounter('layout.yield.count', 1);
-      }
-      const timer = metrics && typeof metrics.startTimer === 'function'
-        ? metrics.startTimer('layout.yield', { phase: meta && meta.phase ? meta.phase : 'unspecified', lowPower: isLowPower })
-        : null;
+      metricApi.incrementCounter('layout.yield.count', 1);
+      const timer = metricApi.startTimer('layout.yield', {
+        phase: meta && meta.phase ? meta.phase : 'unspecified',
+        lowPower: isLowPower,
+      });
       let strategy = 'timeout';
       if (typeof profile.yieldControl === 'function') {
         strategy = 'custom';
         await profile.yieldControl(meta);
-        if (metrics && typeof metrics.endTimer === 'function') metrics.endTimer(timer, { strategy });
+        metricApi.endTimer(timer, { strategy });
         return;
       }
       if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
@@ -71,13 +146,13 @@
         await new Promise((resolve) =>
           window.requestIdleCallback(() => resolve(), { timeout: 16 })
         );
-        if (metrics && typeof metrics.endTimer === 'function') metrics.endTimer(timer, { strategy });
+        metricApi.endTimer(timer, { strategy });
         return;
       }
       await new Promise((resolve) =>
         setTimeout(resolve, isLowPower ? 24 : 12)
       );
-      if (metrics && typeof metrics.endTimer === 'function') metrics.endTimer(timer, { strategy });
+      metricApi.endTimer(timer, { strategy });
     }
 
     function shouldSkipForces(count) {
@@ -97,29 +172,16 @@
 
     function tidyUp(list) {
       if (list.length === 0) {
-        if (metrics && typeof metrics.recordEvent === 'function') {
-          metrics.recordEvent('layout.tidyUp.skipped', { reason: 'empty' });
-        }
+        metricApi.recordEvent('layout.tidyUp.skipped', { reason: 'empty' });
         return;
       }
 
-      if (metrics && typeof metrics.recordSample === 'function') {
-        metrics.recordSample('layout.tidyUp.nodeCount', list.length);
-      }
-      const tidyTimer = metrics && typeof metrics.startTimer === 'function'
-        ? metrics.startTimer('layout.tidyUp', { nodes: list.length, lowPower: isLowPower })
-        : null;
+      metricApi.recordSample('layout.tidyUp.nodeCount', list.length);
+      const tidyTimer = metricApi.startTimer('layout.tidyUp', { nodes: list.length, lowPower: isLowPower });
 
-      const GRID = Number.isFinite(horizontalGridSize) && horizontalGridSize > 0 ? horizontalGridSize : 30;
-      const ATTR = Math.max(0, Math.min(1, Number.isFinite(relativeAttraction) ? relativeAttraction : 0.5));
-      const baseSpacing = GRID * 4;
-      const H_SPACING_RAW = baseSpacing - (baseSpacing - GRID) * ATTR;
-      const H_SPACING = Number.isFinite(H_SPACING_RAW) && H_SPACING_RAW > 0 ? H_SPACING_RAW : GRID * 3;
-      const DEFAULT_WIDTH = Math.max(120, GRID * 4);
+      const { H_SPACING, DEFAULT_WIDTH } = computeSpacingValues(horizontalGridSize, relativeAttraction);
 
-      const map = new Map(
-        list.map((n) => [n.id, { ...n, children: [], width: n.width || DEFAULT_WIDTH }])
-      );
+      const map = createNodeMap(list, DEFAULT_WIDTH);
       map.forEach((n) => {
         if (n.fatherId && map.has(n.fatherId)) {
           map.get(n.fatherId).children.push(n);
@@ -129,7 +191,6 @@
       });
 
       const gen = GenerationLayout.assignGenerations(list);
-      const ROW_HEIGHT = 230;
 
       const roots = [];
       map.forEach((n) => {
@@ -236,21 +297,10 @@
         const g = gen.get(n.id) ?? 0;
         n.y = g * ROW_HEIGHT;
         n.fy = n.y;
-        // Precompute birth sort key if available (year first, then month/day fallback)
-        if (n.dateOfBirth || n.birthApprox) {
-          const str = String(n.dateOfBirth || n.birthApprox);
-          // Extract year-month-day when present; fallback to year only
-          const m = str.match(/^(\d{4})(?:[-/.](\d{1,2}))?(?:[-/.](\d{1,2}))?/);
-          if (m) {
-            const year = parseInt(m[1], 10);
-            const month = m[2] ? parseInt(m[2], 10) : 6; // mid-year default
-            const day = m[3] ? parseInt(m[3], 10) : 15; // mid-month default
-            n.birthSortKey = year * 372 + (month - 1) * 31 + day; // monotonic mapping
-          }
-        }
+        ensureBirthSortKey(n);
       });
 
-      totalTicks = simulationTicks(nodesForSim.length);
+      const totalTicks = simulationTicks(nodesForSim.length);
       if (totalTicks > 0) {
         const linkForce = d3
           .forceLink(links)
@@ -362,21 +412,17 @@
         n.y = g * ROW_HEIGHT;
       });
 
-      if (metrics && typeof metrics.endTimer === 'function') {
-        metrics.endTimer(tidyTimer, {
-          nodes: list.length,
-          totalTicks,
-          skipForces: totalTicks === 0 && shouldSkipForces(nodesForSim.length),
-          lowPower: isLowPower,
-        });
-      }
+      metricApi.endTimer(tidyTimer, {
+        nodes: list.length,
+        totalTicks,
+        skipForces: totalTicks === 0 && shouldSkipForces(nodesForSim.length),
+        lowPower: isLowPower,
+      });
     }
 
     async function tidyUpChunked(list) {
       if (list.length === 0) {
-        if (metrics && typeof metrics.recordEvent === 'function') {
-          metrics.recordEvent('layout.tidyUpChunked.skipped', { reason: 'empty' });
-        }
+        metricApi.recordEvent('layout.tidyUpChunked.skipped', { reason: 'empty' });
         return;
       }
 
@@ -387,31 +433,20 @@
         Math.max(isLowPower ? 25 : 50, baseChunk || (isLowPower ? 40 : 60))
       );
 
-      const tidyTimer = metrics && typeof metrics.startTimer === 'function'
-        ? metrics.startTimer('layout.tidyUpChunked', { nodes: list.length, chunkSize: CHUNK_SIZE, lowPower: isLowPower })
-        : null;
-      let totalTicks = 0;
-      if (metrics && typeof metrics.recordSample === 'function') {
-        metrics.recordSample('layout.tidyUpChunked.nodeCount', list.length);
-        metrics.recordSample('layout.tidyUpChunked.chunkSize', CHUNK_SIZE);
-      }
+      const tidyTimer = metricApi.startTimer('layout.tidyUpChunked', {
+        nodes: list.length,
+        chunkSize: CHUNK_SIZE,
+        lowPower: isLowPower,
+      });
+      metricApi.recordSample('layout.tidyUpChunked.nodeCount', list.length);
+      metricApi.recordSample('layout.tidyUpChunked.chunkSize', CHUNK_SIZE);
 
-      const GRID = Number.isFinite(horizontalGridSize) && horizontalGridSize > 0 ? horizontalGridSize : 30;
-      const ATTR = Math.max(0, Math.min(1, Number.isFinite(relativeAttraction) ? relativeAttraction : 0.5));
-      const baseSpacing = GRID * 4;
-      const H_SPACING_RAW = baseSpacing - (baseSpacing - GRID) * ATTR;
-      const H_SPACING = Number.isFinite(H_SPACING_RAW) && H_SPACING_RAW > 0 ? H_SPACING_RAW : GRID * 3;
-      const DEFAULT_WIDTH = Math.max(120, GRID * 4);
+      const { H_SPACING, DEFAULT_WIDTH } = computeSpacingValues(horizontalGridSize, relativeAttraction);
 
-      const map = new Map(
-        list.map((n) => [n.id, { ...n, children: [], width: n.width || DEFAULT_WIDTH }])
-      );
+      const map = createNodeMap(list, DEFAULT_WIDTH);
 
-      for (let i = 0; i < list.length; i += CHUNK_SIZE) {
-        const chunk = list.slice(i, i + CHUNK_SIZE);
-        if (metrics && typeof metrics.recordSample === 'function') {
-          metrics.recordSample('layout.tidyUpChunked.parentsChunk', chunk.length);
-        }
+      for (const { chunk, hasMore } of iterateChunks(list, CHUNK_SIZE)) {
+        metricApi.recordSample('layout.tidyUpChunked.parentsChunk', chunk.length);
         chunk.forEach((original) => {
           const node = map.get(original.id);
           if (!node) return;
@@ -421,13 +456,12 @@
             map.get(node.motherId).children.push(node);
           }
         });
-        if (i + CHUNK_SIZE < list.length) {
+        if (hasMore) {
           await yieldToMainThread({ phase: 'build-children' });
         }
       }
 
       const gen = GenerationLayout.assignGenerations(list);
-      const ROW_HEIGHT = 230;
 
       const roots = [];
       map.forEach((n) => {
@@ -457,11 +491,8 @@
       const couples = new Set();
       const childTargets = new Map();
       const childrenByParents = new Map();
-      for (let i = 0; i < list.length; i += CHUNK_SIZE) {
-        const chunk = list.slice(i, i + CHUNK_SIZE);
-        if (metrics && typeof metrics.recordSample === 'function') {
-          metrics.recordSample('layout.tidyUpChunked.childChunk', chunk.length);
-        }
+      for (const { chunk, hasMore } of iterateChunks(list, CHUNK_SIZE)) {
+        metricApi.recordSample('layout.tidyUpChunked.childChunk', chunk.length);
         chunk.forEach((child) => {
           const childNode = map.get(child.id);
           if (!childNode) return;
@@ -492,7 +523,7 @@
             if (entry) entry.children.push(childNode);
           }
         });
-        if (i + CHUNK_SIZE < list.length) {
+        if (hasMore) {
           await yieldToMainThread({ phase: 'align-couples' });
         }
       }
@@ -531,11 +562,8 @@
       });
 
       const links = [];
-      for (let i = 0; i < list.length; i += CHUNK_SIZE) {
-        const chunk = list.slice(i, i + CHUNK_SIZE);
-        if (metrics && typeof metrics.recordSample === 'function') {
-          metrics.recordSample('layout.tidyUpChunked.linkChunk', chunk.length);
-        }
+      for (const { chunk, hasMore } of iterateChunks(list, CHUNK_SIZE)) {
+        metricApi.recordSample('layout.tidyUpChunked.linkChunk', chunk.length);
         chunk.forEach((p) => {
           if (p.fatherId && map.has(p.fatherId)) {
             links.push({ source: map.get(p.id), target: map.get(p.fatherId), type: 'parent' });
@@ -549,7 +577,7 @@
             }
           });
         });
-        if (i + CHUNK_SIZE < list.length) {
+        if (hasMore) {
           await yieldToMainThread({ phase: 'links' });
         }
       }
@@ -559,16 +587,7 @@
         const g = gen.get(n.id) ?? 0;
         n.y = g * ROW_HEIGHT;
         n.fy = n.y;
-        if (n.dateOfBirth || n.birthApprox) {
-          const str = String(n.dateOfBirth || n.birthApprox);
-          const m = str.match(/^(\d{4})(?:[-/.](\d{1,2}))?(?:[-/.](\d{1,2}))?/);
-          if (m) {
-            const year = parseInt(m[1], 10);
-            const month = m[2] ? parseInt(m[2], 10) : 6;
-            const day = m[3] ? parseInt(m[3], 10) : 15;
-            n.birthSortKey = year * 372 + (month - 1) * 31 + day;
-          }
-        }
+        ensureBirthSortKey(n);
       });
 
       const totalTicks = simulationTicks(nodesForSim.length);
@@ -641,15 +660,13 @@
         }
       });
 
-      if (metrics && typeof metrics.endTimer === 'function') {
-        metrics.endTimer(tidyTimer, {
-          nodes: list.length,
-          chunkSize: CHUNK_SIZE,
-          totalTicks,
-          skipForces: totalTicks === 0 && shouldSkipForces(nodesForSim.length),
-          lowPower: isLowPower,
-        });
-      }
+      metricApi.endTimer(tidyTimer, {
+        nodes: list.length,
+        chunkSize: CHUNK_SIZE,
+        totalTicks,
+        skipForces: totalTicks === 0 && shouldSkipForces(nodesForSim.length),
+        lowPower: isLowPower,
+      });
     }
 
     return { tidyUp, tidyUpChunked };
