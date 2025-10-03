@@ -52,7 +52,7 @@
     if (!appState) return;
     const { nodes } = appState;
     nodes.value.forEach((n) => {
-      n.data.me = window.meNodeId && n.id === String(window.meNodeId);
+      n.data.me = window.meNodeId && n.id === String(getCurrentMeId());
     });
   }
   function updatePrivileges() {
@@ -257,7 +257,8 @@
           descendants: new Set(),
         };
         const autoExpandProgress = new Map();
-        let autoExpandInProgress = false;
+        const MAX_AUTO_EXPAND_ENTRIES = 1000; // Prevent memory growth
+        const autoExpandMutex = createAsyncMutex();
         function createAsyncMutex() {
           let current = Promise.resolve();
           return {
@@ -280,6 +281,17 @@
         const segmentExpansionMutex = createAsyncMutex();
         const DEFAULT_SEGMENT_DEPTH = 2;
 
+        // Utility function for consistent meNodeId handling
+        function normalizeNodeId(nodeId) {
+          if (!nodeId) return null;
+          const numericId = Number(nodeId);
+          return Number.isNaN(numericId) ? String(nodeId) : numericId;
+        }
+
+        function getCurrentMeId() {
+          return normalizeNodeId(window.meNodeId);
+        }
+
         function getAutoExpandDepth(id, type) {
           const entry = autoExpandProgress.get(String(id));
           return entry && entry[type] ? entry[type] : 0;
@@ -289,6 +301,13 @@
           const key = String(id);
           const entry = autoExpandProgress.get(key) || { ancestors: 0, descendants: 0 };
           entry[type] = Math.max(entry[type] || 0, depth);
+          
+          // Implement size-based cleanup to prevent memory growth
+          if (autoExpandProgress.size >= MAX_AUTO_EXPAND_ENTRIES) {
+            const keysToRemove = Array.from(autoExpandProgress.keys()).slice(0, Math.floor(MAX_AUTO_EXPAND_ENTRIES * 0.2));
+            keysToRemove.forEach(k => autoExpandProgress.delete(k));
+          }
+          
           autoExpandProgress.set(key, entry);
         }
 
@@ -370,7 +389,7 @@
           const node = getNodeById(person.id);
           if (node && node.data) {
             Object.assign(node.data, stored);
-            node.data.me = window.meNodeId && person.id === window.meNodeId;
+            node.data.me = window.meNodeId && person.id === String(getCurrentMeId());
           }
         }
 
@@ -479,7 +498,7 @@
             !!(window.AppConfig && AppConfig.showDeleteAllButton) &&
             admin.value,
         );
-        const hasMe = computed(() => !!window.meNodeId);
+        const hasMe = computed(() => !!getCurrentMeId());
         const isLoading = ref(true);
         function setLoading(v) { isLoading.value = v; }
         const flashMessage = ref('');
@@ -809,12 +828,11 @@
 
             const candidateIds = [];
             const seen = new Set();
-            if (window.meNodeId) {
-              const meId = Number(window.meNodeId);
-              const normalized = Number.isNaN(meId) ? window.meNodeId : meId;
-              if (!seen.has(String(normalized))) {
-                candidateIds.push(normalized);
-                seen.add(String(normalized));
+            const meId = getCurrentMeId();
+            if (meId !== null) {
+              if (!seen.has(String(meId))) {
+                candidateIds.push(meId);
+                seen.add(String(meId));
               }
             }
 
@@ -848,14 +866,12 @@
         }
 
         async function autoLoadSegmentsAroundViewport() {
-          if (autoExpandInProgress) return;
           if (!nodes.value.length) return;
           const dims = dimensions.value;
           const vp = viewport.value;
           if (!dims || !vp) return;
 
-          autoExpandInProgress = true;
-          try {
+          return autoExpandMutex.runExclusive(async () => {
             const candidates = getNodesNearViewport();
             if (!candidates.length) return;
 
@@ -864,8 +880,7 @@
 
             for (const node of candidates) {
               if (expansions >= maxExpansions) break;
-              const numericId = Number(node.id);
-              const personId = Number.isNaN(numericId) ? node.id : numericId;
+              const personId = normalizeNodeId(node.id);
               const info = getSegmentInfo(personId);
               if (!info) continue;
 
@@ -894,9 +909,7 @@
                 }
               }
             }
-          } finally {
-            autoExpandInProgress = false;
-          }
+          });
         }
 
         const scheduleSegmentAutoload = debounce(() => {
@@ -951,7 +964,7 @@
               position: existingPos[p.id] || positions[p.id] || { x: 0, y: 0 },
               data: {
                 ...p,
-                me: window.meNodeId && p.id === window.meNodeId,
+                me: !!getCurrentMeId() && p.id === String(getCurrentMeId()),
                 hasMoreAncestors: hints.hasMoreAncestors,
                 hasMoreDescendants: hints.hasMoreDescendants,
                 loadingAncestors: isSegmentLoading(p.id, 'ancestors'),
@@ -1667,7 +1680,7 @@
         }
 
         function applyFocusedView() {
-          if (!focusedView.value || !window.meNodeId) {
+          if (!focusedView.value || !getCurrentMeId()) {
             for (const n of nodes.value) { 
               if (n.data) n.data.hidden = false; 
             }
@@ -1677,7 +1690,7 @@
             hiddenCount.value = 0;
             return;
           }
-          const allowed = getBloodlineSet(window.meNodeId);
+          const allowed = getBloodlineSet(getCurrentMeId());
           let hiddenNodeCount = 0;
           
           for (const n of nodes.value) {
@@ -2020,7 +2033,7 @@
         }
 
         function toggleFocused() {
-          if (!window.meNodeId) {
+          if (!getCurrentMeId()) {
             flash(I18nGlobal.t('defineMeFirst'), 'danger');
             return;
           }
@@ -3289,7 +3302,7 @@
                     x: dimensions.value.width / 2,
                     y: dimensions.value.height / 2,
                   }),
-              data: { ...p, me: window.meNodeId && p.id === window.meNodeId },
+              data: { ...p, me: !!getCurrentMeId() && p.id === String(getCurrentMeId()) },
             };
             nodes.value.push(node);
             rebuildNodeMap();
