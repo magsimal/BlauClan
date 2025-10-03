@@ -10,24 +10,23 @@ describe('flow.js syntax', () => {
 
 describe('Dynamic tree segment loading', () => {
   let mockWindow;
-  let flowModule;
 
   beforeEach(() => {
     // Mock window object
     mockWindow = {
       meNodeId: '123',
       currentUser: 'testuser',
-      AppConfig: {}
+      AppConfig: {},
     };
     global.window = mockWindow;
-    
+
     // Mock Vue reactive functions
     global.ref = (value) => ({ value });
     global.computed = (fn) => ({ value: fn() });
     global.reactive = (obj) => obj;
     global.nextTick = async () => {};
     global.watch = () => {};
-    
+
     // Mock other dependencies
     global.debounce = (fn) => fn;
     global.I18nGlobal = { t: (key) => key };

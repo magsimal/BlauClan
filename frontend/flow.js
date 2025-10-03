@@ -48,6 +48,17 @@
     }
     focusOnNode(pid);
   }
+  function normalizeNodeId(nodeId) {
+    if (!nodeId) return null;
+    const numericId = Number(nodeId);
+    return Number.isNaN(numericId) ? String(nodeId) : numericId;
+  }
+
+  function getCurrentMeId() {
+    if (typeof window === 'undefined') return null;
+    return normalizeNodeId(window.meNodeId);
+  }
+
   function refreshMe() {
     if (!appState) return;
     const { nodes } = appState;
@@ -280,17 +291,6 @@
         }
         const segmentExpansionMutex = createAsyncMutex();
         const DEFAULT_SEGMENT_DEPTH = 2;
-
-        // Utility function for consistent meNodeId handling
-        function normalizeNodeId(nodeId) {
-          if (!nodeId) return null;
-          const numericId = Number(nodeId);
-          return Number.isNaN(numericId) ? String(nodeId) : numericId;
-        }
-
-        function getCurrentMeId() {
-          return normalizeNodeId(window.meNodeId);
-        }
 
         function getAutoExpandDepth(id, type) {
           const entry = autoExpandProgress.get(String(id));
