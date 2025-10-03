@@ -69,10 +69,67 @@
       setup() {
         const nodes = ref([]);
         const nodeMap = new Map();
+        const SPATIAL_CELL_SIZE = 400;
+        let spatialIndex = new Map();
+        let spatialIndexDirty = true;
         const metrics = PerfMetrics && typeof PerfMetrics.recordEvent === 'function' ? PerfMetrics : null;
         function rebuildNodeMap() {
           nodeMap.clear();
           nodes.value.forEach((n) => nodeMap.set(n.id, n));
+        }
+        function markSpatialIndexDirty() {
+          spatialIndexDirty = true;
+        }
+        function rebuildSpatialIndex() {
+          const index = new Map();
+          for (const node of nodes.value) {
+            if (!node || !node.position) continue;
+            const width = (node.dimensions && node.dimensions.width) || 180;
+            const height = (node.dimensions && node.dimensions.height) || 120;
+            const startCol = Math.floor(node.position.x / SPATIAL_CELL_SIZE);
+            const endCol = Math.floor((node.position.x + width) / SPATIAL_CELL_SIZE);
+            const startRow = Math.floor(node.position.y / SPATIAL_CELL_SIZE);
+            const endRow = Math.floor((node.position.y + height) / SPATIAL_CELL_SIZE);
+            for (let col = startCol; col <= endCol; col += 1) {
+              for (let row = startRow; row <= endRow; row += 1) {
+                const key = `${col}:${row}`;
+                if (!index.has(key)) index.set(key, new Set());
+                index.get(key).add(node.id);
+              }
+            }
+          }
+          spatialIndex = index;
+          spatialIndexDirty = false;
+        }
+        function getNodesNearViewport() {
+          const dims = dimensions.value;
+          const vp = viewport.value;
+          if (!dims || !vp) return [];
+          if (spatialIndexDirty) rebuildSpatialIndex();
+          const zoom = vp.zoom || 1;
+          const offsetX = vp.x || 0;
+          const offsetY = vp.y || 0;
+          const padding = runtimePerformanceProfile.isLowPower ? 200 : 150;
+          const visibleLeft = (-padding - offsetX) / zoom;
+          const visibleRight = (((dims.width || 0) + padding) - offsetX) / zoom;
+          const visibleTop = (-padding - offsetY) / zoom;
+          const visibleBottom = (((dims.height || 0) + padding) - offsetY) / zoom;
+          const startCol = Math.floor(visibleLeft / SPATIAL_CELL_SIZE);
+          const endCol = Math.floor(visibleRight / SPATIAL_CELL_SIZE);
+          const startRow = Math.floor(visibleTop / SPATIAL_CELL_SIZE);
+          const endRow = Math.floor(visibleBottom / SPATIAL_CELL_SIZE);
+          const candidates = new Set();
+          for (let col = startCol; col <= endCol; col += 1) {
+            for (let row = startRow; row <= endRow; row += 1) {
+              const key = `${col}:${row}`;
+              const ids = spatialIndex.get(key);
+              if (!ids) continue;
+              ids.forEach((id) => candidates.add(id));
+            }
+          }
+          return Array.from(candidates)
+            .map((id) => getNodeById(id))
+            .filter((node) => node && node.type === 'person' && isNodeRoughlyVisible(node));
         }
         function getNodeById(id) {
           return nodeMap.get(String(id)) || null;
@@ -201,6 +258,26 @@
         };
         const autoExpandProgress = new Map();
         let autoExpandInProgress = false;
+        function createAsyncMutex() {
+          let current = Promise.resolve();
+          return {
+            async runExclusive(task) {
+              let release;
+              const wait = new Promise((resolve) => {
+                release = resolve;
+              });
+              const previous = current;
+              current = current.then(() => wait);
+              await previous;
+              try {
+                return await task();
+              } finally {
+                release();
+              }
+            },
+          };
+        }
+        const segmentExpansionMutex = createAsyncMutex();
         const DEFAULT_SEGMENT_DEPTH = 2;
 
         function getAutoExpandDepth(id, type) {
@@ -723,6 +800,7 @@
               nodes.value = [];
               edges.value = [];
               rebuildNodeMap();
+              markSpatialIndexDirty();
               childrenCache.clear();
               unions = {};
               selectedEdge.value = null;
@@ -778,7 +856,7 @@
 
           autoExpandInProgress = true;
           try {
-            const candidates = nodes.value.filter((n) => n.type === 'person' && isNodeRoughlyVisible(n));
+            const candidates = getNodesNearViewport();
             if (!candidates.length) return;
 
             const maxExpansions = runtimePerformanceProfile.isLowPower ? 1 : 3;
@@ -833,6 +911,7 @@
             edges.value = [];
             unions = {};
             rebuildNodeMap();
+            markSpatialIndexDirty();
             childrenCache.clear();
             selectedEdge.value = null;
             return;
@@ -972,6 +1051,7 @@
           unions = unionMap;
           edges.value = cleanEdges;
           rebuildNodeMap();
+          markSpatialIndexDirty();
           buildChildrenCache();
           selectedEdge.value = null;
 
@@ -980,6 +1060,7 @@
           }
 
           await nextTick();
+          rebuildSpatialIndex();
           refreshUnions();
           applyFilters();
           applyFocusedView();
@@ -1066,42 +1147,50 @@
 
         async function expandAncestors(id) {
           if (!id) return false;
-          const info = getSegmentInfo(id);
-          if (!info.hasMoreAncestors && info.ancestorsDepthLoaded >= DEFAULT_SEGMENT_DEPTH) return false;
-          if (isSegmentLoading(id, 'ancestors')) return false;
-          setSegmentLoading(id, 'ancestors', true);
-          const nextDepth = Math.max(info.ancestorsDepthLoaded + DEFAULT_SEGMENT_DEPTH, DEFAULT_SEGMENT_DEPTH);
-          try {
-            const success = await loadSegment(id, {
-              type: 'ancestors',
-              depth: nextDepth,
-              preservePositions: true,
-            });
-            if (success) recordAutoExpandDepth(id, 'ancestors', nextDepth);
-            return success;
-          } finally {
-            setSegmentLoading(id, 'ancestors', false);
-          }
+          return segmentExpansionMutex.runExclusive(async () => {
+            const info = getSegmentInfo(id);
+            if (!info.hasMoreAncestors && info.ancestorsDepthLoaded >= DEFAULT_SEGMENT_DEPTH) {
+              return false;
+            }
+            if (isSegmentLoading(id, 'ancestors')) return false;
+            setSegmentLoading(id, 'ancestors', true);
+            const nextDepth = Math.max(info.ancestorsDepthLoaded + DEFAULT_SEGMENT_DEPTH, DEFAULT_SEGMENT_DEPTH);
+            try {
+              const success = await loadSegment(id, {
+                type: 'ancestors',
+                depth: nextDepth,
+                preservePositions: true,
+              });
+              if (success) recordAutoExpandDepth(id, 'ancestors', nextDepth);
+              return success;
+            } finally {
+              setSegmentLoading(id, 'ancestors', false);
+            }
+          });
         }
 
         async function expandDescendants(id) {
           if (!id) return false;
-          const info = getSegmentInfo(id);
-          if (!info.hasMoreDescendants && info.descendantsDepthLoaded >= DEFAULT_SEGMENT_DEPTH) return false;
-          if (isSegmentLoading(id, 'descendants')) return false;
-          setSegmentLoading(id, 'descendants', true);
-          const nextDepth = Math.max(info.descendantsDepthLoaded + DEFAULT_SEGMENT_DEPTH, DEFAULT_SEGMENT_DEPTH);
-          try {
-            const success = await loadSegment(id, {
-              type: 'descendants',
-              depth: nextDepth,
-              preservePositions: true,
-            });
-            if (success) recordAutoExpandDepth(id, 'descendants', nextDepth);
-            return success;
-          } finally {
-            setSegmentLoading(id, 'descendants', false);
-          }
+          return segmentExpansionMutex.runExclusive(async () => {
+            const info = getSegmentInfo(id);
+            if (!info.hasMoreDescendants && info.descendantsDepthLoaded >= DEFAULT_SEGMENT_DEPTH) {
+              return false;
+            }
+            if (isSegmentLoading(id, 'descendants')) return false;
+            setSegmentLoading(id, 'descendants', true);
+            const nextDepth = Math.max(info.descendantsDepthLoaded + DEFAULT_SEGMENT_DEPTH, DEFAULT_SEGMENT_DEPTH);
+            try {
+              const success = await loadSegment(id, {
+                type: 'descendants',
+                depth: nextDepth,
+                preservePositions: true,
+              });
+              if (success) recordAutoExpandDepth(id, 'descendants', nextDepth);
+              return success;
+            } finally {
+              setSegmentLoading(id, 'descendants', false);
+            }
+          });
         }
 
         const children = ref([]);
@@ -2169,6 +2258,9 @@
         function onNodeDragStop() {
           refreshUnions();
           saveTempLayout();
+          markSpatialIndexDirty();
+          rebuildSpatialIndex();
+          scheduleSegmentAutoload();
         }
 
         async function saveLayout() {
@@ -2441,6 +2533,10 @@
               console.error('Failed to delete person', r.id, e);
             }
           }
+          if (removed.length) {
+            markSpatialIndexDirty();
+            rebuildSpatialIndex();
+          }
         }
 
         async function deleteAll() {
@@ -2449,6 +2545,7 @@
           await FrontendApp.clearDatabase();
           nodes.value = [];
           rebuildNodeMap();
+          markSpatialIndexDirty();
           buildChildrenCache();
           edges.value = [];
           try { localStorage.removeItem(TEMP_KEY); } catch (e) { /* ignore */ }
