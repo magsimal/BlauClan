@@ -30,6 +30,13 @@
       body: JSON.stringify({ spouseId, ...options }),
     }, 'Failed to link spouse');
   const fetchSpouses = (id) => requestJson(`/api/people/${id}/spouses`);
+  const fetchTreeSegment = (id, options = {}) => {
+    const params = new URLSearchParams();
+    if (options.type) params.set('type', options.type);
+    if (options.maxDepth) params.set('maxDepth', options.maxDepth);
+    const query = params.toString();
+    return requestJson(`/api/tree/${id}/segment${query ? `?${query}` : ''}`);
+  };
   const deleteSpouse = (personId, marriageId) =>
     requestJson(`/api/people/${personId}/spouses/${marriageId}`, {
       method: 'DELETE',
@@ -222,6 +229,7 @@
 
   return {
     fetchPeople,
+    fetchTreeSegment,
     createPerson,
     updatePerson,
     deletePerson,

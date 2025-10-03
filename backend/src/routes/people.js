@@ -1,6 +1,7 @@
 const express = require('express');
 const { Op } = require('sequelize');
 const { Person, Marriage } = require('../models');
+const { attachMetricsToPeople } = require('../utils/treeMetrics');
 const { requireAuth } = require('../middleware/auth');
 const { addPoints } = require('../services/points');
 const { validatePlace } = require('../services/geonames');
@@ -17,7 +18,8 @@ const router = express.Router();
 
 router.get('/', async (_req, res) => {
   const people = await Person.findAll();
-  res.json(people);
+  const enriched = attachMetricsToPeople(people);
+  res.json(enriched);
 });
 
 router.post('/', requireAuth, async (req, res) => {
