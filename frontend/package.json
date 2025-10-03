@@ -1,6 +1,6 @@
 {
   "name": "family-tree-frontend",
-  "version": "0.1.18",
+  "version": "0.1.19",
   "scripts": {
     "test": "node ../backend/node_modules/jest/bin/jest.js",
     "lint": "eslint app.js flow.js src/utils/exportSvg.js src/utils/assignGenerations.js src/utils/gedcom.js test/**/*.js"

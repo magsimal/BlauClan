@@ -85,6 +85,7 @@
           updateNodePositions,
         } = useVueFlow({ id: 'main-flow' });
         const { fitView, zoomTo } = useZoomPanHelper('main-flow');
+        const { fitView: fitRelativesView } = useZoomPanHelper('relatives-flow');
         const horizontalGridSize =
           (window.AppConfig &&
             (AppConfig.horizontalGridSize || AppConfig.gridSize)) ||
@@ -1048,6 +1049,18 @@
           hiddenCount.value = hiddenNodeCount;
         }
 
+        function ensureRelativesFit() {
+          nextTick(() => {
+            if (!showRelatives.value) return;
+            if (typeof fitRelativesView !== 'function') return;
+            try {
+              fitRelativesView({ padding: 0.15 });
+            } catch (err) {
+              console.warn('Failed to fit relatives view', err);
+            }
+          });
+        }
+
         function computeRelatives() {
           if (!relativesRoot) return;
           const mode = relativesMode.value;
@@ -1119,6 +1132,7 @@
           tidySubtree(newNodes);
           relativesNodes.value = newNodes;
           relativesEdges.value = newEdges;
+          ensureRelativesFit();
         }
 
         function tidySubtree(list) {
@@ -1186,6 +1200,7 @@
 
         function tidyRelatives() {
           tidySubtree(relativesNodes.value);
+          ensureRelativesFit();
         }
 
         async function onNodeClick(evt) {
@@ -1741,6 +1756,7 @@
           relativesMode.value = 'both';
           computeRelatives();
           showRelatives.value = true;
+          ensureRelativesFit();
         }
 
         async function fetchScore() {
