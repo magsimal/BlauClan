@@ -21,6 +21,9 @@
   const PerfMetrics = typeof require === 'function'
     ? (() => { try { return require('./src/utils/perf-metrics'); } catch (e) { return null; } })()
     : (typeof window !== 'undefined' ? (window.FlowMetrics || window.PerfMetrics || null) : null);
+  const isTestEnv = typeof process !== 'undefined'
+    && process.env
+    && process.env.NODE_ENV === 'test';
   const parseGedcom = GedcomUtil.parseGedcom || function () { return []; };
   const findBestMatch = DedupeUtil.findBestMatch || function () { return { match: null, score: 0 }; };
   const matchScore = DedupeUtil.matchScore || function () { return 0; };
@@ -48,11 +51,22 @@
     }
     focusOnNode(pid);
   }
+  function normalizeNodeId(nodeId) {
+    if (!nodeId) return null;
+    const numericId = Number(nodeId);
+    return Number.isNaN(numericId) ? String(nodeId) : numericId;
+  }
+
+  function getCurrentMeId() {
+    if (typeof window === 'undefined') return null;
+    return normalizeNodeId(window.meNodeId);
+  }
+
   function refreshMe() {
     if (!appState) return;
     const { nodes } = appState;
     nodes.value.forEach((n) => {
-      n.data.me = window.meNodeId && n.id === String(window.meNodeId);
+      n.data.me = window.meNodeId && n.id === String(getCurrentMeId());
     });
   }
   function updatePrivileges() {
@@ -69,10 +83,67 @@
       setup() {
         const nodes = ref([]);
         const nodeMap = new Map();
+        const SPATIAL_CELL_SIZE = 400;
+        let spatialIndex = new Map();
+        let spatialIndexDirty = true;
         const metrics = PerfMetrics && typeof PerfMetrics.recordEvent === 'function' ? PerfMetrics : null;
         function rebuildNodeMap() {
           nodeMap.clear();
           nodes.value.forEach((n) => nodeMap.set(n.id, n));
+        }
+        function markSpatialIndexDirty() {
+          spatialIndexDirty = true;
+        }
+        function rebuildSpatialIndex() {
+          const index = new Map();
+          for (const node of nodes.value) {
+            if (!node || !node.position) continue;
+            const width = (node.dimensions && node.dimensions.width) || 180;
+            const height = (node.dimensions && node.dimensions.height) || 120;
+            const startCol = Math.floor(node.position.x / SPATIAL_CELL_SIZE);
+            const endCol = Math.floor((node.position.x + width) / SPATIAL_CELL_SIZE);
+            const startRow = Math.floor(node.position.y / SPATIAL_CELL_SIZE);
+            const endRow = Math.floor((node.position.y + height) / SPATIAL_CELL_SIZE);
+            for (let col = startCol; col <= endCol; col += 1) {
+              for (let row = startRow; row <= endRow; row += 1) {
+                const key = `${col}:${row}`;
+                if (!index.has(key)) index.set(key, new Set());
+                index.get(key).add(node.id);
+              }
+            }
+          }
+          spatialIndex = index;
+          spatialIndexDirty = false;
+        }
+        function getNodesNearViewport() {
+          const dims = dimensions.value;
+          const vp = viewport.value;
+          if (!dims || !vp) return [];
+          if (spatialIndexDirty) rebuildSpatialIndex();
+          const zoom = vp.zoom || 1;
+          const offsetX = vp.x || 0;
+          const offsetY = vp.y || 0;
+          const padding = runtimePerformanceProfile.isLowPower ? 200 : 150;
+          const visibleLeft = (-padding - offsetX) / zoom;
+          const visibleRight = (((dims.width || 0) + padding) - offsetX) / zoom;
+          const visibleTop = (-padding - offsetY) / zoom;
+          const visibleBottom = (((dims.height || 0) + padding) - offsetY) / zoom;
+          const startCol = Math.floor(visibleLeft / SPATIAL_CELL_SIZE);
+          const endCol = Math.floor(visibleRight / SPATIAL_CELL_SIZE);
+          const startRow = Math.floor(visibleTop / SPATIAL_CELL_SIZE);
+          const endRow = Math.floor(visibleBottom / SPATIAL_CELL_SIZE);
+          const candidates = new Set();
+          for (let col = startCol; col <= endCol; col += 1) {
+            for (let row = startRow; row <= endRow; row += 1) {
+              const key = `${col}:${row}`;
+              const ids = spatialIndex.get(key);
+              if (!ids) continue;
+              ids.forEach((id) => candidates.add(id));
+            }
+          }
+          return Array.from(candidates)
+            .map((id) => getNodeById(id))
+            .filter((node) => node && node.type === 'person' && isNodeRoughlyVisible(node));
         }
         function getNodeById(id) {
           return nodeMap.get(String(id)) || null;
@@ -199,7 +270,49 @@
           ancestors: new Set(),
           descendants: new Set(),
         };
+        const autoExpandProgress = new Map();
+        const MAX_AUTO_EXPAND_ENTRIES = 1000; // Prevent memory growth
+        const autoExpandMutex = createAsyncMutex();
+        function createAsyncMutex() {
+          let current = Promise.resolve();
+          return {
+            async runExclusive(task) {
+              let release;
+              const wait = new Promise((resolve) => {
+                release = resolve;
+              });
+              const previous = current;
+              current = current.then(() => wait);
+              await previous;
+              try {
+                return await task();
+              } finally {
+                release();
+              }
+            },
+          };
+        }
+        const segmentExpansionMutex = createAsyncMutex();
         const DEFAULT_SEGMENT_DEPTH = 2;
+
+        function getAutoExpandDepth(id, type) {
+          const entry = autoExpandProgress.get(String(id));
+          return entry && entry[type] ? entry[type] : 0;
+        }
+
+        function recordAutoExpandDepth(id, type, depth) {
+          const key = String(id);
+          const entry = autoExpandProgress.get(key) || { ancestors: 0, descendants: 0 };
+          entry[type] = Math.max(entry[type] || 0, depth);
+          
+          // Implement size-based cleanup to prevent memory growth
+          if (autoExpandProgress.size >= MAX_AUTO_EXPAND_ENTRIES) {
+            const keysToRemove = Array.from(autoExpandProgress.keys()).slice(0, Math.floor(MAX_AUTO_EXPAND_ENTRIES * 0.2));
+            keysToRemove.forEach(k => autoExpandProgress.delete(k));
+          }
+          
+          autoExpandProgress.set(key, entry);
+        }
 
         function syncPeopleState(list) {
           peopleState.value = list.map((p) => ({ ...p }));
@@ -214,6 +327,7 @@
           segmentHints.clear();
           segmentLoading.ancestors.clear();
           segmentLoading.descendants.clear();
+          autoExpandProgress.clear();
         }
 
         function getSegmentInfo(id) {
@@ -278,7 +392,7 @@
           const node = getNodeById(person.id);
           if (node && node.data) {
             Object.assign(node.data, stored);
-            node.data.me = window.meNodeId && person.id === window.meNodeId;
+            node.data.me = window.meNodeId && person.id === String(getCurrentMeId());
           }
         }
 
@@ -387,7 +501,7 @@
             !!(window.AppConfig && AppConfig.showDeleteAllButton) &&
             admin.value,
         );
-        const hasMe = computed(() => !!window.meNodeId);
+        const hasMe = computed(() => !!getCurrentMeId());
         const isLoading = ref(true);
         function setLoading(v) { isLoading.value = v; }
         const flashMessage = ref('');
@@ -708,25 +822,218 @@
               nodes.value = [];
               edges.value = [];
               rebuildNodeMap();
+              markSpatialIndexDirty();
               childrenCache.clear();
               unions = {};
               selectedEdge.value = null;
               return;
             }
 
-            const focusId = window.meNodeId || (people[0] && people[0].id);
-            if (focusId) {
-              await loadSegment(focusId, {
+            const candidateIds = [];
+            const seen = new Set();
+            const meId = getCurrentMeId();
+            if (meId !== null) {
+              if (!seen.has(String(meId))) {
+                candidateIds.push(meId);
+                seen.add(String(meId));
+              }
+            }
+
+            if (people.length) {
+              const randomPerson = people[Math.floor(Math.random() * people.length)];
+              if (randomPerson && !seen.has(String(randomPerson.id))) {
+                candidateIds.push(randomPerson.id);
+                seen.add(String(randomPerson.id));
+              }
+              const firstPerson = people[0];
+              if (firstPerson && !seen.has(String(firstPerson.id))) {
+                candidateIds.push(firstPerson.id);
+                seen.add(String(firstPerson.id));
+              }
+            }
+
+            for (const rootId of candidateIds) {
+              const loaded = await loadSegment(rootId, {
                 type: 'both',
                 depth: DEFAULT_SEGMENT_DEPTH,
                 preservePositions: false,
                 applySavedLayout: true,
               });
+              if (loaded) break;
             }
           } catch (err) {
             console.error('load failed', err);
           } finally {
             setLoading(false);
+          }
+        }
+
+        async function autoLoadSegmentsAroundViewport() {
+          if (!nodes.value.length) return;
+          const dims = dimensions.value;
+          const vp = viewport.value;
+          if (!dims || !vp) return;
+
+          const cycleTimer = metrics && typeof metrics.startTimer === 'function'
+            ? metrics.startTimer('autoExpand.viewportCycle', {
+              lowPower: runtimePerformanceProfile.isLowPower,
+              nodeCount: nodes.value.length,
+            })
+            : null;
+
+          try {
+            return await autoExpandMutex.runExclusive(async () => {
+              const candidates = getNodesNearViewport();
+              if (metrics && typeof metrics.recordSample === 'function') {
+                metrics.recordSample('autoExpand.candidateCount', candidates.length);
+              }
+              if (!candidates.length) {
+                if (metrics && typeof metrics.recordEvent === 'function') {
+                  metrics.recordEvent('autoExpand.candidates.none', {
+                    width: dims.width || 0,
+                    height: dims.height || 0,
+                    zoom: vp.zoom || 1,
+                  });
+                }
+                return;
+              }
+
+              const maxExpansions = runtimePerformanceProfile.isLowPower ? 1 : 3;
+              let expansions = 0;
+              let attempts = 0;
+              let successes = 0;
+
+              for (const node of candidates) {
+                if (expansions >= maxExpansions) break;
+                const personId = normalizeNodeId(node.id);
+                const info = getSegmentInfo(personId);
+                if (!info) continue;
+
+                const nextAncestorDepth = Math.max(info.ancestorsDepthLoaded + DEFAULT_SEGMENT_DEPTH, DEFAULT_SEGMENT_DEPTH);
+                if (
+                  info.hasMoreAncestors
+                  && !isSegmentLoading(personId, 'ancestors')
+                  && getAutoExpandDepth(personId, 'ancestors') < nextAncestorDepth
+                ) {
+                  attempts += 1;
+                  if (metrics && typeof metrics.recordEvent === 'function') {
+                    metrics.recordEvent('autoExpand.attempt', {
+                      type: 'ancestors',
+                      nodeId: String(personId),
+                      depth: nextAncestorDepth,
+                      lowPower: runtimePerformanceProfile.isLowPower,
+                    });
+                  }
+                  if (metrics && typeof metrics.incrementCounter === 'function') {
+                    metrics.incrementCounter('autoExpand.attempts', 1);
+                    metrics.incrementCounter('autoExpand.attempts.ancestors', 1);
+                  }
+                  const success = await expandAncestors(personId);
+                  if (success) {
+                    expansions += 1;
+                    successes += 1;
+                    if (metrics && typeof metrics.incrementCounter === 'function') {
+                      metrics.incrementCounter('autoExpand.success', 1);
+                    }
+                    if (expansions >= maxExpansions) {
+                      continue;
+                    }
+                  } else if (metrics && typeof metrics.incrementCounter === 'function') {
+                    metrics.incrementCounter('autoExpand.failure', 1);
+                  }
+                }
+
+                const nextDescendantDepth = Math.max(info.descendantsDepthLoaded + DEFAULT_SEGMENT_DEPTH, DEFAULT_SEGMENT_DEPTH);
+                if (
+                  info.hasMoreDescendants
+                  && !isSegmentLoading(personId, 'descendants')
+                  && getAutoExpandDepth(personId, 'descendants') < nextDescendantDepth
+                ) {
+                  attempts += 1;
+                  if (metrics && typeof metrics.recordEvent === 'function') {
+                    metrics.recordEvent('autoExpand.attempt', {
+                      type: 'descendants',
+                      nodeId: String(personId),
+                      depth: nextDescendantDepth,
+                      lowPower: runtimePerformanceProfile.isLowPower,
+                    });
+                  }
+                  if (metrics && typeof metrics.incrementCounter === 'function') {
+                    metrics.incrementCounter('autoExpand.attempts', 1);
+                    metrics.incrementCounter('autoExpand.attempts.descendants', 1);
+                  }
+                  const success = await expandDescendants(personId);
+                  if (success) {
+                    expansions += 1;
+                    successes += 1;
+                    if (metrics && typeof metrics.incrementCounter === 'function') {
+                      metrics.incrementCounter('autoExpand.success', 1);
+                    }
+                  } else if (metrics && typeof metrics.incrementCounter === 'function') {
+                    metrics.incrementCounter('autoExpand.failure', 1);
+                  }
+                }
+              }
+
+              if (metrics && typeof metrics.recordSample === 'function') {
+                metrics.recordSample('autoExpand.successesPerCycle', successes);
+                metrics.recordSample('autoExpand.attemptsPerCycle', attempts);
+              }
+              if (metrics && typeof metrics.recordEvent === 'function') {
+                metrics.recordEvent('autoExpand.cycle.complete', {
+                  attempts,
+                  successes,
+                  candidates: candidates.length,
+                  lowPower: runtimePerformanceProfile.isLowPower,
+                  maxExpansions,
+                });
+              }
+            });
+          } finally {
+            if (metrics && cycleTimer && typeof metrics.endTimer === 'function') {
+              metrics.endTimer(cycleTimer, {
+                lowPower: runtimePerformanceProfile.isLowPower,
+                nodeCount: nodes.value.length,
+              });
+            }
+          }
+        }
+
+        const scheduleSegmentAutoload = debounce(() => {
+          if (metrics && typeof metrics.recordEvent === 'function') {
+            metrics.recordEvent('autoExpand.schedule', {
+              lowPower: runtimePerformanceProfile.isLowPower,
+            });
+          }
+          void autoLoadSegmentsAroundViewport();
+        }, runtimePerformanceProfile.isLowPower ? 400 : 200);
+
+        if (isTestEnv) {
+          const globalTarget = typeof globalThis !== 'undefined'
+            ? globalThis
+            : (typeof window !== 'undefined' ? window : {});
+          if (globalTarget) {
+            const hookContainer = globalTarget.__FLOW_TEST_HOOKS || (globalTarget.__FLOW_TEST_HOOKS = {});
+            hookContainer.getAutoExpandInternals = () => ({
+              nodes,
+              viewport,
+              dimensions,
+              autoExpandMutex,
+              getSegmentInfo,
+              updateSegmentInfo,
+              getAutoExpandDepth,
+              recordAutoExpandDepth,
+              isSegmentLoading,
+              setSegmentLoading,
+              autoLoadSegmentsAroundViewport,
+              scheduleSegmentAutoload,
+              markSpatialIndexDirty,
+              rebuildSpatialIndex,
+              getNodesNearViewport,
+              runtimePerformanceProfile,
+              segmentHints,
+              autoExpandProgress,
+            });
           }
         }
 
@@ -738,6 +1045,7 @@
             edges.value = [];
             unions = {};
             rebuildNodeMap();
+            markSpatialIndexDirty();
             childrenCache.clear();
             selectedEdge.value = null;
             return;
@@ -777,7 +1085,7 @@
               position: existingPos[p.id] || positions[p.id] || { x: 0, y: 0 },
               data: {
                 ...p,
-                me: window.meNodeId && p.id === window.meNodeId,
+                me: !!getCurrentMeId() && p.id === String(getCurrentMeId()),
                 hasMoreAncestors: hints.hasMoreAncestors,
                 hasMoreDescendants: hints.hasMoreDescendants,
                 loadingAncestors: isSegmentLoading(p.id, 'ancestors'),
@@ -877,6 +1185,7 @@
           unions = unionMap;
           edges.value = cleanEdges;
           rebuildNodeMap();
+          markSpatialIndexDirty();
           buildChildrenCache();
           selectedEdge.value = null;
 
@@ -885,6 +1194,7 @@
           }
 
           await nextTick();
+          rebuildSpatialIndex();
           refreshUnions();
           applyFilters();
           applyFocusedView();
@@ -899,10 +1209,12 @@
               }
             }
           }
+
+          scheduleSegmentAutoload();
         }
 
         async function loadSegment(rootId, options = {}) {
-          if (!rootId) return;
+          if (!rootId) return false;
           const {
             type = 'both',
             depth = DEFAULT_SEGMENT_DEPTH,
@@ -915,7 +1227,7 @@
               maxDepth: Math.max(1, depth),
             });
             if (!payload || !Array.isArray(payload.people)) {
-              return;
+              return false;
             }
 
             payload.people.forEach((entry) => {
@@ -954,6 +1266,8 @@
               preservePositions,
               applySavedLayout: applySaved,
             });
+            scheduleSegmentAutoload();
+            return true;
           } catch (err) {
             console.error('Failed to load tree segment', err);
             flash(
@@ -961,43 +1275,56 @@
                 || 'Failed to load tree segment',
               'danger',
             );
+            return false;
           }
         }
 
         async function expandAncestors(id) {
-          if (!id) return;
-          const info = getSegmentInfo(id);
-          if (!info.hasMoreAncestors && info.ancestorsDepthLoaded >= DEFAULT_SEGMENT_DEPTH) return;
-          if (isSegmentLoading(id, 'ancestors')) return;
-          setSegmentLoading(id, 'ancestors', true);
-          const nextDepth = Math.max(info.ancestorsDepthLoaded + DEFAULT_SEGMENT_DEPTH, DEFAULT_SEGMENT_DEPTH);
-          try {
-            await loadSegment(id, {
-              type: 'ancestors',
-              depth: nextDepth,
-              preservePositions: true,
-            });
-          } finally {
-            setSegmentLoading(id, 'ancestors', false);
-          }
+          if (!id) return false;
+          return segmentExpansionMutex.runExclusive(async () => {
+            const info = getSegmentInfo(id);
+            if (!info.hasMoreAncestors && info.ancestorsDepthLoaded >= DEFAULT_SEGMENT_DEPTH) {
+              return false;
+            }
+            if (isSegmentLoading(id, 'ancestors')) return false;
+            setSegmentLoading(id, 'ancestors', true);
+            const nextDepth = Math.max(info.ancestorsDepthLoaded + DEFAULT_SEGMENT_DEPTH, DEFAULT_SEGMENT_DEPTH);
+            try {
+              const success = await loadSegment(id, {
+                type: 'ancestors',
+                depth: nextDepth,
+                preservePositions: true,
+              });
+              if (success) recordAutoExpandDepth(id, 'ancestors', nextDepth);
+              return success;
+            } finally {
+              setSegmentLoading(id, 'ancestors', false);
+            }
+          });
         }
 
         async function expandDescendants(id) {
-          if (!id) return;
-          const info = getSegmentInfo(id);
-          if (!info.hasMoreDescendants && info.descendantsDepthLoaded >= DEFAULT_SEGMENT_DEPTH) return;
-          if (isSegmentLoading(id, 'descendants')) return;
-          setSegmentLoading(id, 'descendants', true);
-          const nextDepth = Math.max(info.descendantsDepthLoaded + DEFAULT_SEGMENT_DEPTH, DEFAULT_SEGMENT_DEPTH);
-          try {
-            await loadSegment(id, {
-              type: 'descendants',
-              depth: nextDepth,
-              preservePositions: true,
-            });
-          } finally {
-            setSegmentLoading(id, 'descendants', false);
-          }
+          if (!id) return false;
+          return segmentExpansionMutex.runExclusive(async () => {
+            const info = getSegmentInfo(id);
+            if (!info.hasMoreDescendants && info.descendantsDepthLoaded >= DEFAULT_SEGMENT_DEPTH) {
+              return false;
+            }
+            if (isSegmentLoading(id, 'descendants')) return false;
+            setSegmentLoading(id, 'descendants', true);
+            const nextDepth = Math.max(info.descendantsDepthLoaded + DEFAULT_SEGMENT_DEPTH, DEFAULT_SEGMENT_DEPTH);
+            try {
+              const success = await loadSegment(id, {
+                type: 'descendants',
+                depth: nextDepth,
+                preservePositions: true,
+              });
+              if (success) recordAutoExpandDepth(id, 'descendants', nextDepth);
+              return success;
+            } finally {
+              setSegmentLoading(id, 'descendants', false);
+            }
+          });
         }
 
         const children = ref([]);
@@ -1043,11 +1370,12 @@
             console.warn('Person not found in store:', pid);
             return null;
           }
-          await loadSegment(personId, {
+          const loaded = await loadSegment(personId, {
             type: 'both',
             depth: DEFAULT_SEGMENT_DEPTH,
             preservePositions,
           });
+          if (!loaded) return null;
           await nextTick();
           node = getNodeById(pid) || getNodeById(personId);
           return node || null;
@@ -1296,6 +1624,7 @@
             viewport,
             (v) => {
               updateGridSize(v.zoom);
+              scheduleSegmentAutoload();
             },
             { deep: true }
           );
@@ -1472,7 +1801,7 @@
         }
 
         function applyFocusedView() {
-          if (!focusedView.value || !window.meNodeId) {
+          if (!focusedView.value || !getCurrentMeId()) {
             for (const n of nodes.value) { 
               if (n.data) n.data.hidden = false; 
             }
@@ -1482,7 +1811,7 @@
             hiddenCount.value = 0;
             return;
           }
-          const allowed = getBloodlineSet(window.meNodeId);
+          const allowed = getBloodlineSet(getCurrentMeId());
           let hiddenNodeCount = 0;
           
           for (const n of nodes.value) {
@@ -1825,7 +2154,7 @@
         }
 
         function toggleFocused() {
-          if (!window.meNodeId) {
+          if (!getCurrentMeId()) {
             flash(I18nGlobal.t('defineMeFirst'), 'danger');
             return;
           }
@@ -2063,6 +2392,9 @@
         function onNodeDragStop() {
           refreshUnions();
           saveTempLayout();
+          markSpatialIndexDirty();
+          rebuildSpatialIndex();
+          scheduleSegmentAutoload();
         }
 
         async function saveLayout() {
@@ -2335,6 +2667,10 @@
               console.error('Failed to delete person', r.id, e);
             }
           }
+          if (removed.length) {
+            markSpatialIndexDirty();
+            rebuildSpatialIndex();
+          }
         }
 
         async function deleteAll() {
@@ -2343,6 +2679,7 @@
           await FrontendApp.clearDatabase();
           nodes.value = [];
           rebuildNodeMap();
+          markSpatialIndexDirty();
           buildChildrenCache();
           edges.value = [];
           try { localStorage.removeItem(TEMP_KEY); } catch (e) { /* ignore */ }
@@ -3086,7 +3423,7 @@
                     x: dimensions.value.width / 2,
                     y: dimensions.value.height / 2,
                   }),
-              data: { ...p, me: window.meNodeId && p.id === window.meNodeId },
+              data: { ...p, me: !!getCurrentMeId() && p.id === String(getCurrentMeId()) },
             };
             nodes.value.push(node);
             rebuildNodeMap();

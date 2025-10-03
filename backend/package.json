@@ -1,6 +1,6 @@
 {
   "name": "family-tree-backend",
-  "version": "0.1.26",
+  "version": "0.1.30",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
