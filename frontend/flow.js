@@ -199,7 +199,21 @@
           ancestors: new Set(),
           descendants: new Set(),
         };
+        const autoExpandProgress = new Map();
+        let autoExpandInProgress = false;
         const DEFAULT_SEGMENT_DEPTH = 2;
+
+        function getAutoExpandDepth(id, type) {
+          const entry = autoExpandProgress.get(String(id));
+          return entry && entry[type] ? entry[type] : 0;
+        }
+
+        function recordAutoExpandDepth(id, type, depth) {
+          const key = String(id);
+          const entry = autoExpandProgress.get(key) || { ancestors: 0, descendants: 0 };
+          entry[type] = Math.max(entry[type] || 0, depth);
+          autoExpandProgress.set(key, entry);
+        }
 
         function syncPeopleState(list) {
           peopleState.value = list.map((p) => ({ ...p }));
@@ -214,6 +228,7 @@
           segmentHints.clear();
           segmentLoading.ancestors.clear();
           segmentLoading.descendants.clear();
+          autoExpandProgress.clear();
         }
 
         function getSegmentInfo(id) {
@@ -714,14 +729,38 @@
               return;
             }
 
-            const focusId = window.meNodeId || (people[0] && people[0].id);
-            if (focusId) {
-              await loadSegment(focusId, {
+            const candidateIds = [];
+            const seen = new Set();
+            if (window.meNodeId) {
+              const meId = Number(window.meNodeId);
+              const normalized = Number.isNaN(meId) ? window.meNodeId : meId;
+              if (!seen.has(String(normalized))) {
+                candidateIds.push(normalized);
+                seen.add(String(normalized));
+              }
+            }
+
+            if (people.length) {
+              const randomPerson = people[Math.floor(Math.random() * people.length)];
+              if (randomPerson && !seen.has(String(randomPerson.id))) {
+                candidateIds.push(randomPerson.id);
+                seen.add(String(randomPerson.id));
+              }
+              const firstPerson = people[0];
+              if (firstPerson && !seen.has(String(firstPerson.id))) {
+                candidateIds.push(firstPerson.id);
+                seen.add(String(firstPerson.id));
+              }
+            }
+
+            for (const rootId of candidateIds) {
+              const loaded = await loadSegment(rootId, {
                 type: 'both',
                 depth: DEFAULT_SEGMENT_DEPTH,
                 preservePositions: false,
                 applySavedLayout: true,
               });
+              if (loaded) break;
             }
           } catch (err) {
             console.error('load failed', err);
@@ -729,6 +768,62 @@
             setLoading(false);
           }
         }
+
+        async function autoLoadSegmentsAroundViewport() {
+          if (autoExpandInProgress) return;
+          if (!nodes.value.length) return;
+          const dims = dimensions.value;
+          const vp = viewport.value;
+          if (!dims || !vp) return;
+
+          autoExpandInProgress = true;
+          try {
+            const candidates = nodes.value.filter((n) => n.type === 'person' && isNodeRoughlyVisible(n));
+            if (!candidates.length) return;
+
+            const maxExpansions = runtimePerformanceProfile.isLowPower ? 1 : 3;
+            let expansions = 0;
+
+            for (const node of candidates) {
+              if (expansions >= maxExpansions) break;
+              const numericId = Number(node.id);
+              const personId = Number.isNaN(numericId) ? node.id : numericId;
+              const info = getSegmentInfo(personId);
+              if (!info) continue;
+
+              const nextAncestorDepth = Math.max(info.ancestorsDepthLoaded + DEFAULT_SEGMENT_DEPTH, DEFAULT_SEGMENT_DEPTH);
+              if (
+                info.hasMoreAncestors
+                && !isSegmentLoading(personId, 'ancestors')
+                && getAutoExpandDepth(personId, 'ancestors') < nextAncestorDepth
+              ) {
+                const success = await expandAncestors(personId);
+                if (success) {
+                  expansions += 1;
+                  if (expansions >= maxExpansions) continue;
+                }
+              }
+
+              const nextDescendantDepth = Math.max(info.descendantsDepthLoaded + DEFAULT_SEGMENT_DEPTH, DEFAULT_SEGMENT_DEPTH);
+              if (
+                info.hasMoreDescendants
+                && !isSegmentLoading(personId, 'descendants')
+                && getAutoExpandDepth(personId, 'descendants') < nextDescendantDepth
+              ) {
+                const success = await expandDescendants(personId);
+                if (success) {
+                  expansions += 1;
+                }
+              }
+            }
+          } finally {
+            autoExpandInProgress = false;
+          }
+        }
+
+        const scheduleSegmentAutoload = debounce(() => {
+          void autoLoadSegmentsAroundViewport();
+        }, runtimePerformanceProfile.isLowPower ? 400 : 200);
 
         async function syncGraphFromVisiblePeople(options = {}) {
           const { preservePositions = true, applySavedLayout: applySaved = false } = options;
@@ -899,10 +994,12 @@
               }
             }
           }
+
+          scheduleSegmentAutoload();
         }
 
         async function loadSegment(rootId, options = {}) {
-          if (!rootId) return;
+          if (!rootId) return false;
           const {
             type = 'both',
             depth = DEFAULT_SEGMENT_DEPTH,
@@ -915,7 +1012,7 @@
               maxDepth: Math.max(1, depth),
             });
             if (!payload || !Array.isArray(payload.people)) {
-              return;
+              return false;
             }
 
             payload.people.forEach((entry) => {
@@ -954,6 +1051,8 @@
               preservePositions,
               applySavedLayout: applySaved,
             });
+            scheduleSegmentAutoload();
+            return true;
           } catch (err) {
             console.error('Failed to load tree segment', err);
             flash(
@@ -961,40 +1060,45 @@
                 || 'Failed to load tree segment',
               'danger',
             );
+            return false;
           }
         }
 
         async function expandAncestors(id) {
-          if (!id) return;
+          if (!id) return false;
           const info = getSegmentInfo(id);
-          if (!info.hasMoreAncestors && info.ancestorsDepthLoaded >= DEFAULT_SEGMENT_DEPTH) return;
-          if (isSegmentLoading(id, 'ancestors')) return;
+          if (!info.hasMoreAncestors && info.ancestorsDepthLoaded >= DEFAULT_SEGMENT_DEPTH) return false;
+          if (isSegmentLoading(id, 'ancestors')) return false;
           setSegmentLoading(id, 'ancestors', true);
           const nextDepth = Math.max(info.ancestorsDepthLoaded + DEFAULT_SEGMENT_DEPTH, DEFAULT_SEGMENT_DEPTH);
           try {
-            await loadSegment(id, {
+            const success = await loadSegment(id, {
               type: 'ancestors',
               depth: nextDepth,
               preservePositions: true,
             });
+            if (success) recordAutoExpandDepth(id, 'ancestors', nextDepth);
+            return success;
           } finally {
             setSegmentLoading(id, 'ancestors', false);
           }
         }
 
         async function expandDescendants(id) {
-          if (!id) return;
+          if (!id) return false;
           const info = getSegmentInfo(id);
-          if (!info.hasMoreDescendants && info.descendantsDepthLoaded >= DEFAULT_SEGMENT_DEPTH) return;
-          if (isSegmentLoading(id, 'descendants')) return;
+          if (!info.hasMoreDescendants && info.descendantsDepthLoaded >= DEFAULT_SEGMENT_DEPTH) return false;
+          if (isSegmentLoading(id, 'descendants')) return false;
           setSegmentLoading(id, 'descendants', true);
           const nextDepth = Math.max(info.descendantsDepthLoaded + DEFAULT_SEGMENT_DEPTH, DEFAULT_SEGMENT_DEPTH);
           try {
-            await loadSegment(id, {
+            const success = await loadSegment(id, {
               type: 'descendants',
               depth: nextDepth,
               preservePositions: true,
             });
+            if (success) recordAutoExpandDepth(id, 'descendants', nextDepth);
+            return success;
           } finally {
             setSegmentLoading(id, 'descendants', false);
           }
@@ -1043,11 +1147,12 @@
             console.warn('Person not found in store:', pid);
             return null;
           }
-          await loadSegment(personId, {
+          const loaded = await loadSegment(personId, {
             type: 'both',
             depth: DEFAULT_SEGMENT_DEPTH,
             preservePositions,
           });
+          if (!loaded) return null;
           await nextTick();
           node = getNodeById(pid) || getNodeById(personId);
           return node || null;
@@ -1296,6 +1401,7 @@
             viewport,
             (v) => {
               updateGridSize(v.zoom);
+              scheduleSegmentAutoload();
             },
             { deep: true }
           );
