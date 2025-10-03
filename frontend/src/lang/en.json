@@ -56,6 +56,8 @@
   "moreDetails": "More Details",
   "saveLayout": "Save Layout",
   "loadLayout": "Reload Layout",
+  "loadAncestors": "Load ancestors",
+  "loadDescendants": "Load descendants",
   "fitToScreen": "Fit to Screen",
   "zoomIn": "Zoom In",
   "zoomOut": "Zoom Out",
@@ -103,6 +105,7 @@
   ,"layoutSaved": "Layout saved"
   ,"layoutTidied": "Layout tidied"
   ,"loading": "Loading..."
+  ,"treeSegmentLoadFailed": "Failed to load tree segment"
   ,"processingLargeDataset": "Processing {count} nodes, please wait..."
   ,"defineMeFirst": "Please define a me-node first"
   ,"personsHidden": "persons hidden"

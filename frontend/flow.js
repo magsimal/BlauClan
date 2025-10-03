@@ -193,6 +193,13 @@
         }
         const peopleState = ref([]);
         const peopleById = new Map();
+        const visiblePeople = new Map();
+        const segmentHints = new Map();
+        const segmentLoading = {
+          ancestors: new Set(),
+          descendants: new Set(),
+        };
+        const DEFAULT_SEGMENT_DEPTH = 2;
 
         function syncPeopleState(list) {
           peopleState.value = list.map((p) => ({ ...p }));
@@ -200,6 +207,60 @@
           peopleState.value.forEach((p) => {
             peopleById.set(p.id, p);
           });
+        }
+
+        function resetVisiblePeople() {
+          visiblePeople.clear();
+          segmentHints.clear();
+          segmentLoading.ancestors.clear();
+          segmentLoading.descendants.clear();
+        }
+
+        function getSegmentInfo(id) {
+          const existing = segmentHints.get(id) || {};
+          return {
+            ancestorsDepthLoaded: existing.ancestorsDepthLoaded || 0,
+            descendantsDepthLoaded: existing.descendantsDepthLoaded || 0,
+            hasMoreAncestors: typeof existing.hasMoreAncestors === 'boolean'
+              ? existing.hasMoreAncestors
+              : false,
+            hasMoreDescendants: typeof existing.hasMoreDescendants === 'boolean'
+              ? existing.hasMoreDescendants
+              : false,
+          };
+        }
+
+        function updateSegmentInfo(id, updates) {
+          const current = segmentHints.get(id) || {};
+          const next = { ...current };
+          if (typeof updates.ancestorsDepthLoaded === 'number') {
+            next.ancestorsDepthLoaded = updates.ancestorsDepthLoaded;
+          }
+          if (typeof updates.descendantsDepthLoaded === 'number') {
+            next.descendantsDepthLoaded = updates.descendantsDepthLoaded;
+          }
+          if (typeof updates.hasMoreAncestors === 'boolean') {
+            next.hasMoreAncestors = updates.hasMoreAncestors;
+          }
+          if (typeof updates.hasMoreDescendants === 'boolean') {
+            next.hasMoreDescendants = updates.hasMoreDescendants;
+          }
+          segmentHints.set(id, next);
+          return next;
+        }
+
+        function isSegmentLoading(id, type) {
+          const key = type === 'ancestors' ? 'ancestors' : 'descendants';
+          return segmentLoading[key].has(id);
+        }
+
+        function setSegmentLoading(id, type, loading) {
+          const key = type === 'ancestors' ? 'ancestors' : 'descendants';
+          if (loading) {
+            segmentLoading[key].add(id);
+          } else {
+            segmentLoading[key].delete(id);
+          }
         }
 
         function upsertPersonLocal(person) {
@@ -211,6 +272,9 @@
           } else {
             peopleState.value.push(stored);
           }
+          if (visiblePeople.has(person.id)) {
+            visiblePeople.set(person.id, { ...stored });
+          }
           const node = getNodeById(person.id);
           if (node && node.data) {
             Object.assign(node.data, stored);
@@ -218,82 +282,37 @@
           }
         }
 
-        function removePersonLocal(id, prevData = null) {
-          const prev = prevData || peopleById.get(id) || null;
-          const affectedChildren = [];
-          peopleById.forEach((child) => {
-            if (!child || child.id === id) return;
-            if (child.fatherId !== id && child.motherId !== id) return;
-            const prevChild = { ...child };
-            const updatedChild = { ...child };
-            if (child.fatherId === id) updatedChild.fatherId = null;
-            if (child.motherId === id) updatedChild.motherId = null;
-            affectedChildren.push({ prev: prevChild, updated: updatedChild });
-          });
-          affectedChildren.forEach(({ prev: prevChild, updated: updatedChild }) => {
-            upsertPersonLocal(updatedChild);
-            updateChildrenCacheFor(updatedChild, prevChild);
-            if (selected.value && selected.value.id === updatedChild.id) {
-              const spouseId = selected.value.spouseId;
-              selected.value = { ...selected.value, ...updatedChild };
-              if (typeof spouseId !== 'undefined') selected.value.spouseId = spouseId;
-            }
-          });
-          if (childrenCache.has(id)) {
-            childrenCache.delete(id);
-          }
+          async function removePersonLocal(id, prevData = null) {
+            void prevData;
+            const affectedChildren = [];
+            peopleById.forEach((child) => {
+              if (!child || child.id === id) return;
+              if (child.fatherId !== id && child.motherId !== id) return;
+              const updatedChild = { ...child };
+              if (child.fatherId === id) updatedChild.fatherId = null;
+              if (child.motherId === id) updatedChild.motherId = null;
+              affectedChildren.push(updatedChild);
+            });
+            affectedChildren.forEach((updatedChild) => {
+              upsertPersonLocal(updatedChild);
+              if (selected.value && selected.value.id === updatedChild.id) {
+                const spouseId = selected.value.spouseId;
+                selected.value = { ...selected.value, ...updatedChild };
+                if (typeof spouseId !== 'undefined') selected.value.spouseId = spouseId;
+              }
+            });
           if (selected.value && selected.value.id === id) {
+            selected.value = null;
             children.value = [];
-          }
-          const removeChild = (parentId) => {
-            if (!parentId) return;
-            const list = childrenCache.get(parentId);
-            if (!list) return;
-            const index = list.findIndex((c) => c.id === id);
-            if (index !== -1) list.splice(index, 1);
-            if (list.length === 0) childrenCache.delete(parentId);
-          };
-          if (prev) {
-            removeChild(prev.fatherId);
-            if (prev.motherId && prev.motherId !== prev.fatherId) {
-              removeChild(prev.motherId);
-            }
           }
           peopleById.delete(id);
           const idx = peopleState.value.findIndex((p) => p.id === id);
           if (idx !== -1) peopleState.value.splice(idx, 1);
-          const nodeIdx = nodes.value.findIndex((n) => String(n.id) === String(id));
-          if (nodeIdx !== -1) nodes.value.splice(nodeIdx, 1);
-        }
-
-        function updateChildrenCacheFor(person, prev) {
-          const removeChild = (parentId) => {
-            if (!parentId) return;
-            const list = childrenCache.get(parentId);
-            if (!list) return;
-            const idx = list.findIndex((c) => c.id === person.id);
-            if (idx !== -1) list.splice(idx, 1);
-            if (list.length === 0) childrenCache.delete(parentId);
-          };
-          if (prev) {
-            removeChild(prev.fatherId);
-            if (prev.motherId && prev.motherId !== prev.fatherId) {
-              removeChild(prev.motherId);
-            }
-          }
-          const addChild = (parentId) => {
-            if (!parentId) return;
-            if (!childrenCache.has(parentId)) childrenCache.set(parentId, []);
-            const list = childrenCache.get(parentId);
-            if (!list.some((c) => c.id === person.id)) {
-              const node = getNodeById(person.id);
-              if (node && node.data) list.push(node.data);
-            }
-          };
-          addChild(person.fatherId);
-          if (person.motherId && person.motherId !== person.fatherId) {
-            addChild(person.motherId);
-          }
+          visiblePeople.delete(id);
+          segmentHints.delete(id);
+          setSegmentLoading(id, 'ancestors', false);
+          setSegmentLoading(id, 'descendants', false);
+          await syncGraphFromVisiblePeople({ preservePositions: true });
         }
 
         const scheduleSearchRefresh = debounce(() => {
@@ -303,102 +322,8 @@
         }, 500);
 
         function rebuildRelationshipsFast() {
-          const personNodes = nodes.value.filter((n) => n.type === 'person');
-          const unionsMap = {};
-          const helperNodes = [];
-          const newEdges = [];
-
-          childrenCache.clear();
-
-          personNodes.forEach((node) => {
-            const idNum = parseInt(node.id, 10);
-            const person = peopleById.get(idNum);
-            if (!person || !node.data) return;
-            Object.assign(node.data, person);
-            node.data.me = window.meNodeId && person.id === window.meNodeId;
-
-            if (person.fatherId) {
-              if (!childrenCache.has(person.fatherId)) childrenCache.set(person.fatherId, []);
-              const list = childrenCache.get(person.fatherId);
-              if (!list.includes(node.data)) list.push(node.data);
-            }
-            if (person.motherId && person.motherId !== person.fatherId) {
-              if (!childrenCache.has(person.motherId)) childrenCache.set(person.motherId, []);
-              const list = childrenCache.get(person.motherId);
-              if (!list.includes(node.data)) list.push(node.data);
-            }
-            if (person.fatherId && person.motherId) {
-              const key = unionKey(person.fatherId, person.motherId);
-              if (!unionsMap[key]) {
-                unionsMap[key] = {
-                  id: `u-${key}`,
-                  fatherId: person.fatherId,
-                  motherId: person.motherId,
-                  children: [],
-                };
-              }
-              if (!unionsMap[key].children.includes(person.id)) {
-                unionsMap[key].children.push(person.id);
-              }
-            }
-          });
-
-          Object.values(unionsMap).forEach((u) => {
-            helperNodes.push({
-              id: u.id,
-              type: 'helper',
-              position: { x: 0, y: 0 },
-              data: { helper: true },
-              draggable: false,
-              selectable: false,
-            });
-            newEdges.push({
-              id: `spouse-line-${u.id}`,
-              source: String(u.fatherId),
-              target: String(u.motherId),
-              type: 'straight',
-              sourceHandle: 's-right',
-              targetHandle: 't-left',
-            });
-            u.children.forEach((cid) => {
-              newEdges.push({
-                id: `${u.id}-${cid}`,
-                source: u.id,
-                target: String(cid),
-                type: 'default',
-                markerEnd: MarkerType.ArrowClosed,
-                sourceHandle: 's-bottom',
-                targetHandle: 't-top',
-              });
-            });
-          });
-
-          personNodes.forEach((node) => {
-            const data = node.data || {};
-            const hasFather = !!data.fatherId;
-            const hasMother = !!data.motherId;
-            if ((hasFather && !hasMother) || (!hasFather && hasMother)) {
-              const parentId = data.fatherId || data.motherId;
-              newEdges.push({
-                id: `p-${data.id}`,
-                source: String(parentId),
-                target: String(data.id),
-                markerEnd: MarkerType.ArrowClosed,
-                sourceHandle: 's-bottom',
-                targetHandle: 't-top',
-              });
-            }
-          });
-
-          const nextNodes = [...personNodes, ...helperNodes];
-          nodes.value = nextNodes;
-          unions = unionsMap;
-          edges.value = newEdges.map((edge) => sanitizeEdge(edge));
-          rebuildNodeMap();
-          selectedEdge.value = null;
-          refreshUnions();
-          applyFilters();
-          applyFocusedView();
+          syncGraphFromVisiblePeople({ preservePositions: true })
+            .catch((err) => console.error('Failed to rebuild relationships', err));
         }
 
         function applyPersonResult(updated, prevOverride) {
@@ -409,9 +334,7 @@
             || prev.fatherId !== updated.fatherId
             || prev.motherId !== updated.motherId;
           if (relationshipChanged) {
-            refreshRelationshipsForPerson(updated, prev);
-          } else {
-            updateChildrenCacheFor(updated, prev);
+            refreshRelationshipsForPerson(updated);
           }
           scheduleSearchRefresh();
           if (selected.value && selected.value.id === updated.id) {
@@ -547,169 +470,11 @@
         const LONG_PRESS_MOVE_TOLERANCE = 10;
         const UNION_Y_OFFSET = 20;
         let unions = {};
-        const unionKey = (fatherId, motherId) => `${fatherId}-${motherId}`;
 
-        function sanitizeEdge(edge) {
-          if (!edge) return edge;
-          const { ref: _unused, ...rest } = edge;
-          void _unused;
-          return rest;
-        }
-
-        function removeEdgeById(id) {
-          if (!id) return;
-          const idx = edges.value.findIndex((e) => e.id === id);
-          if (idx !== -1) {
-            edges.value.splice(idx, 1);
-          }
-        }
-
-        function upsertEdge(edge) {
-          const clean = sanitizeEdge(edge);
-          if (!clean || !clean.id) return;
-          const idx = edges.value.findIndex((e) => e.id === clean.id);
-          if (idx === -1) {
-            edges.value.push(clean);
-          } else {
-            edges.value.splice(idx, 1, clean);
-          }
-        }
-
-        function ensureHelperNodeForUnion(union) {
-          if (!union) return null;
-          let helper = getNodeById(union.id);
-          if (helper) return helper;
-          const father = getNodeById(union.fatherId);
-          const mother = getNodeById(union.motherId);
-          let position = { x: 0, y: 0 };
-          if (father && mother) {
-            const fx = father.position?.x || 0;
-            const fy = father.position?.y || 0;
-            const mx = mother.position?.x || 0;
-            const my = mother.position?.y || 0;
-            const fHeight = father.dimensions?.height || 0;
-            const mHeight = mother.dimensions?.height || 0;
-            position = {
-              x: (fx + mx) / 2,
-              y: (fy + fHeight / 2 + my + mHeight / 2) / 2 + UNION_Y_OFFSET,
-            };
-          } else if (father || mother) {
-            const base = father || mother;
-            position = {
-              x: base.position?.x || 0,
-              y: (base.position?.y || 0) + UNION_Y_OFFSET,
-            };
-          }
-          helper = {
-            id: union.id,
-            type: 'helper',
-            position,
-            data: { helper: true },
-            draggable: false,
-            selectable: false,
-          };
-          nodes.value.push(helper);
-          nodeMap.set(helper.id, helper);
-          return helper;
-        }
-
-        function ensureSpouseEdge(union) {
-          if (!union) return;
-          const father = getNodeById(union.fatherId);
-          const mother = getNodeById(union.motherId);
-          const handles = spouseHandles(father, mother);
-          upsertEdge({
-            id: `spouse-line-${union.id}`,
-            source: String(union.fatherId),
-            target: String(union.motherId),
-            type: 'straight',
-            sourceHandle: handles.source,
-            targetHandle: handles.target,
-          });
-        }
-
-        function attachChildToUnion(fatherId, motherId, childId) {
-          if (!fatherId || !motherId || !childId) return;
-          const key = unionKey(fatherId, motherId);
-          let union = unions[key];
-          if (!union) {
-            union = {
-              id: `u-${key}`,
-              fatherId,
-              motherId,
-              children: [],
-            };
-            unions[key] = union;
-          }
-          if (!union.children.includes(childId)) {
-            union.children.push(childId);
-          }
-          const helper = ensureHelperNodeForUnion(union);
-          ensureSpouseEdge(union);
-          if (helper) {
-            upsertEdge({
-              id: `${union.id}-${childId}`,
-              source: helper.id,
-              target: String(childId),
-              type: 'default',
-              markerEnd: MarkerType.ArrowClosed,
-              sourceHandle: 's-bottom',
-              targetHandle: 't-top',
-            });
-          }
-        }
-
-        function detachChildFromUnion(fatherId, motherId, childId) {
-          if (!fatherId || !motherId || !childId) return;
-          const key = unionKey(fatherId, motherId);
-          const union = unions[key];
-          if (!union) return;
-          const idx = union.children.indexOf(childId);
-          if (idx !== -1) union.children.splice(idx, 1);
-          removeEdgeById(`${union.id}-${childId}`);
-          if (union.children.length === 0) {
-            removeEdgeById(`spouse-line-${union.id}`);
-            const nodeIdx = nodes.value.findIndex((n) => n.id === union.id);
-            if (nodeIdx !== -1) {
-              nodes.value.splice(nodeIdx, 1);
-            }
-            nodeMap.delete(union.id);
-            delete unions[key];
-          }
-        }
-
-        function syncSingleParentEdge(person) {
-          if (!person || !person.id) return;
-          removeEdgeById(`p-${person.id}`);
-          const hasFather = !!person.fatherId;
-          const hasMother = !!person.motherId;
-          if ((hasFather && !hasMother) || (!hasFather && hasMother)) {
-            const parentId = person.fatherId || person.motherId;
-            upsertEdge({
-              id: `p-${person.id}`,
-              source: String(parentId),
-              target: String(person.id),
-              markerEnd: MarkerType.ArrowClosed,
-              sourceHandle: 's-bottom',
-              targetHandle: 't-top',
-            });
-          }
-        }
-
-        function refreshRelationshipsForPerson(person, prev) {
+        function refreshRelationshipsForPerson(person) {
           if (!person) return;
-          if (prev && prev.fatherId && prev.motherId) {
-            detachChildFromUnion(prev.fatherId, prev.motherId, person.id);
-          }
-          if (person.fatherId && person.motherId) {
-            attachChildToUnion(person.fatherId, person.motherId, person.id);
-          }
-          syncSingleParentEdge(person);
-          updateChildrenCacheFor(person, prev);
-          selectedEdge.value = null;
-          refreshUnions();
-          applyFilters();
-          applyFocusedView();
+          syncGraphFromVisiblePeople({ preservePositions: true })
+            .catch((err) => console.error('Failed to refresh relationships', err));
         }
         let newNodePos = null;
         let scoreTimer = null;
@@ -728,12 +493,14 @@
           if (!linkPickerVisible.value || !selected.value) return [];
           const q = (debouncedLinkInput.value || '').toLowerCase();
           const selId = selected.value.id;
-          // Build candidate list from current nodes (persons only)
-          const candidates = nodes.value
-            .filter((n) => n.type === 'person' && n.data && n.data.id !== selId)
-            .map((n) => n.data)
-            .filter((p) => {
-              // Parent linking constraints
+          const allPeople = peopleState.value.length
+            ? peopleState.value
+            : Array.from(peopleById.values());
+          const candidates = allPeople
+            .filter((raw) => {
+              if (!raw || raw.id === selId) return false;
+              const p = peopleById.has(raw.id) ? peopleById.get(raw.id) : raw;
+              if (!p) return false;
               if (linkType.value === 'father') {
                 const g = (p.gender || '').toLowerCase();
                 if (g && g !== 'male') return false;
@@ -745,16 +512,15 @@
                 if (selected.value.motherId && selected.value.motherId !== p.id) return true;
               }
               if (linkType.value === 'child') {
-                // Exclude those already a child of selected
-                if (childrenCache.get(selId)?.some((c) => c.id === p.id)) return false;
+                if (p.fatherId === selId || p.motherId === selId) return false;
               }
-              // Simple text match on names
               if (!q) return true;
               const name = `${p.callName || ''} ${p.firstName || ''} ${p.lastName || ''}`.toLowerCase();
               return name.includes(q);
             })
             .slice(0, 20)
-            .map((p) => {
+            .map((raw) => {
+              const p = peopleById.has(raw.id) ? peopleById.get(raw.id) : raw;
               const born = p.dateOfBirth || p.birthApprox || '';
               const died = p.dateOfDeath || p.deathApprox || '';
               const life = [born, died].filter(Boolean).join(' - ');
@@ -923,58 +689,74 @@
           }
         }
 
-        async function load(preservePositions = false) {
+        async function load() {
           setLoading(true);
           try {
-            const existingPos = {};
-          if (preservePositions) {
-            nodes.value.forEach((n) => {
-              existingPos[n.id] = { ...n.position };
-            });
-          }
-          const people = await FrontendApp.fetchPeople();
-          syncPeopleState(people);
-          if (window.SearchApp && typeof window.SearchApp.setPeople === 'function') {
-            window.SearchApp.setPeople(people);
-          }
-          
-          // Show progress for large datasets
-          if (people.length > 1000) {
-            flash(I18nGlobal.t('processingLargeDataset', { count: people.length }));
-          }
-          
-          const idMap = {};
-          const CHUNK_SIZE = Math.min(500, Math.max(50, Math.floor(people.length / 10)));
-          
-          // Process people in chunks to prevent UI freezing
-          for (let i = 0; i < people.length; i += CHUNK_SIZE) {
-            const chunk = people.slice(i, i + CHUNK_SIZE);
-            chunk.forEach((p) => (idMap[p.id] = p));
-            
-            // Yield control for large datasets
-            if (people.length > CHUNK_SIZE && i + CHUNK_SIZE < people.length) {
-              await nextTick();
+            const people = await FrontendApp.fetchPeople();
+            syncPeopleState(people);
+            if (window.SearchApp && typeof window.SearchApp.setPeople === 'function') {
+              window.SearchApp.setPeople(people);
             }
+
+            if (people.length > 1000) {
+              flash(I18nGlobal.t('processingLargeDataset', { count: people.length }));
+            }
+
+            resetVisiblePeople();
+
+            if (!people.length) {
+              nodes.value = [];
+              edges.value = [];
+              rebuildNodeMap();
+              childrenCache.clear();
+              unions = {};
+              selectedEdge.value = null;
+              return;
+            }
+
+            const focusId = window.meNodeId || (people[0] && people[0].id);
+            if (focusId) {
+              await loadSegment(focusId, {
+                type: 'both',
+                depth: DEFAULT_SEGMENT_DEPTH,
+                preservePositions: false,
+                applySavedLayout: true,
+              });
+            }
+          } catch (err) {
+            console.error('load failed', err);
+          } finally {
+            setLoading(false);
+          }
+        }
+
+        async function syncGraphFromVisiblePeople(options = {}) {
+          const { preservePositions = true, applySavedLayout: applySaved = false } = options;
+          const people = Array.from(visiblePeople.values());
+          if (!people.length) {
+            nodes.value = [];
+            edges.value = [];
+            unions = {};
+            rebuildNodeMap();
+            childrenCache.clear();
+            selectedEdge.value = null;
+            return;
           }
 
-          // determine generation levels via helper
+          const existingPos = {};
+          if (preservePositions) {
+            nodes.value.forEach((n) => {
+              existingPos[n.id] = { ...(n.position || {}) };
+            });
+          }
+
           const genMap = GenerationLayout.assignGenerations(people);
           const layers = {};
-          
-          // Process layers in chunks
-          for (let i = 0; i < people.length; i += CHUNK_SIZE) {
-            const chunk = people.slice(i, i + CHUNK_SIZE);
-            chunk.forEach((p) => {
-              const g = genMap.get(p.id) ?? 0;
-              layers[g] = layers[g] || [];
-              layers[g].push(p);
-            });
-            
-            // Yield control for large datasets
-            if (people.length > CHUNK_SIZE && i + CHUNK_SIZE < people.length) {
-              await nextTick();
-            }
-          }
+          people.forEach((p) => {
+            const g = genMap.get(p.id) ?? 0;
+            if (!layers[g]) layers[g] = [];
+            layers[g].push(p);
+          });
 
           const positions = {};
           const xSpacing = 180;
@@ -985,97 +767,99 @@
             });
           });
 
-          // Create nodes in chunks for large datasets
-          const newNodes = [];
-          for (let i = 0; i < people.length; i += CHUNK_SIZE) {
-            const chunk = people.slice(i, i + CHUNK_SIZE);
-            const chunkNodes = chunk.map((p) => ({
+          const personNodes = [];
+          const nodeById = new Map();
+          people.forEach((p) => {
+            const hints = getSegmentInfo(p.id);
+            const node = {
               id: String(p.id),
               type: 'person',
-              position: existingPos[p.id] || positions[p.id],
-              data: { ...p, me: window.meNodeId && p.id === window.meNodeId },
-            }));
-            newNodes.push(...chunkNodes);
-            
-            // Yield control for large datasets
-            if (people.length > CHUNK_SIZE && i + CHUNK_SIZE < people.length) {
-              await nextTick();
-            }
-          }
-          
-          nodes.value = newNodes;
-          rebuildNodeMap();
-          buildChildrenCache();
-
-          unions = {};
-          edges.value = [];
-          selectedEdge.value = null;
-
-          const unionKey = (f, m) => `${f}-${m}`;
-          people.forEach((child) => {
-            if (!child.fatherId || !child.motherId) return;
-            const key = unionKey(child.fatherId, child.motherId);
-            const union =
-              unions[key] || (unions[key] = {
-                id: `u-${key}`,
-                fatherId: child.fatherId,
-                motherId: child.motherId,
-                children: [],
-              });
-            if (!positions[union.id]) {
-              const midX =
-                (positions[child.fatherId].x + positions[child.motherId].x) / 2;
-              const midY =
-                (positions[child.fatherId].y + positions[child.motherId].y) / 2 +
-                UNION_Y_OFFSET;
-              const pos = { x: midX, y: midY };
-              const uNode = {
-                id: union.id,
-                type: 'helper',
-                position: existingPos[union.id] || pos,
-                data: { _gen: idMap[child.fatherId]._gen, helper: true },
-                draggable: false,
-                selectable: false,
-              };
-              nodes.value.push(uNode);
-              nodeMap.set(uNode.id, uNode);
-              positions[union.id] = pos;
-            }
-            union.children.push(child.id);
+              position: existingPos[p.id] || positions[p.id] || { x: 0, y: 0 },
+              data: {
+                ...p,
+                me: window.meNodeId && p.id === window.meNodeId,
+                hasMoreAncestors: hints.hasMoreAncestors,
+                hasMoreDescendants: hints.hasMoreDescendants,
+                loadingAncestors: isSegmentLoading(p.id, 'ancestors'),
+                loadingDescendants: isSegmentLoading(p.id, 'descendants'),
+              },
+            };
+            personNodes.push(node);
+            nodeById.set(p.id, node);
+            positions[p.id] = node.position;
           });
 
-          Object.values(unions).forEach((m) => {
-            const handles = spouseHandles(
-              getNodeById(m.fatherId),
-              getNodeById(m.motherId),
-            );
-            edges.value.push({
-              id: `spouse-line-${m.id}`,
-              source: String(m.fatherId),
-              target: String(m.motherId),
+          const unionMap = {};
+          personNodes.forEach((node) => {
+            const data = node.data;
+            if (!data) return;
+            if (data.fatherId && data.motherId && positions[data.fatherId] && positions[data.motherId]) {
+              const key = `${data.fatherId}-${data.motherId}`;
+              if (!unionMap[key]) {
+                unionMap[key] = {
+                  id: `u-${key}`,
+                  fatherId: data.fatherId,
+                  motherId: data.motherId,
+                  children: [],
+                };
+              }
+              if (!unionMap[key].children.includes(data.id)) {
+                unionMap[key].children.push(data.id);
+              }
+            }
+          });
+
+          const helperNodes = [];
+          const newEdges = [];
+          Object.values(unionMap).forEach((u) => {
+            const fatherNode = nodeById.get(u.fatherId);
+            const motherNode = nodeById.get(u.motherId);
+            if (!fatherNode || !motherNode) return;
+            const fatherPos = positions[u.fatherId];
+            const motherPos = positions[u.motherId];
+            const midX = (fatherPos.x + motherPos.x) / 2;
+            const midY = (fatherPos.y + motherPos.y) / 2 + UNION_Y_OFFSET;
+            const helperNode = {
+              id: u.id,
+              type: 'helper',
+              position: existingPos[u.id] || { x: midX, y: midY },
+              data: { helper: true },
+              draggable: false,
+              selectable: false,
+            };
+            helperNodes.push(helperNode);
+            positions[u.id] = helperNode.position;
+            const handles = spouseHandles(fatherNode, motherNode);
+            newEdges.push({
+              id: `spouse-line-${u.id}`,
+              source: String(u.fatherId),
+              target: String(u.motherId),
               type: 'straight',
               sourceHandle: handles.source,
               targetHandle: handles.target,
             });
-            m.children.forEach((cid) =>
-              edges.value.push({
-                id: `${m.id}-${cid}`,
-                source: m.id,
+            u.children.forEach((cid) => {
+              newEdges.push({
+                id: `${u.id}-${cid}`,
+                source: u.id,
                 target: String(cid),
                 type: 'default',
                 markerEnd: MarkerType.ArrowClosed,
                 sourceHandle: 's-bottom',
                 targetHandle: 't-top',
-              }));
+              });
+            });
           });
 
-          people.forEach((p) => {
-            if ((p.fatherId && !p.motherId) || (!p.fatherId && p.motherId)) {
-              const parent = p.fatherId || p.motherId;
-              edges.value.push({
-                id: `p-${p.id}`,
-                source: String(parent),
-                target: String(p.id),
+          personNodes.forEach((node) => {
+            const data = node.data;
+            if (!data) return;
+            if ((data.fatherId && !data.motherId) || (!data.fatherId && data.motherId)) {
+              const parentId = data.fatherId || data.motherId;
+              newEdges.push({
+                id: `p-${data.id}`,
+                source: String(parentId),
+                target: String(data.id),
                 markerEnd: MarkerType.ArrowClosed,
                 sourceHandle: 's-bottom',
                 targetHandle: 't-top',
@@ -1083,28 +867,141 @@
             }
           });
 
-          // remove Vue internal refs that cause warnings when passed as props
-          edges.value = edges.value.map((edge) => {
+          const cleanEdges = newEdges.map((edge) => {
             const { ref: _unused, ...rest } = edge;
-            void _unused; // avoid eslint no-unused-vars warning
+            void _unused;
             return rest;
           });
 
-          await applySavedLayout();
+          nodes.value = [...personNodes, ...helperNodes];
+          unions = unionMap;
+          edges.value = cleanEdges;
+          rebuildNodeMap();
+          buildChildrenCache();
+          selectedEdge.value = null;
+
+          if (applySaved) {
+            await applySavedLayout();
+          }
+
           await nextTick();
           refreshUnions();
-          saveTempLayout();
           applyFilters();
           applyFocusedView();
-        } catch (err) {
-          console.error('load failed', err);
-        } finally {
-          setLoading(false);
+
+          if (selected.value) {
+            const node = getNodeById(selected.value.id);
+            if (node) {
+              const spouseId = selected.value.spouseId;
+              selected.value = { ...node.data };
+              if (typeof spouseId !== 'undefined') {
+                selected.value.spouseId = spouseId;
+              }
+            }
+          }
         }
+
+        async function loadSegment(rootId, options = {}) {
+          if (!rootId) return;
+          const {
+            type = 'both',
+            depth = DEFAULT_SEGMENT_DEPTH,
+            preservePositions = true,
+            applySavedLayout: applySaved = false,
+          } = options;
+          try {
+            const payload = await FrontendApp.fetchTreeSegment(rootId, {
+              type,
+              maxDepth: Math.max(1, depth),
+            });
+            if (!payload || !Array.isArray(payload.people)) {
+              return;
+            }
+
+            payload.people.forEach((entry) => {
+              if (!entry || !entry.person || !entry.person.id) return;
+              const personId = entry.person.id;
+              const base = peopleById.has(personId)
+                ? { ...peopleById.get(personId) }
+                : { ...entry.person };
+              visiblePeople.set(personId, base);
+
+              const hintUpdates = {};
+              if (entry.hints && typeof entry.hints.hasMoreAncestors === 'boolean') {
+                hintUpdates.hasMoreAncestors = entry.hints.hasMoreAncestors;
+              }
+              if (entry.hints && typeof entry.hints.hasMoreDescendants === 'boolean') {
+                hintUpdates.hasMoreDescendants = entry.hints.hasMoreDescendants;
+              }
+              if (Object.keys(hintUpdates).length) {
+                updateSegmentInfo(personId, hintUpdates);
+              }
+            });
+
+            const info = getSegmentInfo(rootId);
+            const depthUpdates = {};
+            if (type === 'ancestors' || type === 'both') {
+              depthUpdates.ancestorsDepthLoaded = Math.max(info.ancestorsDepthLoaded, depth);
+            }
+            if (type === 'descendants' || type === 'both') {
+              depthUpdates.descendantsDepthLoaded = Math.max(info.descendantsDepthLoaded, depth);
+            }
+            if (Object.keys(depthUpdates).length) {
+              updateSegmentInfo(rootId, depthUpdates);
+            }
+
+            await syncGraphFromVisiblePeople({
+              preservePositions,
+              applySavedLayout: applySaved,
+            });
+          } catch (err) {
+            console.error('Failed to load tree segment', err);
+            flash(
+              (I18nGlobal.t && I18nGlobal.t('treeSegmentLoadFailed'))
+                || 'Failed to load tree segment',
+              'danger',
+            );
+          }
+        }
+
+        async function expandAncestors(id) {
+          if (!id) return;
+          const info = getSegmentInfo(id);
+          if (!info.hasMoreAncestors && info.ancestorsDepthLoaded >= DEFAULT_SEGMENT_DEPTH) return;
+          if (isSegmentLoading(id, 'ancestors')) return;
+          setSegmentLoading(id, 'ancestors', true);
+          const nextDepth = Math.max(info.ancestorsDepthLoaded + DEFAULT_SEGMENT_DEPTH, DEFAULT_SEGMENT_DEPTH);
+          try {
+            await loadSegment(id, {
+              type: 'ancestors',
+              depth: nextDepth,
+              preservePositions: true,
+            });
+          } finally {
+            setSegmentLoading(id, 'ancestors', false);
+          }
+        }
+
+        async function expandDescendants(id) {
+          if (!id) return;
+          const info = getSegmentInfo(id);
+          if (!info.hasMoreDescendants && info.descendantsDepthLoaded >= DEFAULT_SEGMENT_DEPTH) return;
+          if (isSegmentLoading(id, 'descendants')) return;
+          setSegmentLoading(id, 'descendants', true);
+          const nextDepth = Math.max(info.descendantsDepthLoaded + DEFAULT_SEGMENT_DEPTH, DEFAULT_SEGMENT_DEPTH);
+          try {
+            await loadSegment(id, {
+              type: 'descendants',
+              depth: nextDepth,
+              preservePositions: true,
+            });
+          } finally {
+            setSegmentLoading(id, 'descendants', false);
+          }
         }
 
         const children = ref([]);
-        
+
         // Cache for children lookup - maps parentId to array of child data
         const childrenCache = new Map();
         
@@ -1131,6 +1028,29 @@
 
         function computeChildren(pid) {
           children.value = childrenCache.get(pid) || [];
+        }
+
+        async function ensureNodeVisible(pid, options = {}) {
+          if (!pid) return null;
+          const { preservePositions = true } = options;
+          let node = getNodeById(pid);
+          if (node) return node;
+          const numericId = typeof pid === 'string' ? Number(pid) : pid;
+          const lookupIds = [pid];
+          if (!Number.isNaN(numericId)) lookupIds.push(numericId);
+          const personId = lookupIds.find((id) => peopleById.has(id));
+          if (typeof personId === 'undefined') {
+            console.warn('Person not found in store:', pid);
+            return null;
+          }
+          await loadSegment(personId, {
+            type: 'both',
+            depth: DEFAULT_SEGMENT_DEPTH,
+            preservePositions,
+          });
+          await nextTick();
+          node = getNodeById(pid) || getNodeById(personId);
+          return node || null;
         }
 
         function hasConnection(pid) {
@@ -1193,8 +1113,11 @@
           showModal.value = false;
           editing.value = false;
           await nextTick();
-          const node = getNodeById(pid);
-          if (!node) return;
+          let node = getNodeById(pid);
+          if (!node) {
+            node = await ensureNodeVisible(pid, { preservePositions: true });
+            if (!node) return;
+          }
           highlightBloodline(pid);
           fitView({ nodes: [String(pid)], maxZoom: 1.5, padding: 0.1 });
           selected.value = { ...node.data, spouseId: '' };
@@ -1209,10 +1132,13 @@
         async function focusOnNode(pid) {
           if (!pid) return;
           await nextTick();
-          const node = getNodeById(pid);
+          let node = getNodeById(pid);
           if (!node) {
-            console.warn('Node not found for focusing:', pid);
-            return;
+            node = await ensureNodeVisible(pid, { preservePositions: true });
+            if (!node) {
+              console.warn('Node not found for focusing:', pid);
+              return;
+            }
           }
           try {
             fitView({ nodes: [String(pid)], maxZoom: 1.5, padding: 0.1 });
@@ -2789,8 +2715,7 @@
           const id = selected.value.id;
           const prev = peopleById.has(id) ? { ...peopleById.get(id) } : null;
           await FrontendApp.deletePerson(id);
-          removePersonLocal(id, prev);
-          rebuildRelationshipsFast();
+          await removePersonLocal(id, prev);
           scheduleSearchRefresh();
           selected.value = null;
         }
@@ -3149,6 +3074,7 @@
           };
           const p = await FrontendApp.createPerson(payload);
           upsertPersonLocal(p);
+          visiblePeople.set(p.id, { ...peopleById.get(p.id) });
           let node = getNodeById(p.id);
           if (!node) {
             node = {
@@ -3181,7 +3107,7 @@
               applyPersonResult(updatedChild, prevChild);
             }
           }
-          rebuildRelationshipsFast();
+          await syncGraphFromVisiblePeople({ preservePositions: true });
           if (newNodePos && node) {
             node.position = { ...newNodePos };
           }
@@ -3409,6 +3335,8 @@
           addSpouse,
         addParent,
         startAddParent,
+        expandAncestors,
+        expandDescendants,
         selected,
         showModal,
         children,
@@ -3625,6 +3553,28 @@
             <template #node-person="{ data }">
               <div class="person-node" :class="{ 'highlight-node': data.highlight, 'faded-node': (selected || filterActive) && !data.highlight, 'connected-node': hasConnection(data.id), 'hidden-node': data.hidden }" :style="{ borderColor: data.gender === 'female' ? '#f8c' : (data.gender === 'male' ? '#88f' : '#ccc') }">
                 <span v-if="data.me" style="position:absolute;top:-8px;right:-8px;color:#f39c12;">&#9733;</span>
+                <div class="expansion-controls">
+                  <button
+                    v-if="data.hasMoreAncestors"
+                    class="icon-button expand-btn"
+                    :disabled="data.loadingAncestors"
+                    @click.stop="expandAncestors(data.id)"
+                    :title="I18n.t('loadAncestors')"
+                  >
+                    <span v-if="data.loadingAncestors">…</span>
+                    <span v-else>↑</span>
+                  </button>
+                  <button
+                    v-if="data.hasMoreDescendants"
+                    class="icon-button expand-btn"
+                    :disabled="data.loadingDescendants"
+                    @click.stop="expandDescendants(data.id)"
+                    :title="I18n.t('loadDescendants')"
+                  >
+                    <span v-if="data.loadingDescendants">…</span>
+                    <span v-else>↓</span>
+                  </button>
+                </div>
                 <button
                   class="icon-button node-edit-btn"
                   v-if="isTouchDevice && selectedNodes && selectedNodes.length === 1 && selectedNodes[0].data && selectedNodes[0].data.id === data.id && !showModal"

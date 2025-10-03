@@ -46,6 +46,7 @@ function mountFlow(options = {}) {
 
 function setup(options) {
   const fetchPeople = jest.fn().mockResolvedValue(options.existing || []);
+  const fetchTreeSegment = jest.fn().mockResolvedValue(options.treeResponse || { nodes: [] });
   const createPerson = jest.fn().mockResolvedValue({ id: 99 });
   const updatePerson = jest.fn();
   const linkSpouse = jest.fn();
@@ -54,6 +55,7 @@ function setup(options) {
     Dedupe: { findBestMatch: jest.fn(() => options.match), matchScore: jest.fn() },
     FrontendApp: {
       fetchPeople,
+      fetchTreeSegment,
       createPerson,
       updatePerson,
       deletePerson: jest.fn(),
@@ -65,7 +67,7 @@ function setup(options) {
   };
   const { app } = mountFlow({ windowExtras });
   app.gedcomText.value = 'dummy';
-  return { app, fetchPeople, createPerson, updatePerson, linkSpouse, windowExtras };
+  return { app, fetchPeople, fetchTreeSegment, createPerson, updatePerson, linkSpouse, windowExtras };
 }
 
 describe('GEDCOM import', () => {
@@ -83,11 +85,11 @@ describe('GEDCOM import', () => {
   test('creates new person when no duplicate', async () => {
     const parsed = { people: [{ gedcomId: '@I2@', firstName: 'Jane', lastName: 'Doe' }], families: [] };
     const match = { match: null, score: 0 };
-    const { app, fetchPeople, createPerson } = setup({ parsed, match, existing: [] });
+    const { app, fetchTreeSegment, createPerson } = setup({ parsed, match, existing: [] });
     await app.processImport();
     expect(createPerson).toHaveBeenCalledTimes(1);
     expect(app.showConflict.value).toBe(false);
-    // fetchPeople called once during processImport and again inside load()
-    expect(fetchPeople.mock.calls.length).toBeGreaterThan(1);
+    // the flow refreshes people directly, so tree segment fetches are unnecessary here
+    expect(fetchTreeSegment).not.toHaveBeenCalled();
   });
 });

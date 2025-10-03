@@ -113,6 +113,27 @@ body.dark-theme .brand-title {
   overflow: hidden;
 }
 
+.expansion-controls {
+  position: absolute;
+  top: -14px;
+  left: 8px;
+  display: flex;
+  gap: 6px;
+}
+
+.expand-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1;
+  border-radius: 50%;
+}
+
+.expand-btn:disabled {
+  opacity: 0.6;
+}
+
 .person-node::before {
   content: '';
   position: absolute;

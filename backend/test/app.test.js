@@ -33,6 +33,37 @@ describe('People API', () => {
     const treeRes = await request(app).get('/api/tree/1?type=descendants');
     expect(treeRes.statusCode).toBe(200);
     expect(treeRes.body.descendants.spouseRelationships[0].children.length).toBe(1);
+    expect(treeRes.body.descendants.childCount).toBe(1);
+    expect(treeRes.body.descendants.ancestryDepth).toBe(0);
+    const spouse = treeRes.body.descendants.spouseRelationships[0].spouse;
+    expect(spouse.childCount).toBe(1);
+    const childNode = treeRes.body.descendants.spouseRelationships[0].children[0];
+    expect(childNode.ancestryDepth).toBe(1);
+
+    const segmentRes = await request(app).get('/api/tree/1/segment?type=descendants&maxDepth=1');
+    expect(segmentRes.statusCode).toBe(200);
+    expect(segmentRes.body.rootId).toBe(1);
+    expect(segmentRes.body.type).toBe('descendants');
+    const segmentPeople = segmentRes.body.people;
+    expect(Array.isArray(segmentPeople)).toBe(true);
+    const ids = segmentPeople.map((entry) => entry.person.id);
+    expect(ids).toEqual(expect.arrayContaining([1, 2, 3]));
+    const rootEntry = segmentPeople.find((entry) => entry.person.id === 1);
+    expect(rootEntry.hints.hasMoreDescendants).toBe(true);
+    const childEntry = segmentPeople.find((entry) => entry.person.id === 3);
+    expect(childEntry.hints.hasMoreDescendants).toBe(false);
+
+    const listRes = await request(app).get('/api/people');
+    expect(listRes.statusCode).toBe(200);
+    const john = listRes.body.find((p) => p.id === 1);
+    const jane = listRes.body.find((p) => p.id === 2);
+    const child = listRes.body.find((p) => p.id === 3);
+    expect(john.childCount).toBe(1);
+    expect(john.ancestryDepth).toBe(0);
+    expect(jane.childCount).toBe(1);
+    expect(jane.ancestryDepth).toBe(0);
+    expect(child.childCount).toBe(0);
+    expect(child.ancestryDepth).toBe(1);
   });
 
   test('layout save and load', async () => {

@@ -56,6 +56,8 @@
   "moreDetails": "Mehr Details",
   "saveLayout": "Layout speichern",
   "loadLayout": "Layout laden",
+  "loadAncestors": "Vorfahren laden",
+  "loadDescendants": "Nachkommen laden",
   "fitToScreen": "An Bildschirm anpassen",
   "zoomIn": "Vergr\u00f6\u00dfern",
   "zoomOut": "Verkleinern",
@@ -103,6 +105,7 @@
   ,"layoutSaved": "Layout gespeichert"
   ,"layoutTidied": "Layout aufger\u00e4umt"
   ,"loading": "Wird geladen..."
+  ,"treeSegmentLoadFailed": "Abschnitt des Stammbaums konnte nicht geladen werden"
   ,"processingLargeDataset": "Verarbeite {count} Knoten, bitte warten..."
   ,"defineMeFirst": "Bitte zuerst einen Me-Knoten festlegen"
   ,"personsHidden": "Personen ausgeblendet"
