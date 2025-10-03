@@ -82,6 +82,7 @@
           snapToGrid,
           snapGrid,
           viewport,
+          updateNodePositions,
         } = useVueFlow({ id: 'main-flow' });
         const { fitView, zoomTo } = useZoomPanHelper('main-flow');
         const horizontalGridSize =
@@ -280,11 +281,16 @@
               map[n.id] = n;
             });
           }
+          const updates = [];
           nodes.value.forEach((n) => {
             if (map[n.id]) {
               n.position = { x: map[n.id].x, y: map[n.id].y };
+              updates.push({ id: n.id, position: { ...n.position } });
             }
           });
+          if (updates.length) {
+            updateNodePositions(updates, true, false);
+          }
         }
 
         // Helper function to refresh both node data and search efficiently
@@ -2207,6 +2213,7 @@
         }
 
         function refreshUnions() {
+          const helperUpdates = [];
           Object.values(unions).forEach((u) => {
             const father = getNodeById(u.fatherId);
             const mother = getNodeById(u.motherId);
@@ -2229,6 +2236,7 @@
                     2 +
                   UNION_Y_OFFSET,
               };
+              helperUpdates.push({ id: helper.id, position: { ...helper.position } });
 
               const spEdge = edges.value.find(
                 (e) => e.id === `spouse-line-${u.id}`
@@ -2249,6 +2257,9 @@
               });
             }
           });
+          if (helperUpdates.length) {
+            updateNodePositions(helperUpdates, true, false);
+          }
         }
 
         // Chunked version of tidyUp for large datasets
@@ -2683,11 +2694,16 @@
               n.position.y = posMap[n.data.id].y;
             }
           });
-          
+
           // Yield control to prevent UI freezing
           if (personNodes.length > CHUNK_SIZE && i + CHUNK_SIZE < personNodes.length) {
             await nextTick();
           }
+        }
+
+        if (personNodes.length) {
+          const nodeUpdates = personNodes.map((n) => ({ id: n.id, position: { ...n.position } }));
+          updateNodePositions(nodeUpdates, true, false);
         }
 
         refreshUnions();
