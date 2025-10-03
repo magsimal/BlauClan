@@ -21,6 +21,9 @@
   const PerfMetrics = typeof require === 'function'
     ? (() => { try { return require('./src/utils/perf-metrics'); } catch (e) { return null; } })()
     : (typeof window !== 'undefined' ? (window.FlowMetrics || window.PerfMetrics || null) : null);
+  const isTestEnv = typeof process !== 'undefined'
+    && process.env
+    && process.env.NODE_ENV === 'test';
   const parseGedcom = GedcomUtil.parseGedcom || function () { return []; };
   const findBestMatch = DedupeUtil.findBestMatch || function () { return { match: null, score: 0 }; };
   const matchScore = DedupeUtil.matchScore || function () { return 0; };
@@ -871,50 +874,168 @@
           const vp = viewport.value;
           if (!dims || !vp) return;
 
-          return autoExpandMutex.runExclusive(async () => {
-            const candidates = getNodesNearViewport();
-            if (!candidates.length) return;
+          const cycleTimer = metrics && typeof metrics.startTimer === 'function'
+            ? metrics.startTimer('autoExpand.viewportCycle', {
+              lowPower: runtimePerformanceProfile.isLowPower,
+              nodeCount: nodes.value.length,
+            })
+            : null;
 
-            const maxExpansions = runtimePerformanceProfile.isLowPower ? 1 : 3;
-            let expansions = 0;
+          try {
+            return await autoExpandMutex.runExclusive(async () => {
+              const candidates = getNodesNearViewport();
+              if (metrics && typeof metrics.recordSample === 'function') {
+                metrics.recordSample('autoExpand.candidateCount', candidates.length);
+              }
+              if (!candidates.length) {
+                if (metrics && typeof metrics.recordEvent === 'function') {
+                  metrics.recordEvent('autoExpand.candidates.none', {
+                    width: dims.width || 0,
+                    height: dims.height || 0,
+                    zoom: vp.zoom || 1,
+                  });
+                }
+                return;
+              }
 
-            for (const node of candidates) {
-              if (expansions >= maxExpansions) break;
-              const personId = normalizeNodeId(node.id);
-              const info = getSegmentInfo(personId);
-              if (!info) continue;
+              const maxExpansions = runtimePerformanceProfile.isLowPower ? 1 : 3;
+              let expansions = 0;
+              let attempts = 0;
+              let successes = 0;
 
-              const nextAncestorDepth = Math.max(info.ancestorsDepthLoaded + DEFAULT_SEGMENT_DEPTH, DEFAULT_SEGMENT_DEPTH);
-              if (
-                info.hasMoreAncestors
-                && !isSegmentLoading(personId, 'ancestors')
-                && getAutoExpandDepth(personId, 'ancestors') < nextAncestorDepth
-              ) {
-                const success = await expandAncestors(personId);
-                if (success) {
-                  expansions += 1;
-                  if (expansions >= maxExpansions) continue;
+              for (const node of candidates) {
+                if (expansions >= maxExpansions) break;
+                const personId = normalizeNodeId(node.id);
+                const info = getSegmentInfo(personId);
+                if (!info) continue;
+
+                const nextAncestorDepth = Math.max(info.ancestorsDepthLoaded + DEFAULT_SEGMENT_DEPTH, DEFAULT_SEGMENT_DEPTH);
+                if (
+                  info.hasMoreAncestors
+                  && !isSegmentLoading(personId, 'ancestors')
+                  && getAutoExpandDepth(personId, 'ancestors') < nextAncestorDepth
+                ) {
+                  attempts += 1;
+                  if (metrics && typeof metrics.recordEvent === 'function') {
+                    metrics.recordEvent('autoExpand.attempt', {
+                      type: 'ancestors',
+                      nodeId: String(personId),
+                      depth: nextAncestorDepth,
+                      lowPower: runtimePerformanceProfile.isLowPower,
+                    });
+                  }
+                  if (metrics && typeof metrics.incrementCounter === 'function') {
+                    metrics.incrementCounter('autoExpand.attempts', 1);
+                    metrics.incrementCounter('autoExpand.attempts.ancestors', 1);
+                  }
+                  const success = await expandAncestors(personId);
+                  if (success) {
+                    expansions += 1;
+                    successes += 1;
+                    if (metrics && typeof metrics.incrementCounter === 'function') {
+                      metrics.incrementCounter('autoExpand.success', 1);
+                    }
+                    if (expansions >= maxExpansions) {
+                      continue;
+                    }
+                  } else if (metrics && typeof metrics.incrementCounter === 'function') {
+                    metrics.incrementCounter('autoExpand.failure', 1);
+                  }
+                }
+
+                const nextDescendantDepth = Math.max(info.descendantsDepthLoaded + DEFAULT_SEGMENT_DEPTH, DEFAULT_SEGMENT_DEPTH);
+                if (
+                  info.hasMoreDescendants
+                  && !isSegmentLoading(personId, 'descendants')
+                  && getAutoExpandDepth(personId, 'descendants') < nextDescendantDepth
+                ) {
+                  attempts += 1;
+                  if (metrics && typeof metrics.recordEvent === 'function') {
+                    metrics.recordEvent('autoExpand.attempt', {
+                      type: 'descendants',
+                      nodeId: String(personId),
+                      depth: nextDescendantDepth,
+                      lowPower: runtimePerformanceProfile.isLowPower,
+                    });
+                  }
+                  if (metrics && typeof metrics.incrementCounter === 'function') {
+                    metrics.incrementCounter('autoExpand.attempts', 1);
+                    metrics.incrementCounter('autoExpand.attempts.descendants', 1);
+                  }
+                  const success = await expandDescendants(personId);
+                  if (success) {
+                    expansions += 1;
+                    successes += 1;
+                    if (metrics && typeof metrics.incrementCounter === 'function') {
+                      metrics.incrementCounter('autoExpand.success', 1);
+                    }
+                  } else if (metrics && typeof metrics.incrementCounter === 'function') {
+                    metrics.incrementCounter('autoExpand.failure', 1);
+                  }
                 }
               }
 
-              const nextDescendantDepth = Math.max(info.descendantsDepthLoaded + DEFAULT_SEGMENT_DEPTH, DEFAULT_SEGMENT_DEPTH);
-              if (
-                info.hasMoreDescendants
-                && !isSegmentLoading(personId, 'descendants')
-                && getAutoExpandDepth(personId, 'descendants') < nextDescendantDepth
-              ) {
-                const success = await expandDescendants(personId);
-                if (success) {
-                  expansions += 1;
-                }
+              if (metrics && typeof metrics.recordSample === 'function') {
+                metrics.recordSample('autoExpand.successesPerCycle', successes);
+                metrics.recordSample('autoExpand.attemptsPerCycle', attempts);
               }
+              if (metrics && typeof metrics.recordEvent === 'function') {
+                metrics.recordEvent('autoExpand.cycle.complete', {
+                  attempts,
+                  successes,
+                  candidates: candidates.length,
+                  lowPower: runtimePerformanceProfile.isLowPower,
+                  maxExpansions,
+                });
+              }
+            });
+          } finally {
+            if (metrics && cycleTimer && typeof metrics.endTimer === 'function') {
+              metrics.endTimer(cycleTimer, {
+                lowPower: runtimePerformanceProfile.isLowPower,
+                nodeCount: nodes.value.length,
+              });
             }
-          });
+          }
         }
 
         const scheduleSegmentAutoload = debounce(() => {
+          if (metrics && typeof metrics.recordEvent === 'function') {
+            metrics.recordEvent('autoExpand.schedule', {
+              lowPower: runtimePerformanceProfile.isLowPower,
+            });
+          }
           void autoLoadSegmentsAroundViewport();
         }, runtimePerformanceProfile.isLowPower ? 400 : 200);
+
+        if (isTestEnv) {
+          const globalTarget = typeof globalThis !== 'undefined'
+            ? globalThis
+            : (typeof window !== 'undefined' ? window : {});
+          if (globalTarget) {
+            const hookContainer = globalTarget.__FLOW_TEST_HOOKS || (globalTarget.__FLOW_TEST_HOOKS = {});
+            hookContainer.getAutoExpandInternals = () => ({
+              nodes,
+              viewport,
+              dimensions,
+              autoExpandMutex,
+              getSegmentInfo,
+              updateSegmentInfo,
+              getAutoExpandDepth,
+              recordAutoExpandDepth,
+              isSegmentLoading,
+              setSegmentLoading,
+              autoLoadSegmentsAroundViewport,
+              scheduleSegmentAutoload,
+              markSpatialIndexDirty,
+              rebuildSpatialIndex,
+              getNodesNearViewport,
+              runtimePerformanceProfile,
+              segmentHints,
+              autoExpandProgress,
+            });
+          }
+        }
 
         async function syncGraphFromVisiblePeople(options = {}) {
           const { preservePositions = true, applySavedLayout: applySaved = false } = options;

@@ -1,6 +1,16 @@
 const fs = require('fs');
 const vm = require('vm');
 
+jest.mock('../src/utils/perf-metrics', () => ({
+  recordEvent: jest.fn(),
+  recordSample: jest.fn(),
+  incrementCounter: jest.fn(),
+  startTimer: jest.fn(() => ({ name: 'timer', start: 0 })),
+  endTimer: jest.fn(),
+}));
+
+let PerfMetrics;
+
 describe('flow.js syntax', () => {
   test('file parses without error', () => {
     const code = fs.readFileSync(require.resolve('../flow.js'), 'utf8');
@@ -140,5 +150,279 @@ describe('Dynamic tree segment loading', () => {
       expect(code).toContain('randomPerson');
       expect(code).toContain('firstPerson');
     });
+  });
+});
+
+describe('auto-expansion integration', () => {
+  let FlowApp;
+  let hooks;
+  let fetchTreeSegmentMock;
+  let originalSetTimeout;
+  let originalClearTimeout;
+  let originalRequestIdleCallback;
+
+  beforeEach(async () => {
+    jest.resetModules();
+    PerfMetrics = require('../src/utils/perf-metrics');
+    PerfMetrics.recordEvent.mockClear();
+    PerfMetrics.recordSample.mockClear();
+    PerfMetrics.incrementCounter.mockClear();
+    PerfMetrics.startTimer.mockClear();
+    PerfMetrics.endTimer.mockClear();
+
+    const watchers = [];
+    const onMountedCallbacks = [];
+    const viewportRef = { value: { x: 0, y: 0, zoom: 1 } };
+    const dimensionsRef = { value: { width: 800, height: 600 } };
+
+    const matchMediaResult = {
+      matches: false,
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      addListener: jest.fn(),
+      removeListener: jest.fn(),
+    };
+
+    global.d3 = {};
+    global.AppConfig = {};
+
+    global.window = {
+      meNodeId: '1',
+      currentUser: 'integration-user',
+      isAdmin: false,
+      AppConfig: global.AppConfig,
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      matchMedia: jest.fn(() => matchMediaResult),
+    };
+    window.d3 = global.d3;
+
+    const elementStub = {
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      style: {},
+    };
+
+    global.document = {
+      getElementById: jest.fn(() => elementStub),
+    };
+    window.document = global.document;
+
+    const storage = new Map();
+    global.localStorage = {
+      getItem: jest.fn((key) => (storage.has(key) ? storage.get(key) : null)),
+      setItem: jest.fn((key, value) => { storage.set(key, value); }),
+      removeItem: jest.fn((key) => { storage.delete(key); }),
+      clear: jest.fn(() => storage.clear()),
+    };
+    window.localStorage = global.localStorage;
+
+    global.navigator = {
+      hardwareConcurrency: 4,
+      deviceMemory: 4,
+      connection: { saveData: false },
+      userAgent: 'jest',
+    };
+
+    global.matchMedia = jest.fn(() => matchMediaResult);
+    window.matchMedia = global.matchMedia;
+
+    window.SearchApp = {
+      setPeople: jest.fn(),
+      refresh: jest.fn(),
+    };
+
+    window.FlowLayout = {
+      createLayoutAPI: jest.fn(() => ({
+        tidyUp: jest.fn(),
+        tidyUpChunked: jest.fn(),
+      })),
+    };
+
+    window.GenerationLayout = {
+      assignGenerations: (people) => new Map(people.map((p, idx) => [p.id, idx])),
+    };
+
+    window.VueFlow = {
+      VueFlow: {},
+      MarkerType: { ArrowClosed: 'arrow' },
+      Handle: {},
+      useVueFlow: () => ({
+        screenToFlowCoordinate: jest.fn(),
+        project: jest.fn(),
+        dimensions: dimensionsRef,
+        addSelectedNodes: jest.fn(),
+        removeSelectedNodes: jest.fn(),
+        snapToGrid: { value: false },
+        snapGrid: { value: [0, 0] },
+        viewport: viewportRef,
+        updateNodeInternals: jest.fn(),
+      }),
+      useZoomPanHelper: () => ({
+        fitView: jest.fn(),
+        zoomTo: jest.fn(),
+      }),
+    };
+
+    const vueRef = (value) => ({ value });
+    global.Vue = {
+      createApp: (component) => {
+        const app = {
+          directive: jest.fn().mockReturnThis(),
+          mount: jest.fn(() => {
+            global.__lastSetupResult = component.setup ? component.setup() : {};
+            return app;
+          }),
+        };
+        return app;
+      },
+      ref: vueRef,
+      reactive: (obj) => obj,
+      computed: (fn) => ({
+        get value() {
+          return fn();
+        },
+      }),
+      nextTick: () => Promise.resolve(),
+      watch: (source, cb) => { watchers.push({ source, cb }); },
+      onMounted: (cb) => { onMountedCallbacks.push(cb); },
+      onBeforeUnmount: jest.fn(),
+    };
+    window.Vue = global.Vue;
+
+    originalSetTimeout = global.setTimeout;
+    originalClearTimeout = global.clearTimeout;
+    originalRequestIdleCallback = global.requestIdleCallback;
+
+    global.setTimeout = (fn) => { fn(); return 0; };
+    global.clearTimeout = jest.fn();
+    window.setTimeout = global.setTimeout;
+    window.clearTimeout = global.clearTimeout;
+    global.requestIdleCallback = (fn) => fn();
+    window.requestIdleCallback = global.requestIdleCallback;
+
+    global.fetch = jest.fn(async () => ({ ok: false, json: async () => ({}) }));
+    window.fetch = global.fetch;
+
+    fetchTreeSegmentMock = jest.fn(async (rootId) => ({
+      people: [
+        {
+          person: { id: String(rootId), firstName: 'John', lastName: 'Doe', gender: 'male' },
+          hints: { hasMoreAncestors: true, hasMoreDescendants: true },
+        },
+        {
+          person: {
+            id: `child-${rootId}`,
+            firstName: 'Kid',
+            lastName: 'Doe',
+            gender: 'female',
+            fatherId: String(rootId),
+          },
+          hints: { hasMoreAncestors: false, hasMoreDescendants: false },
+        },
+      ],
+    }));
+
+    global.FrontendApp = {
+      fetchPeople: jest.fn(async () => ([
+        { id: '1', firstName: 'John', lastName: 'Doe', gender: 'male' },
+        { id: '2', firstName: 'Jane', lastName: 'Doe', gender: 'female', fatherId: '1' },
+      ])),
+      fetchTreeSegment: fetchTreeSegmentMock,
+      updatePerson: jest.fn(async () => ({})),
+      linkSpouse: jest.fn(async () => {}),
+      deletePerson: jest.fn(async () => {}),
+      clearDatabase: jest.fn(async () => {}),
+      createPerson: jest.fn(async () => ({ id: 'new' })),
+      fetchSpouses: jest.fn(async () => []),
+      deleteSpouse: jest.fn(async () => {}),
+    };
+    window.FrontendApp = global.FrontendApp;
+
+    FlowApp = require('../flow.js');
+    FlowApp.mount();
+    for (const hook of onMountedCallbacks) {
+      await hook();
+    }
+
+    expect(global.__FLOW_TEST_HOOKS).toBeDefined();
+    hooks = global.__FLOW_TEST_HOOKS.getAutoExpandInternals();
+  });
+
+  afterEach(() => {
+    delete global.window;
+    delete global.document;
+    delete global.navigator;
+    delete global.localStorage;
+    delete global.matchMedia;
+    delete global.__FLOW_TEST_HOOKS;
+    delete global.__lastSetupResult;
+    delete global.d3;
+    delete global.AppConfig;
+    global.setTimeout = originalSetTimeout;
+    global.clearTimeout = originalClearTimeout;
+    global.requestIdleCallback = originalRequestIdleCallback;
+  });
+
+  test('auto-load expands segments when viewport has expandable nodes', async () => {
+    PerfMetrics.recordEvent.mockClear();
+    PerfMetrics.recordSample.mockClear();
+    PerfMetrics.incrementCounter.mockClear();
+    fetchTreeSegmentMock.mockClear();
+
+    hooks.markSpatialIndexDirty();
+    hooks.rebuildSpatialIndex();
+    const nearNodes = hooks.getNodesNearViewport();
+    expect(nearNodes.length).toBeGreaterThan(0);
+    const targetNode = nearNodes.find((node) => node && node.type === 'person');
+    expect(targetNode).toBeDefined();
+    const normalizedId = Number.isNaN(Number(targetNode.id)) ? targetNode.id : Number(targetNode.id);
+
+    hooks.updateSegmentInfo(normalizedId, {
+      hasMoreAncestors: true,
+      hasMoreDescendants: true,
+      ancestorsDepthLoaded: 0,
+      descendantsDepthLoaded: 0,
+    });
+    const info = hooks.getSegmentInfo(normalizedId);
+    expect(info.hasMoreAncestors).toBe(true);
+    expect(info.hasMoreDescendants).toBe(true);
+
+    await hooks.autoLoadSegmentsAroundViewport();
+
+    const callTypes = fetchTreeSegmentMock.mock.calls.map(([, options]) => options && options.type);
+    const callIds = fetchTreeSegmentMock.mock.calls.map(([id]) => id);
+    expect(callTypes.length).toBeGreaterThan(0);
+    expect(callTypes.some((type) => type === 'ancestors' || type === 'descendants')).toBe(true);
+    expect(callIds.some((id) => String(id) === String(normalizedId))).toBe(true);
+    expect(PerfMetrics.recordEvent).toHaveBeenCalledWith('autoExpand.cycle.complete', expect.objectContaining({
+      attempts: expect.any(Number),
+      successes: expect.any(Number),
+    }));
+    expect(PerfMetrics.incrementCounter).toHaveBeenCalledWith('autoExpand.success', expect.any(Number));
+  });
+
+  test('auto-load records metrics when no nodes are visible in the viewport', async () => {
+    PerfMetrics.recordEvent.mockClear();
+    PerfMetrics.recordSample.mockClear();
+    PerfMetrics.incrementCounter.mockClear();
+    fetchTreeSegmentMock.mockClear();
+
+    hooks.nodes.value.forEach((node) => {
+      if (node && node.position) {
+        node.position.x = 5000;
+        node.position.y = 5000;
+      }
+    });
+    hooks.markSpatialIndexDirty();
+
+    await hooks.autoLoadSegmentsAroundViewport();
+
+    expect(PerfMetrics.recordEvent).toHaveBeenCalledWith('autoExpand.candidates.none', expect.objectContaining({
+      width: expect.any(Number),
+      height: expect.any(Number),
+      zoom: expect.any(Number),
+    }));
+    expect(fetchTreeSegmentMock).not.toHaveBeenCalled();
   });
 });
