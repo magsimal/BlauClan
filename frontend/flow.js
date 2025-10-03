@@ -493,12 +493,14 @@
           if (!linkPickerVisible.value || !selected.value) return [];
           const q = (debouncedLinkInput.value || '').toLowerCase();
           const selId = selected.value.id;
-          // Build candidate list from current nodes (persons only)
-          const candidates = nodes.value
-            .filter((n) => n.type === 'person' && n.data && n.data.id !== selId)
-            .map((n) => n.data)
-            .filter((p) => {
-              // Parent linking constraints
+          const allPeople = peopleState.value.length
+            ? peopleState.value
+            : Array.from(peopleById.values());
+          const candidates = allPeople
+            .filter((raw) => {
+              if (!raw || raw.id === selId) return false;
+              const p = peopleById.has(raw.id) ? peopleById.get(raw.id) : raw;
+              if (!p) return false;
               if (linkType.value === 'father') {
                 const g = (p.gender || '').toLowerCase();
                 if (g && g !== 'male') return false;
@@ -510,16 +512,15 @@
                 if (selected.value.motherId && selected.value.motherId !== p.id) return true;
               }
               if (linkType.value === 'child') {
-                // Exclude those already a child of selected
-                if (childrenCache.get(selId)?.some((c) => c.id === p.id)) return false;
+                if (p.fatherId === selId || p.motherId === selId) return false;
               }
-              // Simple text match on names
               if (!q) return true;
               const name = `${p.callName || ''} ${p.firstName || ''} ${p.lastName || ''}`.toLowerCase();
               return name.includes(q);
             })
             .slice(0, 20)
-            .map((p) => {
+            .map((raw) => {
+              const p = peopleById.has(raw.id) ? peopleById.get(raw.id) : raw;
               const born = p.dateOfBirth || p.birthApprox || '';
               const died = p.dateOfDeath || p.deathApprox || '';
               const life = [born, died].filter(Boolean).join(' - ');
@@ -1029,6 +1030,29 @@
           children.value = childrenCache.get(pid) || [];
         }
 
+        async function ensureNodeVisible(pid, options = {}) {
+          if (!pid) return null;
+          const { preservePositions = true } = options;
+          let node = getNodeById(pid);
+          if (node) return node;
+          const numericId = typeof pid === 'string' ? Number(pid) : pid;
+          const lookupIds = [pid];
+          if (!Number.isNaN(numericId)) lookupIds.push(numericId);
+          const personId = lookupIds.find((id) => peopleById.has(id));
+          if (typeof personId === 'undefined') {
+            console.warn('Person not found in store:', pid);
+            return null;
+          }
+          await loadSegment(personId, {
+            type: 'both',
+            depth: DEFAULT_SEGMENT_DEPTH,
+            preservePositions,
+          });
+          await nextTick();
+          node = getNodeById(pid) || getNodeById(personId);
+          return node || null;
+        }
+
         function hasConnection(pid) {
           const idStr = String(pid);
           return edges.value.some(
@@ -1089,8 +1113,11 @@
           showModal.value = false;
           editing.value = false;
           await nextTick();
-          const node = getNodeById(pid);
-          if (!node) return;
+          let node = getNodeById(pid);
+          if (!node) {
+            node = await ensureNodeVisible(pid, { preservePositions: true });
+            if (!node) return;
+          }
           highlightBloodline(pid);
           fitView({ nodes: [String(pid)], maxZoom: 1.5, padding: 0.1 });
           selected.value = { ...node.data, spouseId: '' };
@@ -1105,10 +1132,13 @@
         async function focusOnNode(pid) {
           if (!pid) return;
           await nextTick();
-          const node = getNodeById(pid);
+          let node = getNodeById(pid);
           if (!node) {
-            console.warn('Node not found for focusing:', pid);
-            return;
+            node = await ensureNodeVisible(pid, { preservePositions: true });
+            if (!node) {
+              console.warn('Node not found for focusing:', pid);
+              return;
+            }
           }
           try {
             fitView({ nodes: [String(pid)], maxZoom: 1.5, padding: 0.1 });
