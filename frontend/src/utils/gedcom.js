@@ -31,71 +31,89 @@
     let person = null;
     let family = null;
     let ctx = null;
-    lines.forEach((raw) => {
+    let prevLevel = null;
+    for (const raw of lines) {
       const line = raw.trim();
-      if (!line) return;
+      if (!line) continue;
       const parts = line.split(/\s+/);
       const level = parts.shift();
+      if (prevLevel === '2' && level !== '2') {
+        ctx = null;
+      }
       if (parts.length >= 2 && parts[0].startsWith('@') && parts[1] === 'INDI') {
         if (family) { families.push(family); family = null; }
         if (person) people.push(person);
         person = { gedcomId: parts[0] };
         ctx = null;
-        return;
+        prevLevel = level;
+        continue;
       }
       if (parts.length >= 2 && parts[0].startsWith('@') && parts[1] === 'FAM') {
         if (person) { people.push(person); person = null; }
         if (family) families.push(family);
         family = { gedcomId: parts[0], children: [] };
         ctx = null;
-        return;
+        prevLevel = level;
+        continue;
       }
       const tag = parts.shift();
       const rest = parts.join(' ');
       if (person) {
-      if (level === '1' && tag === 'NAME') {
-        const m = rest.match(/^([^/]*?)\s*\/([^/]*)\//);
-        if (m) {
-          person.firstName = m[1].trim();
-          person.lastName = m[2].trim();
-        } else {
-          const seg = rest.split(' ');
-          person.firstName = seg.shift() || '';
-          person.lastName = seg.join(' ');
+        if (level === '1') {
+          if (tag === 'BIRT' || tag === 'DEAT') {
+            ctx = tag;
+          } else {
+            ctx = null;
+            if (tag === 'NAME') {
+              const m = rest.match(/^([^/]*?)\s*\/([^/]*)\//);
+              if (m) {
+                person.firstName = m[1].trim();
+                person.lastName = m[2].trim();
+              } else {
+                const seg = rest.split(' ');
+                person.firstName = seg.shift() || '';
+                person.lastName = seg.join(' ');
+              }
+            } else if (tag === 'SEX') {
+              const val = rest.trim().toLowerCase();
+              person.gender = val.startsWith('m') ? 'male' : val.startsWith('f') ? 'female' : '';
+            }
+          }
+        } else if (level === '2') {
+          if (ctx === 'BIRT') {
+            if (tag === 'DATE') {
+              const val = rest.trim();
+              const iso = toIso(val);
+              if (iso) person.dateOfBirth = iso; else person.birthApprox = val;
+            } else if (tag === 'PLAC') {
+              person.placeOfBirth = rest.trim();
+            }
+          } else if (ctx === 'DEAT') {
+            if (tag === 'DATE') {
+              const val = rest.trim();
+              const iso = toIso(val);
+              if (iso) person.dateOfDeath = iso; else person.deathApprox = val;
+            }
+          }
         }
-      } else if (level === '1' && tag === 'SEX') {
-        const val = rest.trim().toLowerCase();
-        person.gender = val.startsWith('m') ? 'male' : val.startsWith('f') ? 'female' : '';
-      } else if (level === '1' && tag === 'BIRT') {
-        ctx = 'BIRT';
-      } else if (level === '1' && tag === 'DEAT') {
-        ctx = 'DEAT';
-      } else if (level === '2' && tag === 'DATE') {
-        const val = rest.trim();
-        const iso = toIso(val);
-        if (ctx === 'BIRT') {
-          if (iso) person.dateOfBirth = iso;
-          else person.birthApprox = val;
-        } else if (ctx === 'DEAT') {
-          if (iso) person.dateOfDeath = iso;
-          else person.deathApprox = val;
-        }
-      } else if (level === '2' && tag === 'PLAC') {
-        if (ctx === 'BIRT') person.placeOfBirth = rest.trim();
-      } else {
-        // end person block
-      }
       }
       if (family) {
-        if (level === '1' && tag === 'HUSB') family.husband = rest.trim();
-        else if (level === '1' && tag === 'WIFE') family.wife = rest.trim();
-        else if (level === '1' && tag === 'CHIL') family.children.push(rest.trim());
-        else if (level === '1' && tag === 'MARR') ctx = 'MARR';
-        else if (level === '2' && ctx === 'MARR' && tag === 'DATE') {
-          const iso = toIso(rest.trim());
-          if (iso) family.date = iso; else family.approx = rest.trim();
-        } else if (level === '2' && ctx === 'MARR' && tag === 'PLAC') {
-          family.place = rest.trim();
+        if (level === '1') {
+          if (tag === 'MARR') {
+            ctx = 'MARR';
+          } else {
+            ctx = null;
+            if (tag === 'HUSB') family.husband = rest.trim();
+            else if (tag === 'WIFE') family.wife = rest.trim();
+            else if (tag === 'CHIL') family.children.push(rest.trim());
+          }
+        } else if (level === '2' && ctx === 'MARR') {
+          if (tag === 'DATE') {
+            const iso = toIso(rest.trim());
+            if (iso) family.date = iso; else family.approx = rest.trim();
+          } else if (tag === 'PLAC') {
+            family.place = rest.trim();
+          }
         } else if (level === '0') {
           families.push(family);
           family = null;
@@ -105,7 +123,8 @@
         if (person) { people.push(person); person = null; ctx = null; }
         if (family) { families.push(family); family = null; ctx = null; }
       }
-    });
+      prevLevel = level;
+    }
     if (person) people.push(person);
     if (family) families.push(family);
     return { people, families };
