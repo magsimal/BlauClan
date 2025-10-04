@@ -32,7 +32,7 @@ async function geonamesPostalCode(lat, lng, cc) {
   if (!geonamesEnabled) return null;
   const key = `gnzip:${lat}:${lng}:${cc}`;
   const cached = await cache.get(key);
-  if (cached !== null) return cached;
+  if (cached !== null && typeof cached !== 'undefined') return cached;
   const url =
     `http://api.geonames.org/findNearbyPostalCodesJSON?lat=${lat}&lng=${lng}` +
     (cc ? `&country=${cc}` : '') +
@@ -73,7 +73,7 @@ async function geonamesSuggest(query, lang = 'en', cc = '') {
   const hash = crypto.createHash('sha1').update((q + lang + cc).toLowerCase()).digest('hex');
   const key = `gn:${hash}`;
   const cached = await cache.get(key);
-  if (cached) return cached;
+  if (cached !== null && typeof cached !== 'undefined') return cached;
   const encoded = encodeURIComponent(q).replace(/-/g, '%2D');
   const queryParam = q.length < 4 ? `name_startsWith=${encoded}` : `q=${encoded}&fuzzy=0.8`;
   const url = `http://api.geonames.org/searchJSON?${queryParam}`
