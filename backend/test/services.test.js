@@ -45,3 +45,18 @@ test('geonamesSuggest sanitizes input and caches', async () => {
   expect(callsToSearch).toBe(1);
   global.fetch = origFetch;
 });
+
+test('geonamesSuggest caches empty results to avoid duplicate requests', async () => {
+  const origFetch = global.fetch;
+  const payload = { geonames: [] };
+  global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => payload });
+  const first = await geonames.geonamesSuggest('Some Unknown Place', 'en');
+  expect(Array.isArray(first)).toBe(true);
+  expect(first.length).toBe(0);
+  const second = await geonames.geonamesSuggest('some unknown place', 'en');
+  expect(Array.isArray(second)).toBe(true);
+  expect(second.length).toBe(0);
+  const callsToSearch = global.fetch.mock.calls.filter(([url]) => /searchJSON\?/.test(url)).length;
+  expect(callsToSearch).toBe(1);
+  global.fetch = origFetch;
+});
