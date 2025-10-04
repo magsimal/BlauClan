@@ -30,27 +30,87 @@ async function buildDescendants(id, options = {}, visited = new Set()) {
   const person = await Person.findByPk(numericId);
   if (!person) return null;
   const node = person.toJSON();
-  const Op = require('sequelize').Op;
+  const { Op } = require('sequelize');
   const marriages = await Marriage.findAll({ where: { [Op.or]: [{ personId: numericId }, { spouseId: numericId }] } });
+
+  const directChildren = await Person.findAll({
+    where: {
+      [Op.or]: [{ fatherId: numericId }, { motherId: numericId }],
+    },
+  });
+
+  const childrenByPartner = new Map();
+  for (const child of directChildren) {
+    let partnerId = null;
+    if (child.fatherId === numericId) {
+      partnerId = child.motherId || null;
+    } else if (child.motherId === numericId) {
+      partnerId = child.fatherId || null;
+    }
+    const key = partnerId === undefined ? null : partnerId;
+    if (!childrenByPartner.has(key)) {
+      childrenByPartner.set(key, []);
+    }
+    childrenByPartner.get(key).push(child);
+  }
+
   node.spouseRelationships = [];
+
   for (const m of marriages) {
     const spouseId = m.personId === numericId ? m.spouseId : m.personId;
     const spouse = await Person.findByPk(spouseId);
-    if (!spouse) continue;
-    const children = await Person.findAll({ where: { [Op.or]: [ { fatherId: numericId, motherId: spouseId }, { fatherId: spouseId, motherId: numericId } ] } });
+    const childrenForSpouse = childrenByPartner.get(spouseId) || [];
+    const childNodes = [];
+    for (const child of childrenForSpouse) {
+      const sub = await buildDescendants(child.id, { maxDepth, depth: depth + 1 }, visited);
+      if (sub) childNodes.push(sub);
+    }
+
+    if (spouse) {
+      node.spouseRelationships.push({
+        spouse: spouse.toJSON(),
+        dateOfMarriage: m.dateOfMarriage,
+        marriageApprox: m.marriageApprox,
+        placeOfMarriage: m.placeOfMarriage,
+        children: childNodes,
+      });
+    } else if (childNodes.length) {
+      node.spouseRelationships.push({
+        spouse: null,
+        dateOfMarriage: m.dateOfMarriage,
+        marriageApprox: m.marriageApprox,
+        placeOfMarriage: m.placeOfMarriage,
+        children: childNodes,
+      });
+    }
+
+    childrenByPartner.delete(spouseId);
+  }
+
+  for (const [partnerId, children] of childrenByPartner.entries()) {
     const childNodes = [];
     for (const child of children) {
       const sub = await buildDescendants(child.id, { maxDepth, depth: depth + 1 }, visited);
       if (sub) childNodes.push(sub);
     }
+
+    let spouse = null;
+    if (partnerId) {
+      const partner = await Person.findByPk(partnerId);
+      if (partner) {
+        spouse = partner.toJSON();
+      }
+    }
+
     node.spouseRelationships.push({
-      spouse: spouse.toJSON(),
-      dateOfMarriage: m.dateOfMarriage,
-      marriageApprox: m.marriageApprox,
-      placeOfMarriage: m.placeOfMarriage,
+      spouse,
+      dateOfMarriage: null,
+      marriageApprox: null,
+      placeOfMarriage: null,
       children: childNodes,
     });
   }
+
   return node;
 }
 

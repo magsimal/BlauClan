@@ -66,6 +66,32 @@ describe('People API', () => {
     expect(child.ancestryDepth).toBe(1);
   });
 
+  test('descendant tree groups children without complete parent data', async () => {
+    await sequelize.sync({ force: true });
+
+    const parentRes = await request(app).post('/api/people').send({ firstName: 'Solo', lastName: 'Parent' });
+    const partnerRes = await request(app).post('/api/people').send({ firstName: 'Co', lastName: 'Parent' });
+    const childWithPartnerRes = await request(app)
+      .post('/api/people')
+      .send({ firstName: 'Partnered', lastName: 'Child', fatherId: parentRes.body.id, motherId: partnerRes.body.id });
+    const childWithoutPartnerRes = await request(app)
+      .post('/api/people')
+      .send({ firstName: 'Solo', lastName: 'Child', fatherId: parentRes.body.id });
+
+    const treeRes = await request(app).get(`/api/tree/${parentRes.body.id}?type=descendants`);
+    expect(treeRes.statusCode).toBe(200);
+    const relationships = treeRes.body.descendants.spouseRelationships;
+    expect(Array.isArray(relationships)).toBe(true);
+
+    const knownPartnerRel = relationships.find((rel) => rel.spouse && rel.spouse.id === partnerRes.body.id);
+    expect(knownPartnerRel).toBeDefined();
+    expect(knownPartnerRel.children.map((child) => child.id)).toContain(childWithPartnerRes.body.id);
+
+    const fallbackRel = relationships.find((rel) => rel.spouse === null);
+    expect(fallbackRel).toBeDefined();
+    expect(fallbackRel.children.map((child) => child.id)).toContain(childWithoutPartnerRes.body.id);
+  });
+
   test('layout save and load', async () => {
     const layoutData = { nodes: [{ id: 1, x: 100, y: 100 }] };
     const saveRes = await request(app).post('/api/layout').send(layoutData);
