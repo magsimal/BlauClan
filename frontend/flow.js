@@ -51,6 +51,17 @@
     }
     focusOnNode(pid);
   }
+  /**
+   * Normalize a node identifier into the type expected by the data/model layer.
+   *
+   * Numeric identifiers are returned as numbers so they can safely be compared
+   * or sent to the backend, while non-numeric identifiers are preserved as
+   * strings. Use this helper whenever interacting with people or tree nodes
+   * that originate from the API or persisted state.
+   *
+   * For Map keys that track UI-only state (e.g., segment hints/loading), prefer
+   * {@link normalizeSegmentKey} which always returns a string key.
+   */
   function normalizeNodeId(nodeId) {
     if (!nodeId) return null;
     const numericId = Number(nodeId);
@@ -295,6 +306,15 @@
         const segmentExpansionMutex = createAsyncMutex();
         const DEFAULT_SEGMENT_DEPTH = 2;
 
+        /**
+         * Normalize a segment identifier into a string key for client-side maps.
+         *
+         * Segment hint state is scoped to the frontend, so we rely on a stable
+         * string value to avoid collisions regardless of whether the ID was
+         * provided as a number or string. Use this helper when reading or
+         * writing to segmentHints/segmentLoading maps. For API interactions,
+         * continue to use {@link normalizeNodeId} so numeric IDs remain numbers.
+         */
         function normalizeSegmentKey(id) {
           if (id === null || typeof id === 'undefined') return '';
           return String(id);
