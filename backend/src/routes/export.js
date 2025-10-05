@@ -153,6 +153,15 @@ function sanitizePersonNode(node) {
   return sanitized;
 }
 
+function flagMissingParents(node, meta, peopleMap) {
+  if (!node || !meta) return;
+  const fatherMissing = node.fatherId && !peopleMap.has(node.fatherId);
+  const motherMissing = node.motherId && !peopleMap.has(node.motherId);
+  if (fatherMissing || motherMissing) {
+    meta.hasMoreAncestors = true;
+  }
+}
+
 function ensureMeta(map, id) {
   if (!map.has(id)) {
     map.set(id, {
@@ -193,6 +202,7 @@ function flattenDescendants(node, options, peopleMap, metaMap, depth = 0, visite
     peopleMap.set(person.id, person);
   }
   const meta = ensureMeta(metaMap, person.id);
+  flagMissingParents(node, meta, peopleMap);
 
   if (!Array.isArray(node.spouseRelationships)) return false;
 
@@ -205,7 +215,8 @@ function flattenDescendants(node, options, peopleMap, metaMap, depth = 0, visite
       if (!peopleMap.has(spouse.id)) {
         peopleMap.set(spouse.id, spouse);
       }
-      ensureMeta(metaMap, spouse.id);
+      const spouseMeta = ensureMeta(metaMap, spouse.id);
+      flagMissingParents(rel.spouse, spouseMeta, peopleMap);
     }
     const children = Array.isArray(rel.children) ? rel.children : [];
     if (children.length && depth + 1 === options.maxDepth) {
