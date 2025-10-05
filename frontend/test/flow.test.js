@@ -395,6 +395,13 @@ describe('auto-expansion integration', () => {
     expect(callTypes.length).toBeGreaterThan(0);
     expect(callTypes.some((type) => type === 'ancestors' || type === 'descendants')).toBe(true);
     expect(callIds.some((id) => String(id) === String(normalizedId))).toBe(true);
+    const postLoadInfo = hooks.getSegmentInfo(normalizedId);
+    if (callTypes.includes('ancestors')) {
+      expect(postLoadInfo.ancestorsDepthLoaded).toBeGreaterThan(info.ancestorsDepthLoaded);
+    }
+    if (callTypes.includes('descendants')) {
+      expect(postLoadInfo.descendantsDepthLoaded).toBeGreaterThan(info.descendantsDepthLoaded);
+    }
     expect(PerfMetrics.recordEvent).toHaveBeenCalledWith('autoExpand.cycle.complete', expect.objectContaining({
       attempts: expect.any(Number),
       successes: expect.any(Number),
@@ -406,15 +413,24 @@ describe('auto-expansion integration', () => {
     PerfMetrics.recordEvent.mockClear();
     PerfMetrics.recordSample.mockClear();
     PerfMetrics.incrementCounter.mockClear();
+    await hooks.autoExpandMutex.runExclusive(async () => {});
     fetchTreeSegmentMock.mockClear();
 
     hooks.nodes.value.forEach((node) => {
-      if (node && node.position) {
-        node.position.x = 5000;
-        node.position.y = 5000;
+      if (!node) return;
+      if (!node.position) {
+        node.position = { x: 5000, y: 5000 };
+        return;
       }
+      node.position.x = 5000;
+      node.position.y = 5000;
     });
     hooks.markSpatialIndexDirty();
+    hooks.rebuildSpatialIndex();
+    const visibleAfterMove = hooks.getNodesNearViewport();
+    expect(visibleAfterMove.length).toBe(0);
+    hooks.getNodesNearViewport = jest.fn(() => visibleAfterMove);
+    hooks.segmentHints.clear();
 
     await hooks.autoLoadSegmentsAroundViewport();
 

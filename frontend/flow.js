@@ -51,6 +51,17 @@
     }
     focusOnNode(pid);
   }
+  /**
+   * Normalize a node identifier into the type expected by the data/model layer.
+   *
+   * Numeric identifiers are returned as numbers so they can safely be compared
+   * or sent to the backend, while non-numeric identifiers are preserved as
+   * strings. Use this helper whenever interacting with people or tree nodes
+   * that originate from the API or persisted state.
+   *
+   * For Map keys that track UI-only state (e.g., segment hints/loading), prefer
+   * {@link normalizeSegmentKey} which always returns a string key.
+   */
   function normalizeNodeId(nodeId) {
     if (!nodeId) return null;
     const numericId = Number(nodeId);
@@ -295,6 +306,20 @@
         const segmentExpansionMutex = createAsyncMutex();
         const DEFAULT_SEGMENT_DEPTH = 2;
 
+        /**
+         * Normalize a segment identifier into a string key for client-side maps.
+         *
+         * Segment hint state is scoped to the frontend, so we rely on a stable
+         * string value to avoid collisions regardless of whether the ID was
+         * provided as a number or string. Use this helper when reading or
+         * writing to segmentHints/segmentLoading maps. For API interactions,
+         * continue to use {@link normalizeNodeId} so numeric IDs remain numbers.
+         */
+        function normalizeSegmentKey(id) {
+          if (id === null || typeof id === 'undefined') return '';
+          return String(id);
+        }
+
         function getAutoExpandDepth(id, type) {
           const entry = autoExpandProgress.get(String(id));
           return entry && entry[type] ? entry[type] : 0;
@@ -331,7 +356,8 @@
         }
 
         function getSegmentInfo(id) {
-          const existing = segmentHints.get(id) || {};
+          const key = normalizeSegmentKey(id);
+          const existing = segmentHints.get(key) || {};
           return {
             ancestorsDepthLoaded: existing.ancestorsDepthLoaded || 0,
             descendantsDepthLoaded: existing.descendantsDepthLoaded || 0,
@@ -345,7 +371,8 @@
         }
 
         function updateSegmentInfo(id, updates) {
-          const current = segmentHints.get(id) || {};
+          const key = normalizeSegmentKey(id);
+          const current = segmentHints.get(key) || {};
           const next = { ...current };
           if (typeof updates.ancestorsDepthLoaded === 'number') {
             next.ancestorsDepthLoaded = updates.ancestorsDepthLoaded;
@@ -359,21 +386,22 @@
           if (typeof updates.hasMoreDescendants === 'boolean') {
             next.hasMoreDescendants = updates.hasMoreDescendants;
           }
-          segmentHints.set(id, next);
+          segmentHints.set(key, next);
           return next;
         }
 
         function isSegmentLoading(id, type) {
           const key = type === 'ancestors' ? 'ancestors' : 'descendants';
-          return segmentLoading[key].has(id);
+          return segmentLoading[key].has(normalizeSegmentKey(id));
         }
 
         function setSegmentLoading(id, type, loading) {
           const key = type === 'ancestors' ? 'ancestors' : 'descendants';
+          const normalizedId = normalizeSegmentKey(id);
           if (loading) {
-            segmentLoading[key].add(id);
+            segmentLoading[key].add(normalizedId);
           } else {
-            segmentLoading[key].delete(id);
+            segmentLoading[key].delete(normalizedId);
           }
         }
 
@@ -422,8 +450,9 @@
           peopleById.delete(id);
           const idx = peopleState.value.findIndex((p) => p.id === id);
           if (idx !== -1) peopleState.value.splice(idx, 1);
+          const normalizedId = normalizeSegmentKey(id);
           visiblePeople.delete(id);
-          segmentHints.delete(id);
+          segmentHints.delete(normalizedId);
           setSegmentLoading(id, 'ancestors', false);
           setSegmentLoading(id, 'descendants', false);
           await syncGraphFromVisiblePeople({ preservePositions: true });
