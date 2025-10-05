@@ -30,4 +30,26 @@ describe('parseGedcom', () => {
     expect(fam.date).toBe('1706-04-13');
     expect(fam.place).toBe('Graben');
   });
+
+  test('ignores unrelated level-2 dates', () => {
+    const text = [
+      '0 @I1@ INDI',
+      '1 NAME Jane /Doe/',
+      '1 BIRT',
+      '2 DATE 1 JAN 1900',
+      '1 OCCU Farmer',
+      '2 DATE 3 FEB 1920',
+      '1 DEAT',
+      '2 DATE 4 MAR 1980',
+      '1 RESI Berlin',
+      '2 DATE 5 APR 1950',
+    ].join('\n');
+    const { people } = parseGedcom(text);
+    expect(people).toHaveLength(1);
+    const person = people[0];
+    expect(person.dateOfBirth).toBe('1900-01-01');
+    expect(person.dateOfDeath).toBe('1980-03-04');
+    expect(person.birthApprox).toBeUndefined();
+    expect(person.deathApprox).toBeUndefined();
+  });
 });
