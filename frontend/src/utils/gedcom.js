@@ -37,7 +37,7 @@
       if (!line) continue;
       const parts = line.split(/\s+/);
       const level = parts.shift();
-      if (prevLevel === '2' && level !== '2') {
+      if (prevLevel === '2' && (level === '0' || level === '1')) {
         ctx = null;
       }
       if (parts.length >= 2 && parts[0].startsWith('@') && parts[1] === 'INDI') {
