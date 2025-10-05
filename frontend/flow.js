@@ -2687,7 +2687,10 @@
         }
 
         async function handleNodesChange(changes) {
-          const removed = (changes || []).filter((c) => c.type === 'remove');
+          const list = Array.isArray(changes) ? changes : [];
+          if (!list.length) return;
+
+          const removed = list.filter((c) => c.type === 'remove');
           for (const r of removed) {
             if (!/^\d+$/.test(r.id)) continue;
             try {
@@ -2696,9 +2699,17 @@
               console.error('Failed to delete person', r.id, e);
             }
           }
-          if (removed.length) {
+
+          const hasNonRemoveChanges = list.some((c) => c.type !== 'remove');
+          if (hasNonRemoveChanges) {
+            rebuildNodeMap();
+            nextTick(() => {
+              refreshUnions();
+            });
+          }
+
+          if (removed.length || hasNonRemoveChanges) {
             markSpatialIndexDirty();
-            rebuildSpatialIndex();
           }
         }
 
