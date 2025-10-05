@@ -295,6 +295,11 @@
         const segmentExpansionMutex = createAsyncMutex();
         const DEFAULT_SEGMENT_DEPTH = 2;
 
+        function normalizeSegmentKey(id) {
+          if (id === null || typeof id === 'undefined') return '';
+          return String(id);
+        }
+
         function getAutoExpandDepth(id, type) {
           const entry = autoExpandProgress.get(String(id));
           return entry && entry[type] ? entry[type] : 0;
@@ -331,7 +336,8 @@
         }
 
         function getSegmentInfo(id) {
-          const existing = segmentHints.get(id) || {};
+          const key = normalizeSegmentKey(id);
+          const existing = segmentHints.get(key) || {};
           return {
             ancestorsDepthLoaded: existing.ancestorsDepthLoaded || 0,
             descendantsDepthLoaded: existing.descendantsDepthLoaded || 0,
@@ -345,7 +351,8 @@
         }
 
         function updateSegmentInfo(id, updates) {
-          const current = segmentHints.get(id) || {};
+          const key = normalizeSegmentKey(id);
+          const current = segmentHints.get(key) || {};
           const next = { ...current };
           if (typeof updates.ancestorsDepthLoaded === 'number') {
             next.ancestorsDepthLoaded = updates.ancestorsDepthLoaded;
@@ -359,21 +366,22 @@
           if (typeof updates.hasMoreDescendants === 'boolean') {
             next.hasMoreDescendants = updates.hasMoreDescendants;
           }
-          segmentHints.set(id, next);
+          segmentHints.set(key, next);
           return next;
         }
 
         function isSegmentLoading(id, type) {
           const key = type === 'ancestors' ? 'ancestors' : 'descendants';
-          return segmentLoading[key].has(id);
+          return segmentLoading[key].has(normalizeSegmentKey(id));
         }
 
         function setSegmentLoading(id, type, loading) {
           const key = type === 'ancestors' ? 'ancestors' : 'descendants';
+          const normalizedId = normalizeSegmentKey(id);
           if (loading) {
-            segmentLoading[key].add(id);
+            segmentLoading[key].add(normalizedId);
           } else {
-            segmentLoading[key].delete(id);
+            segmentLoading[key].delete(normalizedId);
           }
         }
 
@@ -422,8 +430,9 @@
           peopleById.delete(id);
           const idx = peopleState.value.findIndex((p) => p.id === id);
           if (idx !== -1) peopleState.value.splice(idx, 1);
+          const normalizedId = normalizeSegmentKey(id);
           visiblePeople.delete(id);
-          segmentHints.delete(id);
+          segmentHints.delete(normalizedId);
           setSegmentLoading(id, 'ancestors', false);
           setSegmentLoading(id, 'descendants', false);
           await syncGraphFromVisiblePeople({ preservePositions: true });
