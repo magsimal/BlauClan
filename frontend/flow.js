@@ -1650,12 +1650,14 @@
           updatePrivileges();
           updateGridSize(viewport.value.zoom || 1);
           watch(
-            viewport,
-            (v) => {
-              updateGridSize(v.zoom);
-              scheduleSegmentAutoload();
+            () => {
+              const vp = viewport.value || {};
+              return [vp.x ?? 0, vp.y ?? 0, vp.zoom ?? 1];
             },
-            { deep: true }
+            ([, , zoom]) => {
+              updateGridSize(zoom ?? 1);
+              scheduleSegmentAutoload();
+            }
           );
           window.addEventListener('keydown', handleKeydown);
           window.addEventListener('keyup', handleKeyup);
