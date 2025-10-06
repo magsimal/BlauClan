@@ -66,6 +66,73 @@ describe('People API', () => {
     expect(child.ancestryDepth).toBe(1);
   });
 
+  test('descendant segment marks missing ancestor hints for spouses and descendants', async () => {
+    await sequelize.sync({ force: true });
+
+    const spouseFatherRes = await request(app)
+      .post('/api/people')
+      .send({ firstName: 'Partner', lastName: 'Father' });
+    const spouseMotherRes = await request(app)
+      .post('/api/people')
+      .send({ firstName: 'Partner', lastName: 'Mother' });
+
+    const rootRes = await request(app)
+      .post('/api/people')
+      .send({ firstName: 'Root', lastName: 'Person' });
+    const spouseRes = await request(app)
+      .post('/api/people')
+      .send({
+        firstName: 'Partner',
+        lastName: 'Person',
+        fatherId: spouseFatherRes.body.id,
+        motherId: spouseMotherRes.body.id,
+      });
+
+    await request(app).post(`/api/people/${rootRes.body.id}/spouses`).send({ spouseId: spouseRes.body.id });
+
+    const childRes = await request(app)
+      .post('/api/people')
+      .send({
+        firstName: 'Child',
+        lastName: 'Person',
+        fatherId: rootRes.body.id,
+        motherId: spouseRes.body.id,
+      });
+
+    const childSpouseFatherRes = await request(app)
+      .post('/api/people')
+      .send({ firstName: 'InLaw', lastName: 'Senior' });
+    const childSpouseRes = await request(app)
+      .post('/api/people')
+      .send({
+        firstName: 'InLaw',
+        lastName: 'Junior',
+        fatherId: childSpouseFatherRes.body.id,
+      });
+
+    await request(app)
+      .post(`/api/people/${childRes.body.id}/spouses`)
+      .send({ spouseId: childSpouseRes.body.id });
+
+    const segmentRes = await request(app).get(
+      `/api/tree/${rootRes.body.id}/segment?type=descendants&maxDepth=1`
+    );
+    expect(segmentRes.statusCode).toBe(200);
+
+    const people = segmentRes.body.people;
+    const spouseEntry = people.find((entry) => entry.person.id === spouseRes.body.id);
+    expect(spouseEntry).toBeDefined();
+    expect(spouseEntry.hints.hasMoreAncestors).toBe(true);
+
+    const childEntry = people.find((entry) => entry.person.id === childRes.body.id);
+    expect(childEntry).toBeDefined();
+    expect(childEntry.hints.hasMoreAncestors).toBe(false);
+
+    const childSpouseEntry = people.find((entry) => entry.person.id === childSpouseRes.body.id);
+    expect(childSpouseEntry).toBeDefined();
+    expect(childSpouseEntry.hints.hasMoreAncestors).toBe(true);
+  });
+
   test('descendant tree groups children without complete parent data', async () => {
     await sequelize.sync({ force: true });
 
