@@ -1650,14 +1650,22 @@
           updatePrivileges();
           updateGridSize(viewport.value.zoom || 1);
           watch(
+            () => (viewport.value && viewport.value.zoom) ?? 1,
+            (zoom) => {
+              updateGridSize(zoom ?? 1);
+            },
+            { immediate: true }
+          );
+
+          watch(
             () => {
               const vp = viewport.value || {};
               return [vp.x ?? 0, vp.y ?? 0, vp.zoom ?? 1];
             },
-            ([, , zoom]) => {
-              updateGridSize(zoom ?? 1);
+            () => {
               scheduleSegmentAutoload();
-            }
+            },
+            { immediate: false }
           );
           window.addEventListener('keydown', handleKeydown);
           window.addEventListener('keyup', handleKeyup);
