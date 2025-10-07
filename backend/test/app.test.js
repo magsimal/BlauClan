@@ -51,7 +51,7 @@ describe('People API', () => {
     const rootEntry = segmentPeople.find((entry) => entry.person.id === 1);
     expect(rootEntry.hints.hasMoreDescendants).toBe(true);
     const childEntry = segmentPeople.find((entry) => entry.person.id === 3);
-    expect(childEntry.hints.hasMoreDescendants).toBe(false);
+    expect(childEntry.hints.hasMoreDescendants).toBe(true);
 
     const listRes = await request(app).get('/api/people');
     expect(listRes.statusCode).toBe(200);
@@ -64,6 +64,38 @@ describe('People API', () => {
     expect(jane.ancestryDepth).toBe(0);
     expect(child.childCount).toBe(0);
     expect(child.ancestryDepth).toBe(1);
+  });
+
+  test('descendant segment flags boundary children when deeper descendants exist', async () => {
+    await sequelize.sync({ force: true });
+
+    const rootRes = await request(app)
+      .post('/api/people')
+      .send({ firstName: 'Boundary', lastName: 'Root' });
+
+    const childRes = await request(app)
+      .post('/api/people')
+      .send({ firstName: 'Boundary', lastName: 'Child', fatherId: rootRes.body.id });
+
+    const grandchildRes = await request(app)
+      .post('/api/people')
+      .send({ firstName: 'Boundary', lastName: 'Grandchild', fatherId: childRes.body.id });
+
+    const segmentRes = await request(app)
+      .get(`/api/tree/${rootRes.body.id}/segment?type=descendants&maxDepth=1`);
+    expect(segmentRes.statusCode).toBe(200);
+
+    const people = segmentRes.body.people;
+    const rootEntry = people.find((entry) => entry.person.id === rootRes.body.id);
+    expect(rootEntry).toBeDefined();
+    expect(rootEntry.hints.hasMoreDescendants).toBe(true);
+
+    const childEntry = people.find((entry) => entry.person.id === childRes.body.id);
+    expect(childEntry).toBeDefined();
+    expect(childEntry.hints.hasMoreDescendants).toBe(true);
+
+    const grandchildEntry = people.find((entry) => entry.person.id === grandchildRes.body.id);
+    expect(grandchildEntry).toBeUndefined();
   });
 
   test('descendant segment marks missing ancestor hints for spouses and descendants', async () => {

@@ -221,6 +221,11 @@ function flattenDescendants(node, options, peopleMap, metaMap, depth = 0, visite
     const children = Array.isArray(rel.children) ? rel.children : [];
     if (children.length && depth + 1 === options.maxDepth) {
       hasHiddenDescendants = true;
+      for (const child of children) {
+        if (!child || !child.id) continue;
+        const childMeta = ensureMeta(metaMap, child.id);
+        childMeta.hasMoreDescendants = true;
+      }
     }
     if (depth === options.maxDepth) {
       if (children.some((c) => c && c.id)) {
