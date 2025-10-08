@@ -165,6 +165,65 @@ describe('People API', () => {
     expect(childSpouseEntry.hints.hasMoreAncestors).toBe(true);
   });
 
+  test('descendant segment merges hints for repeated descendants across branches', async () => {
+    await sequelize.sync({ force: true });
+
+    const createdPeople = [];
+    const createPerson = async (payload) => {
+      const res = await request(app).post('/api/people').send(payload);
+      expect(res.statusCode).toBe(201);
+      createdPeople.push(res.body);
+      return res.body;
+    };
+
+    const root = await createPerson({ firstName: 'Converging', lastName: 'Root' });
+    const spouseA = await createPerson({ firstName: 'Branch', lastName: 'Alpha' });
+    const spouseB = await createPerson({ firstName: 'Branch', lastName: 'Beta' });
+
+    const leftParent = await createPerson({
+      firstName: 'Left',
+      lastName: 'Parent',
+      fatherId: root.id,
+      motherId: spouseA.id,
+    });
+    const rightParent = await createPerson({
+      firstName: 'Right',
+      lastName: 'Parent',
+      fatherId: root.id,
+      motherId: spouseB.id,
+    });
+
+    const convergingDescendant = await createPerson({
+      firstName: 'Shared',
+      lastName: 'Descendant',
+      fatherId: leftParent.id,
+      motherId: rightParent.id,
+    });
+
+    let currentAncestor = convergingDescendant;
+    const chainLength = 94;
+    for (let i = 0; i < chainLength; i += 1) {
+      currentAncestor = await createPerson({
+        firstName: `Chain${i}`,
+        lastName: 'Descendant',
+        fatherId: currentAncestor.id,
+      });
+    }
+
+    expect(createdPeople.length).toBe(100);
+
+    const segmentRes = await request(app).get(
+      `/api/tree/${root.id}/segment?type=descendants&maxDepth=2`,
+    );
+    expect(segmentRes.statusCode).toBe(200);
+
+    const sharedEntry = segmentRes.body.people.find(
+      (entry) => entry.person.id === convergingDescendant.id,
+    );
+    expect(sharedEntry).toBeDefined();
+    expect(sharedEntry.hints.hasMoreDescendants).toBe(true);
+  });
+
   test('descendant tree groups children without complete parent data', async () => {
     await sequelize.sync({ force: true });
 

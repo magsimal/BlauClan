@@ -194,8 +194,6 @@ function flattenAncestors(node, options, peopleMap, metaMap, depth = 0) {
 function flattenDescendants(node, options, peopleMap, metaMap, depth = 0, visited = new Set()) {
   if (!node || !node.id) return false;
   if (depth > options.maxDepth) return false;
-  if (visited.has(node.id)) return false;
-  visited.add(node.id);
 
   const person = sanitizePersonNode(node);
   if (!peopleMap.has(person.id)) {
@@ -204,7 +202,12 @@ function flattenDescendants(node, options, peopleMap, metaMap, depth = 0, visite
   const meta = ensureMeta(metaMap, person.id);
   flagMissingParents(node, meta, peopleMap);
 
-  if (!Array.isArray(node.spouseRelationships)) return false;
+  const alreadyVisited = visited.has(node.id);
+
+  if (!Array.isArray(node.spouseRelationships)) {
+    if (!alreadyVisited) visited.add(node.id);
+    return false;
+  }
 
   let hasHiddenDescendants = false;
 
@@ -233,6 +236,9 @@ function flattenDescendants(node, options, peopleMap, metaMap, depth = 0, visite
       }
       continue;
     }
+    if (alreadyVisited) {
+      continue;
+    }
     for (const child of children) {
       const childHasHidden = flattenDescendants(child, options, peopleMap, metaMap, depth + 1, visited);
       if (childHasHidden) {
@@ -244,6 +250,8 @@ function flattenDescendants(node, options, peopleMap, metaMap, depth = 0, visite
   if (hasHiddenDescendants) {
     meta.hasMoreDescendants = true;
   }
+
+  visited.add(node.id);
 
   return hasHiddenDescendants;
 }
