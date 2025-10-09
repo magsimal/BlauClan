@@ -165,6 +165,33 @@ describe('People API', () => {
     expect(childSpouseEntry.hints.hasMoreAncestors).toBe(true);
   });
 
+  test('descendant segment delivers deep trees beyond default depth cap', async () => {
+    await sequelize.sync({ force: true });
+
+    let rootId = null;
+    let previousId = null;
+
+    for (let i = 0; i < 100; i += 1) {
+      const payload = { firstName: `Depth${i}`, lastName: 'Tester' };
+      if (previousId) payload.fatherId = previousId;
+      const res = await request(app).post('/api/people').send(payload);
+      expect(res.statusCode).toBe(201);
+      if (!rootId) rootId = res.body.id;
+      previousId = res.body.id;
+    }
+
+    const segmentRes = await request(app)
+      .get(`/api/tree/${rootId}/segment?type=descendants&maxDepth=100`);
+
+    expect(segmentRes.statusCode).toBe(200);
+    expect(segmentRes.body.requestedDepth).toBe(100);
+    expect(segmentRes.body.people).toHaveLength(100);
+
+    const terminalEntry = segmentRes.body.people.find((entry) => entry.person.id === previousId);
+    expect(terminalEntry).toBeDefined();
+    expect(terminalEntry.hints.hasMoreDescendants).toBe(false);
+  });
+
   test('descendant tree groups children without complete parent data', async () => {
     await sequelize.sync({ force: true });
 

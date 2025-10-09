@@ -254,7 +254,7 @@ router.get('/tree/:id/segment', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
   const { type = 'both', maxDepth } = req.query;
-  const limit = Math.max(1, Math.min(64, parseInt(maxDepth || '4', 10) || 4));
+  const limit = Math.max(1, parseInt(maxDepth || '4', 10) || 4);
   const person = await Person.findByPk(id);
   if (!person) return res.sendStatus(404);
 
@@ -288,7 +288,7 @@ router.get('/tree/:id', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
   const { type = 'both', maxDepth } = req.query;
-  const limit = Math.max(1, Math.min(64, parseInt(maxDepth || '16', 10) || 16));
+  const limit = Math.max(1, parseInt(maxDepth || '16', 10) || 16);
   const person = await Person.findByPk(id);
   if (!person) return res.sendStatus(404);
   const result = { id: person.id };
