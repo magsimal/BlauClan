@@ -5,7 +5,7 @@ process.env.TRUSTED_PROXY_IPS = '::1,127.0.0.1';
 
 const request = require('supertest');
 const app = require('../src/index');
-const { sequelize } = require('../src/models');
+const { sequelize, Marriage } = require('../src/models');
 
 beforeAll(async () => {
   await sequelize.sync({ force: true });
@@ -339,6 +339,29 @@ describe('People API', () => {
     expect(spouseRes.body.length).toBe(1);
     const layoutRes = await request(app).get('/api/layout');
     expect(layoutRes.body.nodes[0].id).toBe(1);
+  });
+
+  test('imports benchmark generator output with person/spouse IDs', async () => {
+    await sequelize.sync({ force: true });
+    const dataset = require('../large-test-data-100.json');
+
+    const importRes = await request(app).post('/api/import/db').send(dataset);
+    expect(importRes.statusCode).toBe(204);
+
+    const peopleRes = await request(app).get('/api/people');
+    expect(peopleRes.statusCode).toBe(200);
+    expect(peopleRes.body.length).toBe(dataset.people.length);
+
+    const marriageCount = await Marriage.count();
+    expect(marriageCount).toBe(dataset.marriages.length);
+
+    const sampleMarriage = dataset.marriages[0];
+    if (sampleMarriage) {
+      const spouseRes = await request(app).get(`/api/people/${sampleMarriage.personId}/spouses`);
+      expect(spouseRes.statusCode).toBe(200);
+      const spouseIds = spouseRes.body.map((entry) => entry.spouse?.id).filter(Boolean);
+      expect(spouseIds).toContain(sampleMarriage.spouseId);
+    }
   });
 
   test('place suggestions route returns data', async () => {
