@@ -364,6 +364,27 @@ describe('People API', () => {
     }
   });
 
+  test('imports legacy marriage payloads using father/mother IDs', async () => {
+    await sequelize.sync({ force: true });
+    const dataset = {
+      people: [
+        { id: 1, firstName: 'Legacy', lastName: 'Primary' },
+        { id: 2, firstName: 'Legacy', lastName: 'Partner' },
+      ],
+      marriages: [
+        { id: 1, fatherId: 1, motherId: 2, marriageDate: '2020-01-01' },
+      ],
+    };
+
+    const importRes = await request(app).post('/api/import/db').send(dataset);
+    expect(importRes.statusCode).toBe(204);
+
+    const marriage = await Marriage.findByPk(1);
+    expect(marriage.personId).toBe(1);
+    expect(marriage.spouseId).toBe(2);
+    expect(marriage.dateOfMarriage).toBe('2020-01-01');
+  });
+
   test('place suggestions route returns data', async () => {
     global.fetch = jest
       .fn()

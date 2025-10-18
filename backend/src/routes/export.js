@@ -3,6 +3,37 @@ const { sequelize, Person, Marriage, Layout } = require('../models');
 const { attachMetricsToPeople, buildMetricsMap } = require('../utils/treeMetrics');
 const { requireAdmin } = require('../middleware/auth');
 
+function normalizeMarriagePayload(entry, index) {
+  if (!entry || typeof entry !== 'object') {
+    throw new Error(`Invalid marriage payload at index ${index}`);
+  }
+
+  const normalized = { ...entry };
+
+  if (normalized.personId == null && normalized.fatherId != null) {
+    normalized.personId = normalized.fatherId;
+  }
+  if (normalized.spouseId == null && normalized.motherId != null) {
+    normalized.spouseId = normalized.motherId;
+  }
+  if (!normalized.dateOfMarriage && normalized.marriageDate) {
+    normalized.dateOfMarriage = normalized.marriageDate;
+  }
+
+  delete normalized.fatherId;
+  delete normalized.motherId;
+  delete normalized.marriageDate;
+
+  if (normalized.personId == null || normalized.spouseId == null) {
+    throw new Error(`Marriage entry ${index} missing personId or spouseId`);
+  }
+  if (normalized.personId === normalized.spouseId) {
+    throw new Error(`Marriage entry ${index} cannot reference the same person twice`);
+  }
+
+  return normalized;
+}
+
 async function buildAncestors(id, options = {}, visited = new Set()) {
   const { maxDepth = 16, depth = 0 } = options;
   const numericId = parseInt(id, 10);
@@ -339,7 +370,10 @@ router.post('/import/db', requireAdmin, async (req, res) => {
       await Person.destroy({ where: {}, truncate: true, cascade: true, transaction: t });
       await Layout.destroy({ where: {}, truncate: true, cascade: true, transaction: t });
       if (people.length) await Person.bulkCreate(people, { transaction: t });
-      if (marriages.length) await Marriage.bulkCreate(marriages, { transaction: t });
+      if (marriages.length) {
+        const normalizedMarriages = marriages.map((entry, idx) => normalizeMarriagePayload(entry, idx));
+        await Marriage.bulkCreate(normalizedMarriages, { transaction: t });
+      }
       if (layouts.length) await Layout.bulkCreate(layouts, { transaction: t });
     });
     res.sendStatus(204);
