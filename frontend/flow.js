@@ -868,16 +868,54 @@
               }
             }
 
-            if (people.length) {
-              const randomPerson = people[Math.floor(Math.random() * people.length)];
-              if (randomPerson && !seen.has(String(randomPerson.id))) {
-                candidateIds.push(randomPerson.id);
-                seen.add(String(randomPerson.id));
+            const childCounts = new Map();
+            people.forEach((person) => {
+              if (person.fatherId) {
+                childCounts.set(
+                  person.fatherId,
+                  (childCounts.get(person.fatherId) || 0) + 1,
+                );
               }
+              if (person.motherId && person.motherId !== person.fatherId) {
+                childCounts.set(
+                  person.motherId,
+                  (childCounts.get(person.motherId) || 0) + 1,
+                );
+              }
+            });
+
+            const scoredPeople = people
+              .map((person) => {
+                const children = childCounts.get(person.id) || 0;
+                const missingParents =
+                  (person.fatherId ? 0 : 1) + (person.motherId ? 0 : 1);
+                const score = (children * 4) + missingParents;
+                return { id: person.id, score, children };
+              })
+              .sort((a, b) => {
+                if (b.score === a.score) {
+                  return b.children - a.children;
+                }
+                return b.score - a.score;
+              });
+
+            for (const entry of scoredPeople.slice(0, 5)) {
+              if (!seen.has(String(entry.id))) {
+                candidateIds.push(entry.id);
+                seen.add(String(entry.id));
+              }
+            }
+
+            if (people.length) {
               const firstPerson = people[0];
               if (firstPerson && !seen.has(String(firstPerson.id))) {
                 candidateIds.push(firstPerson.id);
                 seen.add(String(firstPerson.id));
+              }
+              const randomPerson = people[Math.floor(Math.random() * people.length)];
+              if (randomPerson && !seen.has(String(randomPerson.id))) {
+                candidateIds.push(randomPerson.id);
+                seen.add(String(randomPerson.id));
               }
             }
 

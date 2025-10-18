@@ -1,3 +1,4 @@
 module.exports = {
-  testEnvironment: 'jsdom'
+  testEnvironment: 'jsdom',
+  testPathIgnorePatterns: ['<rootDir>/test/e2e/'],
 };
