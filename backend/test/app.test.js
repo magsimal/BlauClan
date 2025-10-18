@@ -364,7 +364,7 @@ describe('People API', () => {
     }
   });
 
-  test('imports legacy marriage payloads using father/mother IDs', async () => {
+  test('rejects marriage payloads missing personId or spouseId', async () => {
     await sequelize.sync({ force: true });
     const dataset = {
       people: [
@@ -377,12 +377,8 @@ describe('People API', () => {
     };
 
     const importRes = await request(app).post('/api/import/db').send(dataset);
-    expect(importRes.statusCode).toBe(204);
-
-    const marriage = await Marriage.findByPk(1);
-    expect(marriage.personId).toBe(1);
-    expect(marriage.spouseId).toBe(2);
-    expect(marriage.dateOfMarriage).toBe('2020-01-01');
+    expect(importRes.statusCode).toBe(400);
+    expect(importRes.body.error).toMatch(/missing personId or spouseId/i);
   });
 
   test('place suggestions route returns data', async () => {
