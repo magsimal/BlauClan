@@ -312,6 +312,7 @@
         }
         const segmentExpansionMutex = createAsyncMutex();
         const DEFAULT_SEGMENT_DEPTH = 2;
+        let orphanCursor = 0;
 
         /**
          * Normalize a segment identifier into a string key for client-side maps.
@@ -360,6 +361,7 @@
           segmentLoading.ancestors.clear();
           segmentLoading.descendants.clear();
           autoExpandProgress.clear();
+          orphanCursor = 0;
         }
 
         function getSegmentInfo(id) {
@@ -410,6 +412,32 @@
           } else {
             segmentLoading[key].delete(normalizedId);
           }
+        }
+
+        async function loadNextUnseenPerson(options = {}) {
+          const { preservePositions = true } = options;
+          const total = peopleState.value.length;
+          if (!total) return false;
+          for (let i = 0; i < total; i += 1) {
+            const idx = (orphanCursor + i) % total;
+            const candidate = peopleState.value[idx];
+            if (!candidate || visiblePeople.has(candidate.id) || isSegmentLoading(candidate.id, 'descendants')) {
+              continue;
+            }
+            orphanCursor = (idx + 1) % total;
+            setSegmentLoading(candidate.id, 'descendants', true);
+            try {
+              const loaded = await loadSegment(candidate.id, {
+                type: 'both',
+                depth: DEFAULT_SEGMENT_DEPTH,
+                preservePositions,
+              });
+              return loaded;
+            } finally {
+              setSegmentLoading(candidate.id, 'descendants', false);
+            }
+          }
+          return false;
         }
 
         function upsertPersonLocal(person) {
@@ -1049,6 +1077,19 @@
                 }
               }
 
+              if (successes === 0 && candidates.length) {
+                const orphanLoaded = await loadNextUnseenPerson();
+                if (metrics && typeof metrics.recordEvent === 'function') {
+                  metrics.recordEvent('autoExpand.orphanFallback', {
+                    loaded: orphanLoaded,
+                    reason: 'noSuccess',
+                  });
+                }
+                if (orphanLoaded && metrics && typeof metrics.incrementCounter === 'function') {
+                  metrics.incrementCounter('autoExpand.orphanLoad', 1);
+                }
+              }
+
               if (metrics && typeof metrics.recordSample === 'function') {
                 metrics.recordSample('autoExpand.successesPerCycle', successes);
                 metrics.recordSample('autoExpand.attemptsPerCycle', attempts);
@@ -1100,6 +1141,7 @@
               isSegmentLoading,
               setSegmentLoading,
               autoLoadSegmentsAroundViewport,
+              loadNextUnseenPerson,
               scheduleSegmentAutoload,
               markSpatialIndexDirty,
               rebuildSpatialIndex,
