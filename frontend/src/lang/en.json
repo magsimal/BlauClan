@@ -109,6 +109,7 @@
   ,"processingLargeDataset": "Processing {count} nodes, please wait..."
   ,"defineMeFirst": "Please define a me-node first"
   ,"personsHidden": "persons hidden"
+  ,"nodeCountIndicator": "Loaded {loaded} / {total}"
   ,"pointsLegend": "How to earn points:"
   ,"newPersonPoints": "• Add new person: 5 points"
   ,"editPersonPoints": "• Edit existing person: 1-2 points per field"

@@ -28,10 +28,25 @@
     return translations[key];
   }
 
-  function t(key) {
+  function applyParams(template, params) {
+    if (!template || typeof template !== 'string' || !params) return template;
+    return template.replace(/\{([^{}]+)\}/g, (match, rawKey) => {
+      const key = rawKey.trim();
+      if (Object.prototype.hasOwnProperty.call(params, key)) {
+        const value = params[key];
+        return value == null ? '' : String(value);
+      }
+      return match;
+    });
+  }
+
+  function t(key, params) {
     const upper = normalizeLang(current);
-    return (translations[upper] && translations[upper][key]) ||
-           (translations.EN && translations.EN[key]) || key;
+    const template =
+      (translations[upper] && translations[upper][key]) ||
+      (translations.EN && translations.EN[key]) ||
+      key;
+    return applyParams(template, params);
   }
 
   async function setLang(lang) {
