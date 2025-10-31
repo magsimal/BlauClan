@@ -177,6 +177,7 @@
           updateNodeInternals,
         } = useVueFlow({ id: 'main-flow' });
         const { fitView, zoomTo } = useZoomPanHelper('main-flow');
+        const { fitView: fitRelativesView } = useZoomPanHelper('relatives-flow');
         const horizontalGridSize =
           (window.AppConfig &&
             (AppConfig.horizontalGridSize || AppConfig.gridSize)) ||
@@ -851,11 +852,16 @@
               map[n.id] = n;
             });
           }
+          const updates = [];
           nodes.value.forEach((n) => {
             if (map[n.id]) {
               n.position = { x: map[n.id].x, y: map[n.id].y };
+              updates.push({ id: n.id, position: { ...n.position } });
             }
           });
+          if (updates.length) {
+            updateNodePositions(updates, true, false);
+          }
         }
 
         // Helper function to refresh both node data and search efficiently
@@ -1958,6 +1964,18 @@
           hiddenCount.value = hiddenNodeCount;
         }
 
+        function ensureRelativesFit() {
+          nextTick(() => {
+            if (!showRelatives.value) return;
+            if (typeof fitRelativesView !== 'function') return;
+            try {
+              fitRelativesView({ padding: 0.15 });
+            } catch (err) {
+              console.warn('Failed to fit relatives view', err);
+            }
+          });
+        }
+
         function computeRelatives() {
           if (!relativesRoot) return;
           const mode = relativesMode.value;
@@ -2029,6 +2047,7 @@
           tidySubtree(newNodes);
           relativesNodes.value = newNodes;
           relativesEdges.value = newEdges;
+          ensureRelativesFit();
         }
 
         function tidySubtree(list) {
@@ -2102,6 +2121,7 @@
 
         function tidyRelatives() {
           tidySubtree(relativesNodes.value);
+          ensureRelativesFit();
         }
 
         async function onNodeClick(evt) {
@@ -2748,6 +2768,7 @@
           relativesMode.value = 'both';
           computeRelatives();
           showRelatives.value = true;
+          ensureRelativesFit();
         }
 
         async function fetchScore() {
