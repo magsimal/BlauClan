@@ -6,7 +6,7 @@
   <title>Tree of Life</title>
   <link rel="icon" type="image/png" href="favicon.png?v=0.1.5">
   <script src="vue.global.js"></script>
-  <script>var production = 'development';</script>
+  <script>(function(){try{var h=location.hostname||'';var devHosts=['','localhost','127.0.0.1'];window.production=devHosts.includes(h)?'development':'production';}catch(e){window.production='development';}})();</script>
   <link rel="stylesheet" href="vue-flow-style.css">
   <script src="vue-flow-core.iife.js"></script>
   <script src="assets/vendor/d3.min.js"></script>
@@ -20,6 +20,20 @@
   <link rel="stylesheet" href="assets/vendor/flatpickr.min.css">
   <link rel="stylesheet" href="assets/fonts/fonts.css">
   <script src="assets/vendor/flatpickr.min.js"></script>
+  <script>(function(){
+    try {
+      var ua = navigator.userAgent || '';
+      var isIOS = /iP(hone|od|ad)/.test(navigator.platform || '') || (/Mac/.test(ua) && 'ontouchend' in document);
+      var supportsBackdrop = false;
+      try {
+        if (window.CSS && CSS.supports) {
+          supportsBackdrop = CSS.supports('backdrop-filter', 'blur(1px)') || CSS.supports('-webkit-backdrop-filter', 'blur(1px)') || CSS.supports('(backdrop-filter: blur(1px))') || CSS.supports('(-webkit-backdrop-filter: blur(1px))');
+        }
+      } catch(e) { supportsBackdrop = false; }
+      var hasBackdropFilterBug = isIOS && !supportsBackdrop;
+      if (isIOS || !supportsBackdrop || hasBackdropFilterBug) { document.documentElement.classList.add('ios'); }
+    } catch(e) { /* ignore */ }
+  })();</script>
   <style>
     html, body { height: 100%; }
     body { font-family: "Inter", sans-serif; }
@@ -54,6 +68,9 @@
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
       border: none;
     }
+    /* iOS safe-mode: disable heavy GPU effects that can crash WebKit */
+    .ios #top-bar, .ios #footer, .ios #multiIndicator, .ios #flashBanner, .ios .modal-content { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+    .ios body.dark-theme, .ios body.bright-theme { background-attachment: scroll !important; background-image: none !important; }
     body.dark-theme #top-bar,
     body.dark-theme #footer {
       background-color: rgba(30,30,30,0.6);
@@ -314,6 +331,7 @@
       box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
       border: 1px solid rgba(255, 255, 255, 0.1);
     }
+
     #multiIndicator {
       position: absolute;
       top: 10px;
@@ -329,6 +347,7 @@
       box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
       backdrop-filter: blur(10px);
     }
+
     .modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; }
     .modal-content {
       padding: 24px;
@@ -340,6 +359,7 @@
       box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
       backdrop-filter: blur(20px);
     }
+
     body.dark-theme .modal { background: rgba(0,0,0,0.6); }
     body.bright-theme .modal { background: rgba(0,0,0,0.3); }
     body.dark-theme .modal-content {
@@ -479,9 +499,27 @@
       height: 28px;
       z-index: 10;
     }
-    .copy-btn:hover {
-      background-color: #3b82f6;
-      color: #fff;
+    /* Floating edit button shown on touch devices for the selected node */
+    .node-edit-btn {
+      position: absolute;
+      top: -10px;
+      right: -10px;
+      width: 28px;
+      height: 28px;
+      z-index: 12;
+    }
+    /* Floating info button with comfortable spacing from edit for touch */
+    .node-info-btn {
+      position: absolute;
+      top: 26px; /* 36px below to avoid accidental taps */
+      right: -10px;
+      width: 28px;
+      height: 28px;
+      z-index: 12;
+    }
+    @media (hover: none) and (pointer: coarse) {
+      .node-edit-btn { display: inline-flex; }
+      .node-info-btn { display: inline-flex; }
     }
     .edit-btn {
       position: absolute;
@@ -497,7 +535,7 @@
     }
     #hiddenIndicator {
       position: absolute;
-      bottom: 10px;
+      bottom: 54px;
       right: 10px;
       background: rgba(0,0,0,0.7);
       color: #fff;
@@ -505,6 +543,27 @@
       border-radius: 4px;
       font-size: 0.8rem;
       z-index: 20;
+    }
+    #nodeCountIndicator {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(15, 23, 42, 0.85);
+      color: #fff;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      box-shadow: 0 6px 18px rgba(15, 23, 42, 0.25);
+      z-index: 21;
+      letter-spacing: 0.02em;
+    }
+    body.dark-theme #nodeCountIndicator {
+      background: rgba(15, 23, 42, 0.95);
+      box-shadow: 0 6px 18px rgba(15, 23, 42, 0.4);
     }
     #top-bar {
       position: relative;
@@ -609,15 +668,7 @@
         <textarea class="form-control mb-2" v-model="selectedPerson.notes" placeholder="Notes" data-i18n-placeholder="notes"></textarea>
         <button class="btn btn-success mr-2" @click="savePerson" data-i18n="save">Save</button>
         <button class="btn btn-danger" @click="deleteSelected" data-i18n="delete">Delete</button>
-        <div v-if="childrenOfSelected.length" class="card">
-          <h3 data-i18n="children">Children</h3>
-          <ul>
-            <li v-for="c in childrenOfSelected" :key="c.id">
-              {{ c.callName ? c.callName + ' (' + c.firstName + ')' : c.firstName }} {{ c.lastName }}
-              <button class="btn btn-sm btn-danger ml-1" @click="unlinkChild(c)">x</button>
-            </li>
-          </ul>
-        </div>
+        
       </div>
     </div>
         <div id="flow-app" style="touch-action: none; overflow: hidden; position: relative;"></div>
@@ -673,6 +724,7 @@
   <script src="app.js"></script>
   <script src="src/utils/exportSvg.js"></script>
   <script src="src/utils/assignGenerations.js"></script>
+  <script src="src/flow/layout.js"></script>
   <script src="src/utils/gedcom.js"></script>
   <script src="src/utils/dedup.js"></script>
   <script src="src/config.js"></script>

@@ -56,6 +56,8 @@
   "moreDetails": "More Details",
   "saveLayout": "Save Layout",
   "loadLayout": "Reload Layout",
+  "loadAncestors": "Load ancestors",
+  "loadDescendants": "Load descendants",
   "fitToScreen": "Fit to Screen",
   "zoomIn": "Zoom In",
   "zoomOut": "Zoom Out",
@@ -103,7 +105,19 @@
   ,"layoutSaved": "Layout saved"
   ,"layoutTidied": "Layout tidied"
   ,"loading": "Loading..."
+  ,"treeSegmentLoadFailed": "Failed to load tree segment"
   ,"processingLargeDataset": "Processing {count} nodes, please wait..."
   ,"defineMeFirst": "Please define a me-node first"
   ,"personsHidden": "persons hidden"
+  ,"nodeCountIndicator": "Loaded {loaded} / {total}"
+  ,"pointsLegend": "How to earn points:"
+  ,"newPersonPoints": "• Add new person: 5 points"
+  ,"editPersonPoints": "• Edit existing person: 1-2 points per field"
+  ,"newInfoPoints": "  - Adding new information: 2 points"
+  ,"updateInfoPoints": "  - Updating existing information: 1 point"
+  ,"link": "Link"
+  ,"unlink": "Unlink"
+  ,"noChildren": "No children yet"
+  ,"noResults": "No results"
+  ,"bothParentsExist": "Child already has both parents"
 }

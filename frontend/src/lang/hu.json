@@ -56,6 +56,8 @@
   "moreDetails": "További részletek",
   "saveLayout": "Elrendezés mentése",
   "loadLayout": "Elrendezés betöltése",
+  "loadAncestors": "Felmenők betöltése",
+  "loadDescendants": "Leszármazottak betöltése",
   "fitToScreen": "Képernyőhöz igazítás",
   "zoomIn": "Nagyítás",
   "zoomOut": "Kicsinyítés",
@@ -103,8 +105,14 @@
   "layoutSaved": "Elrendezés mentve",
   "layoutTidied": "Elrendezés rendezve",
   "loading": "Betöltés...",
+  "treeSegmentLoadFailed": "Nem sikerült betölteni a fa adott részét",
   "processingLargeDataset": "A(z) {count} csomópont feldolgozása, kérem várjon...",
   "defineMeFirst": "Először határozz meg egy saját csomópontot",
-  "personsHidden": "személy elrejtve"
+  "personsHidden": "személy elrejtve",
+  "nodeCountIndicator": "Betöltve {loaded} / {total}",
+  "pointsLegend": "Hogyan szerezhetsz pontokat:",
+  "newPersonPoints": "• Új személy hozzáadása: 5 pont",
+  "editPersonPoints": "• Meglévő személy szerkesztése: 1-2 pont mezőnként",
+  "newInfoPoints": "  - Új információk hozzáadása: 2 pont",
+  "updateInfoPoints": "  - Meglévő információk frissítése: 1 pont"
 }
-

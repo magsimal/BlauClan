@@ -56,6 +56,8 @@
   "moreDetails": "Wiecej szczegolow",
   "saveLayout": "Zapisz uklad",
   "loadLayout": "Wczytaj uklad",
+  "loadAncestors": "Wczytaj przodkow",
+  "loadDescendants": "Wczytaj potomkow",
   "fitToScreen": "Dopasuj do ekranu",
   "zoomIn": "Powieksz",
   "zoomOut": "Pomniejsz",
@@ -103,7 +105,14 @@
   ,"layoutSaved": "Uklad zapisany"
   ,"layoutTidied": "Uklad uporz\u0105dkowany"
   ,"loading": "Ladowanie..."
+  ,"treeSegmentLoadFailed": "Nie udalo sie wczytac fragmentu drzewa"
   ,"processingLargeDataset": "Przetwarzanie {count} wezlow, prosze czekac..."
   ,"defineMeFirst": "Najpierw zdefiniuj wezel 'me'"
   ,"personsHidden": "os\u00f3b ukrytych"
+  ,"nodeCountIndicator": "Zaladowano {loaded} / {total}"
+  ,"pointsLegend": "Jak zdobywac punkty:"
+  ,"newPersonPoints": "• Dodaj nowa osobe: 5 punktow"
+  ,"editPersonPoints": "• Edytuj istniejaca osobe: 1-2 punkty za pole"
+  ,"newInfoPoints": "  - Dodawanie nowych informacji: 2 punkty"
+  ,"updateInfoPoints": "  - Aktualizacja istniejacych informacji: 1 punkt"
 }

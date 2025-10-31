@@ -75,6 +75,7 @@ function generateLargeFamilyTree(size = 5000) {
   // Add some marriages within same generation
   const marriageCount = Math.floor(people.length * 0.3);
   const marriages = [];
+  const seenPairs = new Set();
   
   for (let i = 0; i < marriageCount; i++) {
     const person1 = people[Math.floor(Math.random() * people.length)];
@@ -86,11 +87,17 @@ function generateLargeFamilyTree(size = 5000) {
     
     if (sameGenPeople.length > 0) {
       const person2 = sameGenPeople[Math.floor(Math.random() * sameGenPeople.length)];
+      const [primaryId, secondaryId] = person1.id < person2.id ? [person1.id, person2.id] : [person2.id, person1.id];
+      const key = `${primaryId}-${secondaryId}`;
+      if (seenPairs.has(key)) {
+        continue;
+      }
+      seenPairs.add(key);
       marriages.push({
-        id: i + 1,
-        fatherId: person1.gender === 'male' ? person1.id : person2.id,
-        motherId: person1.gender === 'female' ? person1.id : person2.id,
-        marriageDate: `20${String(Math.floor(Math.random() * 23)).padStart(2, '0')}-${String(Math.floor(Math.random() * 12) + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`
+        id: marriages.length + 1,
+        personId: primaryId,
+        spouseId: secondaryId,
+        dateOfMarriage: `20${String(Math.floor(Math.random() * 23)).padStart(2, '0')}-${String(Math.floor(Math.random() * 12) + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`
       });
     }
   }

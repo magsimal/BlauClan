@@ -5,7 +5,7 @@ process.env.TRUSTED_PROXY_IPS = '::1,127.0.0.1';
 
 const request = require('supertest');
 const app = require('../src/index');
-const { sequelize } = require('../src/models');
+const { sequelize, Marriage } = require('../src/models');
 
 beforeAll(async () => {
   await sequelize.sync({ force: true });
@@ -33,6 +33,221 @@ describe('People API', () => {
     const treeRes = await request(app).get('/api/tree/1?type=descendants');
     expect(treeRes.statusCode).toBe(200);
     expect(treeRes.body.descendants.spouseRelationships[0].children.length).toBe(1);
+    expect(treeRes.body.descendants.childCount).toBe(1);
+    expect(treeRes.body.descendants.ancestryDepth).toBe(0);
+    const spouse = treeRes.body.descendants.spouseRelationships[0].spouse;
+    expect(spouse.childCount).toBe(1);
+    const childNode = treeRes.body.descendants.spouseRelationships[0].children[0];
+    expect(childNode.ancestryDepth).toBe(1);
+
+    const segmentRes = await request(app).get('/api/tree/1/segment?type=descendants&maxDepth=1');
+    expect(segmentRes.statusCode).toBe(200);
+    expect(segmentRes.body.rootId).toBe(1);
+    expect(segmentRes.body.type).toBe('descendants');
+    const segmentPeople = segmentRes.body.people;
+    expect(Array.isArray(segmentPeople)).toBe(true);
+    const ids = segmentPeople.map((entry) => entry.person.id);
+    expect(ids).toEqual(expect.arrayContaining([1, 2, 3]));
+    const rootEntry = segmentPeople.find((entry) => entry.person.id === 1);
+    expect(rootEntry.hints.hasMoreDescendants).toBe(true);
+    const childEntry = segmentPeople.find((entry) => entry.person.id === 3);
+    expect(childEntry.hints.hasMoreDescendants).toBe(true);
+
+    const listRes = await request(app).get('/api/people');
+    expect(listRes.statusCode).toBe(200);
+    const john = listRes.body.find((p) => p.id === 1);
+    const jane = listRes.body.find((p) => p.id === 2);
+    const child = listRes.body.find((p) => p.id === 3);
+    expect(john.childCount).toBe(1);
+    expect(john.ancestryDepth).toBe(0);
+    expect(jane.childCount).toBe(1);
+    expect(jane.ancestryDepth).toBe(0);
+    expect(child.childCount).toBe(0);
+    expect(child.ancestryDepth).toBe(1);
+  });
+
+  test('descendant segment flags boundary children when deeper descendants exist', async () => {
+    await sequelize.sync({ force: true });
+
+    const rootRes = await request(app)
+      .post('/api/people')
+      .send({ firstName: 'Boundary', lastName: 'Root' });
+
+    const childRes = await request(app)
+      .post('/api/people')
+      .send({ firstName: 'Boundary', lastName: 'Child', fatherId: rootRes.body.id });
+
+    const grandchildRes = await request(app)
+      .post('/api/people')
+      .send({ firstName: 'Boundary', lastName: 'Grandchild', fatherId: childRes.body.id });
+
+    const segmentRes = await request(app)
+      .get(`/api/tree/${rootRes.body.id}/segment?type=descendants&maxDepth=1`);
+    expect(segmentRes.statusCode).toBe(200);
+
+    const people = segmentRes.body.people;
+    const rootEntry = people.find((entry) => entry.person.id === rootRes.body.id);
+    expect(rootEntry).toBeDefined();
+    expect(rootEntry.hints.hasMoreDescendants).toBe(true);
+
+    const childEntry = people.find((entry) => entry.person.id === childRes.body.id);
+    expect(childEntry).toBeDefined();
+    expect(childEntry.hints.hasMoreDescendants).toBe(true);
+
+    const grandchildEntry = people.find((entry) => entry.person.id === grandchildRes.body.id);
+    expect(grandchildEntry).toBeUndefined();
+  });
+
+  test('descendant segment marks missing ancestor hints for spouses and descendants', async () => {
+    await sequelize.sync({ force: true });
+
+    const spouseFatherRes = await request(app)
+      .post('/api/people')
+      .send({ firstName: 'Partner', lastName: 'Father' });
+    const spouseMotherRes = await request(app)
+      .post('/api/people')
+      .send({ firstName: 'Partner', lastName: 'Mother' });
+
+    const rootRes = await request(app)
+      .post('/api/people')
+      .send({ firstName: 'Root', lastName: 'Person' });
+    const spouseRes = await request(app)
+      .post('/api/people')
+      .send({
+        firstName: 'Partner',
+        lastName: 'Person',
+        fatherId: spouseFatherRes.body.id,
+        motherId: spouseMotherRes.body.id,
+      });
+
+    await request(app).post(`/api/people/${rootRes.body.id}/spouses`).send({ spouseId: spouseRes.body.id });
+
+    const childRes = await request(app)
+      .post('/api/people')
+      .send({
+        firstName: 'Child',
+        lastName: 'Person',
+        fatherId: rootRes.body.id,
+        motherId: spouseRes.body.id,
+      });
+
+    const childSpouseFatherRes = await request(app)
+      .post('/api/people')
+      .send({ firstName: 'InLaw', lastName: 'Senior' });
+    const childSpouseRes = await request(app)
+      .post('/api/people')
+      .send({
+        firstName: 'InLaw',
+        lastName: 'Junior',
+        fatherId: childSpouseFatherRes.body.id,
+      });
+
+    await request(app)
+      .post(`/api/people/${childRes.body.id}/spouses`)
+      .send({ spouseId: childSpouseRes.body.id });
+
+    const segmentRes = await request(app).get(
+      `/api/tree/${rootRes.body.id}/segment?type=descendants&maxDepth=1`
+    );
+    expect(segmentRes.statusCode).toBe(200);
+
+    const people = segmentRes.body.people;
+    const spouseEntry = people.find((entry) => entry.person.id === spouseRes.body.id);
+    expect(spouseEntry).toBeDefined();
+    expect(spouseEntry.hints.hasMoreAncestors).toBe(true);
+
+    const childEntry = people.find((entry) => entry.person.id === childRes.body.id);
+    expect(childEntry).toBeDefined();
+    expect(childEntry.hints.hasMoreAncestors).toBe(false);
+
+    const childSpouseEntry = people.find((entry) => entry.person.id === childSpouseRes.body.id);
+    expect(childSpouseEntry).toBeDefined();
+    expect(childSpouseEntry.hints.hasMoreAncestors).toBe(true);
+  });
+
+  test('descendant segment merges hints for repeated descendants across branches', async () => {
+    await sequelize.sync({ force: true });
+
+    const createdPeople = [];
+    const createPerson = async (payload) => {
+      const res = await request(app).post('/api/people').send(payload);
+      expect(res.statusCode).toBe(201);
+      createdPeople.push(res.body);
+      return res.body;
+    };
+
+    const root = await createPerson({ firstName: 'Converging', lastName: 'Root' });
+    const spouseA = await createPerson({ firstName: 'Branch', lastName: 'Alpha' });
+    const spouseB = await createPerson({ firstName: 'Branch', lastName: 'Beta' });
+
+    const leftParent = await createPerson({
+      firstName: 'Left',
+      lastName: 'Parent',
+      fatherId: root.id,
+      motherId: spouseA.id,
+    });
+    const rightParent = await createPerson({
+      firstName: 'Right',
+      lastName: 'Parent',
+      fatherId: root.id,
+      motherId: spouseB.id,
+    });
+
+    const convergingDescendant = await createPerson({
+      firstName: 'Shared',
+      lastName: 'Descendant',
+      fatherId: leftParent.id,
+      motherId: rightParent.id,
+    });
+
+    let currentAncestor = convergingDescendant;
+    const chainLength = 94;
+    for (let i = 0; i < chainLength; i += 1) {
+      currentAncestor = await createPerson({
+        firstName: `Chain${i}`,
+        lastName: 'Descendant',
+        fatherId: currentAncestor.id,
+      });
+    }
+
+    expect(createdPeople.length).toBe(100);
+
+    const segmentRes = await request(app).get(
+      `/api/tree/${root.id}/segment?type=descendants&maxDepth=2`,
+    );
+    expect(segmentRes.statusCode).toBe(200);
+
+    const sharedEntry = segmentRes.body.people.find(
+      (entry) => entry.person.id === convergingDescendant.id,
+    );
+    expect(sharedEntry).toBeDefined();
+    expect(sharedEntry.hints.hasMoreDescendants).toBe(true);
+  });
+
+  test('descendant tree groups children without complete parent data', async () => {
+    await sequelize.sync({ force: true });
+
+    const parentRes = await request(app).post('/api/people').send({ firstName: 'Solo', lastName: 'Parent' });
+    const partnerRes = await request(app).post('/api/people').send({ firstName: 'Co', lastName: 'Parent' });
+    const childWithPartnerRes = await request(app)
+      .post('/api/people')
+      .send({ firstName: 'Partnered', lastName: 'Child', fatherId: parentRes.body.id, motherId: partnerRes.body.id });
+    const childWithoutPartnerRes = await request(app)
+      .post('/api/people')
+      .send({ firstName: 'Solo', lastName: 'Child', fatherId: parentRes.body.id });
+
+    const treeRes = await request(app).get(`/api/tree/${parentRes.body.id}?type=descendants`);
+    expect(treeRes.statusCode).toBe(200);
+    const relationships = treeRes.body.descendants.spouseRelationships;
+    expect(Array.isArray(relationships)).toBe(true);
+
+    const knownPartnerRel = relationships.find((rel) => rel.spouse && rel.spouse.id === partnerRes.body.id);
+    expect(knownPartnerRel).toBeDefined();
+    expect(knownPartnerRel.children.map((child) => child.id)).toContain(childWithPartnerRes.body.id);
+
+    const fallbackRel = relationships.find((rel) => rel.spouse === null);
+    expect(fallbackRel).toBeDefined();
+    expect(fallbackRel.children.map((child) => child.id)).toContain(childWithoutPartnerRes.body.id);
   });
 
   test('layout save and load', async () => {
@@ -124,6 +339,46 @@ describe('People API', () => {
     expect(spouseRes.body.length).toBe(1);
     const layoutRes = await request(app).get('/api/layout');
     expect(layoutRes.body.nodes[0].id).toBe(1);
+  });
+
+  test('imports benchmark generator output with person/spouse IDs', async () => {
+    await sequelize.sync({ force: true });
+    const dataset = require('../large-test-data-100.json');
+
+    const importRes = await request(app).post('/api/import/db').send(dataset);
+    expect(importRes.statusCode).toBe(204);
+
+    const peopleRes = await request(app).get('/api/people');
+    expect(peopleRes.statusCode).toBe(200);
+    expect(peopleRes.body.length).toBe(dataset.people.length);
+
+    const marriageCount = await Marriage.count();
+    expect(marriageCount).toBe(dataset.marriages.length);
+
+    const sampleMarriage = dataset.marriages[0];
+    if (sampleMarriage) {
+      const spouseRes = await request(app).get(`/api/people/${sampleMarriage.personId}/spouses`);
+      expect(spouseRes.statusCode).toBe(200);
+      const spouseIds = spouseRes.body.map((entry) => entry.spouse?.id).filter(Boolean);
+      expect(spouseIds).toContain(sampleMarriage.spouseId);
+    }
+  });
+
+  test('rejects marriage payloads missing personId or spouseId', async () => {
+    await sequelize.sync({ force: true });
+    const dataset = {
+      people: [
+        { id: 1, firstName: 'Legacy', lastName: 'Primary' },
+        { id: 2, firstName: 'Legacy', lastName: 'Partner' },
+      ],
+      marriages: [
+        { id: 1, fatherId: 1, motherId: 2, marriageDate: '2020-01-01' },
+      ],
+    };
+
+    const importRes = await request(app).post('/api/import/db').send(dataset);
+    expect(importRes.statusCode).toBe(400);
+    expect(importRes.body.error).toMatch(/missing personId or spouseId/i);
   });
 
   test('place suggestions route returns data', async () => {

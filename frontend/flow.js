@@ -12,6 +12,18 @@
   const DedupeUtil = typeof require === 'function'
     ? (() => { try { return require('./src/utils/dedup'); } catch (e) { return {}; } })()
     : (typeof window !== 'undefined' ? (window.Dedupe || {}) : {});
+  const FlowLayout = typeof require === 'function'
+    ? (() => { try { return require('./src/flow/layout'); } catch (e) { return {}; } })()
+    : (typeof window !== 'undefined' ? (window.FlowLayout || {}) : {});
+  const FlowHighlight = typeof require === 'function'
+    ? (() => { try { return require('./src/flow/highlight'); } catch (e) { return {}; } })()
+    : (typeof window !== 'undefined' ? (window.FlowHighlight || {}) : {});
+  const PerfMetrics = typeof require === 'function'
+    ? (() => { try { return require('./src/utils/perf-metrics'); } catch (e) { return null; } })()
+    : (typeof window !== 'undefined' ? (window.FlowMetrics || window.PerfMetrics || null) : null);
+  const isTestEnv = typeof process !== 'undefined'
+    && process.env
+    && process.env.NODE_ENV === 'test';
   const parseGedcom = GedcomUtil.parseGedcom || function () { return []; };
   const findBestMatch = DedupeUtil.findBestMatch || function () { return { match: null, score: 0 }; };
   const matchScore = DedupeUtil.matchScore || function () { return 0; };
@@ -39,11 +51,33 @@
     }
     focusOnNode(pid);
   }
+  /**
+   * Normalize a node identifier into the type expected by the data/model layer.
+   *
+   * Numeric identifiers are returned as numbers so they can safely be compared
+   * or sent to the backend, while non-numeric identifiers are preserved as
+   * strings. Use this helper whenever interacting with people or tree nodes
+   * that originate from the API or persisted state.
+   *
+   * For Map keys that track UI-only state (e.g., segment hints/loading), prefer
+   * {@link normalizeSegmentKey} which always returns a string key.
+   */
+  function normalizeNodeId(nodeId) {
+    if (!nodeId) return null;
+    const numericId = Number(nodeId);
+    return Number.isNaN(numericId) ? String(nodeId) : numericId;
+  }
+
+  function getCurrentMeId() {
+    if (typeof window === 'undefined') return null;
+    return normalizeNodeId(window.meNodeId);
+  }
+
   function refreshMe() {
     if (!appState) return;
     const { nodes } = appState;
     nodes.value.forEach((n) => {
-      n.data.me = window.meNodeId && n.id === String(window.meNodeId);
+      n.data.me = window.meNodeId && n.id === String(getCurrentMeId());
     });
   }
   function updatePrivileges() {
@@ -60,9 +94,67 @@
       setup() {
         const nodes = ref([]);
         const nodeMap = new Map();
+        const SPATIAL_CELL_SIZE = 400;
+        let spatialIndex = new Map();
+        let spatialIndexDirty = true;
+        const metrics = PerfMetrics && typeof PerfMetrics.recordEvent === 'function' ? PerfMetrics : null;
         function rebuildNodeMap() {
           nodeMap.clear();
           nodes.value.forEach((n) => nodeMap.set(n.id, n));
+        }
+        function markSpatialIndexDirty() {
+          spatialIndexDirty = true;
+        }
+        function rebuildSpatialIndex() {
+          const index = new Map();
+          for (const node of nodes.value) {
+            if (!node || !node.position) continue;
+            const width = (node.dimensions && node.dimensions.width) || 180;
+            const height = (node.dimensions && node.dimensions.height) || 120;
+            const startCol = Math.floor(node.position.x / SPATIAL_CELL_SIZE);
+            const endCol = Math.floor((node.position.x + width) / SPATIAL_CELL_SIZE);
+            const startRow = Math.floor(node.position.y / SPATIAL_CELL_SIZE);
+            const endRow = Math.floor((node.position.y + height) / SPATIAL_CELL_SIZE);
+            for (let col = startCol; col <= endCol; col += 1) {
+              for (let row = startRow; row <= endRow; row += 1) {
+                const key = `${col}:${row}`;
+                if (!index.has(key)) index.set(key, new Set());
+                index.get(key).add(node.id);
+              }
+            }
+          }
+          spatialIndex = index;
+          spatialIndexDirty = false;
+        }
+        function getNodesNearViewport() {
+          const dims = dimensions.value;
+          const vp = viewport.value;
+          if (!dims || !vp) return [];
+          if (spatialIndexDirty) rebuildSpatialIndex();
+          const zoom = vp.zoom || 1;
+          const offsetX = vp.x || 0;
+          const offsetY = vp.y || 0;
+          const padding = runtimePerformanceProfile.isLowPower ? 200 : 150;
+          const visibleLeft = (-padding - offsetX) / zoom;
+          const visibleRight = (((dims.width || 0) + padding) - offsetX) / zoom;
+          const visibleTop = (-padding - offsetY) / zoom;
+          const visibleBottom = (((dims.height || 0) + padding) - offsetY) / zoom;
+          const startCol = Math.floor(visibleLeft / SPATIAL_CELL_SIZE);
+          const endCol = Math.floor(visibleRight / SPATIAL_CELL_SIZE);
+          const startRow = Math.floor(visibleTop / SPATIAL_CELL_SIZE);
+          const endRow = Math.floor(visibleBottom / SPATIAL_CELL_SIZE);
+          const candidates = new Set();
+          for (let col = startCol; col <= endCol; col += 1) {
+            for (let row = startRow; row <= endRow; row += 1) {
+              const key = `${col}:${row}`;
+              const ids = spatialIndex.get(key);
+              if (!ids) continue;
+              ids.forEach((id) => candidates.add(id));
+            }
+          }
+          return Array.from(candidates)
+            .map((id) => getNodeById(id))
+            .filter((node) => node && node.type === 'person' && isNodeRoughlyVisible(node));
         }
         function getNodeById(id) {
           return nodeMap.get(String(id)) || null;
@@ -82,7 +174,7 @@
           snapToGrid,
           snapGrid,
           viewport,
-          updateNodePositions,
+          updateNodeInternals,
         } = useVueFlow({ id: 'main-flow' });
         const { fitView, zoomTo } = useZoomPanHelper('main-flow');
         const { fitView: fitRelativesView } = useZoomPanHelper('relatives-flow');
@@ -96,6 +188,343 @@
           30;
         const baseGridSize =
           (horizontalGridSize + verticalGridSize) / 2;
+        const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+        function detectPerformanceProfile() {
+          const config = window.AppConfig || {};
+          const nav = typeof navigator !== 'undefined' ? navigator : null;
+          const concurrency = nav && nav.hardwareConcurrency ? nav.hardwareConcurrency : 4;
+          const deviceMemory = nav && typeof nav.deviceMemory === 'number' ? nav.deviceMemory : 4;
+          const saveData = !!(nav && nav.connection && nav.connection.saveData);
+          const reducedMotion =
+            typeof window !== 'undefined'
+            && typeof window.matchMedia === 'function'
+            && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          const ua = nav && typeof nav.userAgent === 'string' ? nav.userAgent : '';
+          const isIOS = /iphone|ipad|ipod/i.test(ua);
+          const cpuThreshold = Number(config.lowPowerCpuThreshold) || 2;
+          const isLowPowerDevice =
+            concurrency <= cpuThreshold
+            || deviceMemory <= 2
+            || saveData
+            || reducedMotion
+            || isIOS;
+          const maxTicks = Number(config.maxSimulationTicks) || 72;
+          const lowPowerTicks = Number(config.lowPowerSimulationTicks)
+            || Math.max(24, Math.round(maxTicks * 0.6));
+          const skipForce = Number(config.skipForceSimulationThreshold)
+            || Number(config.skipForceThreshold)
+            || 1400;
+          const highlightLimit = Number(config.highlightLimitNodeCount) || 800;
+          const profile = {
+            isLowPower: isLowPowerDevice,
+            maxSimulationTicks: maxTicks,
+            lowPowerTicks,
+            skipForceSimulationThreshold: skipForce,
+            highlightLimitNodeCount: highlightLimit,
+          };
+          if (metrics) {
+            if (typeof metrics.recordEvent === 'function') {
+              metrics.recordEvent('performance.profile.detected', {
+                isLowPower: isLowPowerDevice,
+                concurrency,
+                deviceMemory,
+                saveData,
+                reducedMotion,
+                isIOS,
+                maxSimulationTicks: maxTicks,
+                lowPowerTicks,
+                skipForce,
+                highlightLimit,
+              });
+            }
+            if (typeof metrics.recordSample === 'function') {
+              metrics.recordSample('performance.concurrency', concurrency);
+              metrics.recordSample('performance.deviceMemory', deviceMemory);
+            }
+          }
+          return profile;
+        }
+
+        const runtimePerformanceProfile = detectPerformanceProfile();
+        if (metrics && typeof metrics.recordEvent === 'function') {
+          metrics.recordEvent('performance.profile.runtime', runtimePerformanceProfile);
+        }
+
+        async function yieldForLayout() {
+          if (metrics && typeof metrics.incrementCounter === 'function') {
+            metrics.incrementCounter('layout.yieldForLayout.calls', 1);
+          }
+          const timer = metrics && typeof metrics.startTimer === 'function'
+            ? metrics.startTimer('layout.yieldForLayout', { lowPower: runtimePerformanceProfile.isLowPower })
+            : null;
+          let strategy = 'timeout';
+          if (
+            typeof window !== 'undefined'
+            && typeof window.requestIdleCallback === 'function'
+            && !runtimePerformanceProfile.isLowPower
+          ) {
+            strategy = 'idle-callback';
+            await new Promise((resolve) =>
+              window.requestIdleCallback(() => resolve(), { timeout: 16 })
+            );
+            if (metrics && typeof metrics.endTimer === 'function') metrics.endTimer(timer, { strategy });
+            return;
+          }
+          await sleep(runtimePerformanceProfile.isLowPower ? 28 : 14);
+          if (metrics && typeof metrics.endTimer === 'function') metrics.endTimer(timer, { strategy });
+        }
+        const peopleState = ref([]);
+        const loadedPersonCount = computed(() =>
+          nodes.value.reduce(
+            (count, node) => count + (node && node.type === 'person' ? 1 : 0),
+            0,
+          )
+        );
+        const totalPersonCount = computed(() => peopleState.value.length);
+        const peopleById = new Map();
+        const visiblePeople = new Map();
+        const segmentHints = new Map();
+        const segmentLoading = {
+          ancestors: new Set(),
+          descendants: new Set(),
+        };
+        const autoExpandProgress = new Map();
+        const MAX_AUTO_EXPAND_ENTRIES = 1000; // Prevent memory growth
+        const autoExpandMutex = createAsyncMutex();
+        function createAsyncMutex() {
+          let current = Promise.resolve();
+          return {
+            async runExclusive(task) {
+              let release;
+              const wait = new Promise((resolve) => {
+                release = resolve;
+              });
+              const previous = current;
+              current = current.then(() => wait);
+              await previous;
+              try {
+                return await task();
+              } finally {
+                release();
+              }
+            },
+          };
+        }
+        const segmentExpansionMutex = createAsyncMutex();
+        const DEFAULT_SEGMENT_DEPTH = 2;
+        let orphanCursor = 0;
+
+        /**
+         * Normalize a segment identifier into a string key for client-side maps.
+         *
+         * Segment hint state is scoped to the frontend, so we rely on a stable
+         * string value to avoid collisions regardless of whether the ID was
+         * provided as a number or string. Use this helper when reading or
+         * writing to segmentHints/segmentLoading maps. For API interactions,
+         * continue to use {@link normalizeNodeId} so numeric IDs remain numbers.
+         */
+        function normalizeSegmentKey(id) {
+          if (id === null || typeof id === 'undefined') return '';
+          return String(id);
+        }
+
+        function getAutoExpandDepth(id, type) {
+          const entry = autoExpandProgress.get(String(id));
+          return entry && entry[type] ? entry[type] : 0;
+        }
+
+        function recordAutoExpandDepth(id, type, depth) {
+          const key = String(id);
+          const entry = autoExpandProgress.get(key) || { ancestors: 0, descendants: 0 };
+          entry[type] = Math.max(entry[type] || 0, depth);
+          
+          // Implement size-based cleanup to prevent memory growth
+          if (autoExpandProgress.size >= MAX_AUTO_EXPAND_ENTRIES) {
+            const keysToRemove = Array.from(autoExpandProgress.keys()).slice(0, Math.floor(MAX_AUTO_EXPAND_ENTRIES * 0.2));
+            keysToRemove.forEach(k => autoExpandProgress.delete(k));
+          }
+          
+          autoExpandProgress.set(key, entry);
+        }
+
+        function syncPeopleState(list) {
+          peopleState.value = list.map((p) => ({ ...p }));
+          peopleById.clear();
+          peopleState.value.forEach((p) => {
+            peopleById.set(p.id, p);
+          });
+        }
+
+        function resetVisiblePeople() {
+          visiblePeople.clear();
+          segmentHints.clear();
+          segmentLoading.ancestors.clear();
+          segmentLoading.descendants.clear();
+          autoExpandProgress.clear();
+          orphanCursor = 0;
+        }
+
+        function getSegmentInfo(id) {
+          const key = normalizeSegmentKey(id);
+          const existing = segmentHints.get(key) || {};
+          return {
+            ancestorsDepthLoaded: existing.ancestorsDepthLoaded || 0,
+            descendantsDepthLoaded: existing.descendantsDepthLoaded || 0,
+            hasMoreAncestors: typeof existing.hasMoreAncestors === 'boolean'
+              ? existing.hasMoreAncestors
+              : false,
+            hasMoreDescendants: typeof existing.hasMoreDescendants === 'boolean'
+              ? existing.hasMoreDescendants
+              : false,
+          };
+        }
+
+        function updateSegmentInfo(id, updates) {
+          const key = normalizeSegmentKey(id);
+          const current = segmentHints.get(key) || {};
+          const next = { ...current };
+          if (typeof updates.ancestorsDepthLoaded === 'number') {
+            next.ancestorsDepthLoaded = updates.ancestorsDepthLoaded;
+          }
+          if (typeof updates.descendantsDepthLoaded === 'number') {
+            next.descendantsDepthLoaded = updates.descendantsDepthLoaded;
+          }
+          if (typeof updates.hasMoreAncestors === 'boolean') {
+            next.hasMoreAncestors = updates.hasMoreAncestors;
+          }
+          if (typeof updates.hasMoreDescendants === 'boolean') {
+            next.hasMoreDescendants = updates.hasMoreDescendants;
+          }
+          segmentHints.set(key, next);
+          return next;
+        }
+
+        function isSegmentLoading(id, type) {
+          const key = type === 'ancestors' ? 'ancestors' : 'descendants';
+          return segmentLoading[key].has(normalizeSegmentKey(id));
+        }
+
+        function setSegmentLoading(id, type, loading) {
+          const key = type === 'ancestors' ? 'ancestors' : 'descendants';
+          const normalizedId = normalizeSegmentKey(id);
+          if (loading) {
+            segmentLoading[key].add(normalizedId);
+          } else {
+            segmentLoading[key].delete(normalizedId);
+          }
+        }
+
+        async function loadNextUnseenPerson(options = {}) {
+          const { preservePositions = true } = options;
+          const total = peopleState.value.length;
+          if (!total) return false;
+          for (let i = 0; i < total; i += 1) {
+            const idx = (orphanCursor + i) % total;
+            const candidate = peopleState.value[idx];
+            if (!candidate || visiblePeople.has(candidate.id) || isSegmentLoading(candidate.id, 'descendants')) {
+              continue;
+            }
+            orphanCursor = (idx + 1) % total;
+            setSegmentLoading(candidate.id, 'descendants', true);
+            try {
+              const loaded = await loadSegment(candidate.id, {
+                type: 'both',
+                depth: DEFAULT_SEGMENT_DEPTH,
+                preservePositions,
+              });
+              return loaded;
+            } finally {
+              setSegmentLoading(candidate.id, 'descendants', false);
+            }
+          }
+          return false;
+        }
+
+        function upsertPersonLocal(person) {
+          const stored = { ...person };
+          peopleById.set(person.id, stored);
+          const idx = peopleState.value.findIndex((p) => p.id === person.id);
+          if (idx >= 0) {
+            peopleState.value.splice(idx, 1, stored);
+          } else {
+            peopleState.value.push(stored);
+          }
+          if (visiblePeople.has(person.id)) {
+            visiblePeople.set(person.id, { ...stored });
+          }
+          const node = getNodeById(person.id);
+          if (node && node.data) {
+            Object.assign(node.data, stored);
+            node.data.me = window.meNodeId && person.id === String(getCurrentMeId());
+          }
+        }
+
+          async function removePersonLocal(id, prevData = null) {
+            void prevData;
+            const affectedChildren = [];
+            peopleById.forEach((child) => {
+              if (!child || child.id === id) return;
+              if (child.fatherId !== id && child.motherId !== id) return;
+              const updatedChild = { ...child };
+              if (child.fatherId === id) updatedChild.fatherId = null;
+              if (child.motherId === id) updatedChild.motherId = null;
+              affectedChildren.push(updatedChild);
+            });
+            affectedChildren.forEach((updatedChild) => {
+              upsertPersonLocal(updatedChild);
+              if (selected.value && selected.value.id === updatedChild.id) {
+                const spouseId = selected.value.spouseId;
+                selected.value = { ...selected.value, ...updatedChild };
+                if (typeof spouseId !== 'undefined') selected.value.spouseId = spouseId;
+              }
+            });
+          if (selected.value && selected.value.id === id) {
+            selected.value = null;
+            children.value = [];
+          }
+          peopleById.delete(id);
+          const idx = peopleState.value.findIndex((p) => p.id === id);
+          if (idx !== -1) peopleState.value.splice(idx, 1);
+          const normalizedId = normalizeSegmentKey(id);
+          visiblePeople.delete(id);
+          segmentHints.delete(normalizedId);
+          setSegmentLoading(id, 'ancestors', false);
+          setSegmentLoading(id, 'descendants', false);
+          await syncGraphFromVisiblePeople({ preservePositions: true });
+        }
+
+        const scheduleSearchRefresh = debounce(() => {
+          if (window.SearchApp && typeof window.SearchApp.refresh === 'function') {
+            window.SearchApp.refresh(peopleState.value);
+          }
+        }, 500);
+
+        function rebuildRelationshipsFast() {
+          syncGraphFromVisiblePeople({ preservePositions: true })
+            .catch((err) => console.error('Failed to rebuild relationships', err));
+        }
+
+        function applyPersonResult(updated, prevOverride) {
+          const prev = prevOverride
+            || (peopleById.has(updated.id) ? { ...peopleById.get(updated.id) } : null);
+          upsertPersonLocal(updated);
+          const relationshipChanged = !prev
+            || prev.fatherId !== updated.fatherId
+            || prev.motherId !== updated.motherId;
+          if (relationshipChanged) {
+            refreshRelationshipsForPerson(updated);
+          }
+          scheduleSearchRefresh();
+          if (selected.value && selected.value.id === updated.id) {
+            const spouseId = selected.value.spouseId;
+            selected.value = { ...selected.value, ...updated };
+            if (typeof spouseId !== 'undefined') selected.value.spouseId = spouseId;
+          }
+          if (relationshipChanged && selected.value) {
+            computeChildren(selected.value.id);
+          }
+        }
 
         function updateGridSize(zoom) {
           const el = document.getElementById('flow-app');
@@ -108,6 +537,28 @@
             (typeof AppConfig.relativeAttraction !== 'undefined'
               ? parseFloat(AppConfig.relativeAttraction)
               : null)) || 0.5;
+        const layoutPerformanceProfile = {
+          ...runtimePerformanceProfile,
+          lowPowerSimulationTicks: runtimePerformanceProfile.lowPowerTicks,
+          lowPowerTicks: runtimePerformanceProfile.lowPowerTicks,
+          tickChunkSize: runtimePerformanceProfile.isLowPower ? 6 : 10,
+          yieldControl: runtimePerformanceProfile.isLowPower ? yieldForLayout : undefined,
+        };
+        const LayoutMod = FlowLayout && typeof FlowLayout.createLayoutAPI === 'function'
+          ? FlowLayout.createLayoutAPI({
+            d3,
+            GenerationLayout,
+            horizontalGridSize,
+            relativeAttraction,
+            performanceProfile: layoutPerformanceProfile,
+          })
+          : null;
+        const tidyUpExternal = LayoutMod ? LayoutMod.tidyUp : function() {};
+        const tidyUpChunkedExternal = LayoutMod ? LayoutMod.tidyUpChunked : async function() {};
+        let tidyInFlight = false;
+        let tidyQueued = false;
+        let lastTidyAt = 0;
+        const MIN_TIDY_INTERVAL = runtimePerformanceProfile.isLowPower ? 1400 : 900;
         loggedIn = ref(window.currentUser && window.currentUser !== 'guest');
         admin = ref(window.isAdmin || false);
         const showDeleteAllButton = computed(
@@ -115,7 +566,7 @@
             !!(window.AppConfig && AppConfig.showDeleteAllButton) &&
             admin.value,
         );
-        const hasMe = computed(() => !!window.meNodeId);
+        const hasMe = computed(() => !!getCurrentMeId());
         const isLoading = ref(true);
         function setLoading(v) { isLoading.value = v; }
         const flashMessage = ref('');
@@ -128,7 +579,7 @@
           setTimeout(() => { flashVisible.value = false; }, 1500);
         }
         function notifyTap() {
-          try { if (navigator.vibrate) navigator.vibrate(10); } catch (e) { /* ignore */ }
+          try { if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(10); } catch (e) { /* ignore */ }
         }
         const selected = ref(null);
         const showModal = ref(false);
@@ -193,10 +644,129 @@
         const focusedView = ref(false);
         const hiddenCount = ref(0);
         let longPressTimer = null;
+        let touchStartX = 0;
+        let touchStartY = 0;
+        const LONG_PRESS_MOVE_TOLERANCE = 10;
         const UNION_Y_OFFSET = 20;
         let unions = {};
+
+        function refreshRelationshipsForPerson(person) {
+          if (!person) return;
+          syncGraphFromVisiblePeople({ preservePositions: true })
+            .catch((err) => console.error('Failed to refresh relationships', err));
+        }
         let newNodePos = null;
         let scoreTimer = null;
+        // Touch capability detection for mobile-specific UI affordances
+        const isTouchDevice = ref((typeof window !== 'undefined' && 'ontouchstart' in window) || (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0));
+
+        // Link picker state for connecting existing nodes as father/mother/child
+        const linkPickerVisible = ref(false);
+        const linkType = ref(''); // 'father' | 'mother' | 'child'
+        const linkInput = ref('');
+        // Debounced search input for large datasets
+        const debouncedLinkInput = ref('');
+        const updateDebouncedLink = debounce((v) => { debouncedLinkInput.value = v || ''; }, 250);
+        watch(linkInput, (v) => updateDebouncedLink(v));
+        const linkOptions = computed(() => {
+          if (!linkPickerVisible.value || !selected.value) return [];
+          const q = (debouncedLinkInput.value || '').toLowerCase();
+          const selId = selected.value.id;
+          const allPeople = peopleState.value.length
+            ? peopleState.value
+            : Array.from(peopleById.values());
+          const candidates = allPeople
+            .filter((raw) => {
+              if (!raw || raw.id === selId) return false;
+              const p = peopleById.has(raw.id) ? peopleById.get(raw.id) : raw;
+              if (!p) return false;
+              if (linkType.value === 'father') {
+                const g = (p.gender || '').toLowerCase();
+                if (g && g !== 'male') return false;
+                if (selected.value.fatherId && selected.value.fatherId !== p.id) return true; // UI hides icon when set; keep generic
+              }
+              if (linkType.value === 'mother') {
+                const g = (p.gender || '').toLowerCase();
+                if (g && g !== 'female') return false;
+                if (selected.value.motherId && selected.value.motherId !== p.id) return true;
+              }
+              if (linkType.value === 'child') {
+                if (p.fatherId === selId || p.motherId === selId) return false;
+              }
+              if (!q) return true;
+              const name = `${p.callName || ''} ${p.firstName || ''} ${p.lastName || ''}`.toLowerCase();
+              return name.includes(q);
+            })
+            .slice(0, 20)
+            .map((raw) => {
+              const p = peopleById.has(raw.id) ? peopleById.get(raw.id) : raw;
+              const born = p.dateOfBirth || p.birthApprox || '';
+              const died = p.dateOfDeath || p.deathApprox || '';
+              const life = [born, died].filter(Boolean).join(' - ');
+              const primary = p.callName ? `${p.callName}${p.firstName ? ` (${p.firstName})` : ''}` : (p.firstName || '');
+              const display = `${primary} ${p.lastName || ''}`.trim();
+              return { ...p, display, life };
+            });
+          return candidates;
+        });
+        function openLinkPicker(type) {
+          linkType.value = type;
+          linkInput.value = '';
+          linkPickerVisible.value = true;
+          // slight delay to allow input focus in template nextTick
+          try { setTimeout(() => {
+            const el = document.getElementById('link-picker-input');
+            if (el) el.focus();
+          }, 0); } catch (e) { /* ignore */ }
+        }
+        function closeLinkPicker() {
+          linkPickerVisible.value = false;
+          linkType.value = '';
+          linkInput.value = '';
+        }
+        async function linkWith(person) {
+          if (!person || !selected.value) return;
+          const selId = selected.value.id;
+          try {
+            if (linkType.value === 'father') {
+              if (selected.value.fatherId) return; // UI should not allow, but guard
+              const prev = peopleById.has(selId) ? { ...peopleById.get(selId) } : null;
+              const updated = await FrontendApp.updatePerson(selId, { fatherId: person.id });
+              applyPersonResult(updated, prev);
+            } else if (linkType.value === 'mother') {
+              if (selected.value.motherId) return;
+              const prev = peopleById.has(selId) ? { ...peopleById.get(selId) } : null;
+              const updated = await FrontendApp.updatePerson(selId, { motherId: person.id });
+              applyPersonResult(updated, prev);
+            } else if (linkType.value === 'child') {
+              // Determine which parent field to set on the child
+              const childUpdates = {};
+              const selGender = (selected.value.gender || '').toLowerCase();
+              if (selGender === 'male') {
+                if (person.fatherId === selId) { closeLinkPicker(); return; }
+                childUpdates.fatherId = selId;
+              } else if (selGender === 'female') {
+                if (person.motherId === selId) { closeLinkPicker(); return; }
+                childUpdates.motherId = selId;
+              } else {
+                // Fallback: fill the missing slot, prefer fatherId first
+                if (!person.fatherId) childUpdates.fatherId = selId;
+                else if (!person.motherId) childUpdates.motherId = selId;
+                else {
+                  flash(I18nGlobal.t ? I18nGlobal.t('bothParentsExist') : 'Child already has both parents');
+                  closeLinkPicker();
+                  return;
+                }
+              }
+              const prevChild = peopleById.has(person.id) ? { ...peopleById.get(person.id) } : null;
+              const updatedChild = await FrontendApp.updatePerson(person.id, childUpdates);
+              applyPersonResult(updatedChild, prevChild);
+              if (selected.value) computeChildren(selected.value.id);
+            }
+          } finally {
+            closeLinkPicker();
+          }
+        }
         function addClass(edge, cls) {
           const parts = (edge.class || '').split(' ').filter(Boolean);
           if (!parts.includes(cls)) parts.push(cls);
@@ -299,58 +869,324 @@
           await load(preservePositions);
           // Refresh search data to keep it in sync with node changes
           if (window.SearchApp && typeof window.SearchApp.refresh === 'function') {
-            await window.SearchApp.refresh();
+            await window.SearchApp.refresh(peopleState.value);
           }
         }
 
-        async function load(preservePositions = false) {
+        async function load() {
           setLoading(true);
           try {
-            const existingPos = {};
-          if (preservePositions) {
-            nodes.value.forEach((n) => {
-              existingPos[n.id] = { ...n.position };
+            const people = await FrontendApp.fetchPeople();
+            syncPeopleState(people);
+            if (window.SearchApp && typeof window.SearchApp.setPeople === 'function') {
+              window.SearchApp.setPeople(people);
+            }
+
+            if (people.length > 1000) {
+              flash(I18nGlobal.t('processingLargeDataset', { count: people.length }));
+            }
+
+            resetVisiblePeople();
+
+            if (!people.length) {
+              nodes.value = [];
+              edges.value = [];
+              rebuildNodeMap();
+              markSpatialIndexDirty();
+              childrenCache.clear();
+              unions = {};
+              selectedEdge.value = null;
+              return;
+            }
+
+            const candidateIds = [];
+            const seen = new Set();
+            const meId = getCurrentMeId();
+            if (meId !== null) {
+              if (!seen.has(String(meId))) {
+                candidateIds.push(meId);
+                seen.add(String(meId));
+              }
+            }
+
+            const childCounts = new Map();
+            people.forEach((person) => {
+              if (person.fatherId) {
+                childCounts.set(
+                  person.fatherId,
+                  (childCounts.get(person.fatherId) || 0) + 1,
+                );
+              }
+              if (person.motherId && person.motherId !== person.fatherId) {
+                childCounts.set(
+                  person.motherId,
+                  (childCounts.get(person.motherId) || 0) + 1,
+                );
+              }
+            });
+
+            const scoredPeople = people
+              .map((person) => {
+                const children = childCounts.get(person.id) || 0;
+                const missingParents =
+                  (person.fatherId ? 0 : 1) + (person.motherId ? 0 : 1);
+                const score = (children * 4) + missingParents;
+                return { id: person.id, score, children };
+              })
+              .sort((a, b) => {
+                if (b.score === a.score) {
+                  return b.children - a.children;
+                }
+                return b.score - a.score;
+              });
+
+            for (const entry of scoredPeople.slice(0, 5)) {
+              if (!seen.has(String(entry.id))) {
+                candidateIds.push(entry.id);
+                seen.add(String(entry.id));
+              }
+            }
+
+            if (people.length) {
+              const firstPerson = people[0];
+              if (firstPerson && !seen.has(String(firstPerson.id))) {
+                candidateIds.push(firstPerson.id);
+                seen.add(String(firstPerson.id));
+              }
+              const randomPerson = people[Math.floor(Math.random() * people.length)];
+              if (randomPerson && !seen.has(String(randomPerson.id))) {
+                candidateIds.push(randomPerson.id);
+                seen.add(String(randomPerson.id));
+              }
+            }
+
+            for (const rootId of candidateIds) {
+              const loaded = await loadSegment(rootId, {
+                type: 'both',
+                depth: DEFAULT_SEGMENT_DEPTH,
+                preservePositions: false,
+                applySavedLayout: true,
+              });
+              if (loaded) break;
+            }
+          } catch (err) {
+            console.error('load failed', err);
+          } finally {
+            setLoading(false);
+          }
+        }
+
+        async function autoLoadSegmentsAroundViewport() {
+          if (!nodes.value.length) return;
+          const dims = dimensions.value;
+          const vp = viewport.value;
+          if (!dims || !vp) return;
+
+          const cycleTimer = metrics && typeof metrics.startTimer === 'function'
+            ? metrics.startTimer('autoExpand.viewportCycle', {
+              lowPower: runtimePerformanceProfile.isLowPower,
+              nodeCount: nodes.value.length,
+            })
+            : null;
+
+          try {
+            return await autoExpandMutex.runExclusive(async () => {
+              const candidates = getNodesNearViewport();
+              if (metrics && typeof metrics.recordSample === 'function') {
+                metrics.recordSample('autoExpand.candidateCount', candidates.length);
+              }
+              if (!candidates.length) {
+                if (metrics && typeof metrics.recordEvent === 'function') {
+                  metrics.recordEvent('autoExpand.candidates.none', {
+                    width: dims.width || 0,
+                    height: dims.height || 0,
+                    zoom: vp.zoom || 1,
+                  });
+                }
+                return;
+              }
+
+              const maxExpansions = runtimePerformanceProfile.isLowPower ? 1 : 3;
+              let expansions = 0;
+              let attempts = 0;
+              let successes = 0;
+
+              for (const node of candidates) {
+                if (expansions >= maxExpansions) break;
+                const personId = normalizeNodeId(node.id);
+                const info = getSegmentInfo(personId);
+                if (!info) continue;
+
+                const nextAncestorDepth = Math.max(info.ancestorsDepthLoaded + DEFAULT_SEGMENT_DEPTH, DEFAULT_SEGMENT_DEPTH);
+                if (
+                  info.hasMoreAncestors
+                  && !isSegmentLoading(personId, 'ancestors')
+                  && getAutoExpandDepth(personId, 'ancestors') < nextAncestorDepth
+                ) {
+                  attempts += 1;
+                  if (metrics && typeof metrics.recordEvent === 'function') {
+                    metrics.recordEvent('autoExpand.attempt', {
+                      type: 'ancestors',
+                      nodeId: String(personId),
+                      depth: nextAncestorDepth,
+                      lowPower: runtimePerformanceProfile.isLowPower,
+                    });
+                  }
+                  if (metrics && typeof metrics.incrementCounter === 'function') {
+                    metrics.incrementCounter('autoExpand.attempts', 1);
+                    metrics.incrementCounter('autoExpand.attempts.ancestors', 1);
+                  }
+                  const success = await expandAncestors(personId);
+                  if (success) {
+                    expansions += 1;
+                    successes += 1;
+                    if (metrics && typeof metrics.incrementCounter === 'function') {
+                      metrics.incrementCounter('autoExpand.success', 1);
+                    }
+                    if (expansions >= maxExpansions) {
+                      continue;
+                    }
+                  } else if (metrics && typeof metrics.incrementCounter === 'function') {
+                    metrics.incrementCounter('autoExpand.failure', 1);
+                  }
+                }
+
+                const nextDescendantDepth = Math.max(info.descendantsDepthLoaded + DEFAULT_SEGMENT_DEPTH, DEFAULT_SEGMENT_DEPTH);
+                if (
+                  info.hasMoreDescendants
+                  && !isSegmentLoading(personId, 'descendants')
+                  && getAutoExpandDepth(personId, 'descendants') < nextDescendantDepth
+                ) {
+                  attempts += 1;
+                  if (metrics && typeof metrics.recordEvent === 'function') {
+                    metrics.recordEvent('autoExpand.attempt', {
+                      type: 'descendants',
+                      nodeId: String(personId),
+                      depth: nextDescendantDepth,
+                      lowPower: runtimePerformanceProfile.isLowPower,
+                    });
+                  }
+                  if (metrics && typeof metrics.incrementCounter === 'function') {
+                    metrics.incrementCounter('autoExpand.attempts', 1);
+                    metrics.incrementCounter('autoExpand.attempts.descendants', 1);
+                  }
+                  const success = await expandDescendants(personId);
+                  if (success) {
+                    expansions += 1;
+                    successes += 1;
+                    if (metrics && typeof metrics.incrementCounter === 'function') {
+                      metrics.incrementCounter('autoExpand.success', 1);
+                    }
+                  } else if (metrics && typeof metrics.incrementCounter === 'function') {
+                    metrics.incrementCounter('autoExpand.failure', 1);
+                  }
+                }
+              }
+
+              if (successes === 0 && candidates.length) {
+                const orphanLoaded = await loadNextUnseenPerson();
+                if (metrics && typeof metrics.recordEvent === 'function') {
+                  metrics.recordEvent('autoExpand.orphanFallback', {
+                    loaded: orphanLoaded,
+                    reason: 'noSuccess',
+                  });
+                }
+                if (orphanLoaded && metrics && typeof metrics.incrementCounter === 'function') {
+                  metrics.incrementCounter('autoExpand.orphanLoad', 1);
+                }
+              }
+
+              if (metrics && typeof metrics.recordSample === 'function') {
+                metrics.recordSample('autoExpand.successesPerCycle', successes);
+                metrics.recordSample('autoExpand.attemptsPerCycle', attempts);
+              }
+              if (metrics && typeof metrics.recordEvent === 'function') {
+                metrics.recordEvent('autoExpand.cycle.complete', {
+                  attempts,
+                  successes,
+                  candidates: candidates.length,
+                  lowPower: runtimePerformanceProfile.isLowPower,
+                  maxExpansions,
+                });
+              }
+            });
+          } finally {
+            if (metrics && cycleTimer && typeof metrics.endTimer === 'function') {
+              metrics.endTimer(cycleTimer, {
+                lowPower: runtimePerformanceProfile.isLowPower,
+                nodeCount: nodes.value.length,
+              });
+            }
+          }
+        }
+
+        const scheduleSegmentAutoload = debounce(() => {
+          if (metrics && typeof metrics.recordEvent === 'function') {
+            metrics.recordEvent('autoExpand.schedule', {
+              lowPower: runtimePerformanceProfile.isLowPower,
             });
           }
-          const people = await FrontendApp.fetchPeople();
-          
-          // Show progress for large datasets
-          if (people.length > 1000) {
-            flash(I18nGlobal.t('processingLargeDataset', { count: people.length }));
+          void autoLoadSegmentsAroundViewport();
+        }, runtimePerformanceProfile.isLowPower ? 400 : 200);
+
+        if (isTestEnv) {
+          const globalTarget = typeof globalThis !== 'undefined'
+            ? globalThis
+            : (typeof window !== 'undefined' ? window : {});
+          if (globalTarget) {
+            const hookContainer = globalTarget.__FLOW_TEST_HOOKS || (globalTarget.__FLOW_TEST_HOOKS = {});
+            hookContainer.getAutoExpandInternals = () => ({
+              nodes,
+              viewport,
+              dimensions,
+              autoExpandMutex,
+              getSegmentInfo,
+              updateSegmentInfo,
+              getAutoExpandDepth,
+              recordAutoExpandDepth,
+              isSegmentLoading,
+              setSegmentLoading,
+              autoLoadSegmentsAroundViewport,
+              loadNextUnseenPerson,
+              scheduleSegmentAutoload,
+              markSpatialIndexDirty,
+              rebuildSpatialIndex,
+              getNodesNearViewport,
+              runtimePerformanceProfile,
+              segmentHints,
+              autoExpandProgress,
+            });
           }
-          
-          const idMap = {};
-          const CHUNK_SIZE = Math.min(500, Math.max(50, Math.floor(people.length / 10)));
-          
-          // Process people in chunks to prevent UI freezing
-          for (let i = 0; i < people.length; i += CHUNK_SIZE) {
-            const chunk = people.slice(i, i + CHUNK_SIZE);
-            chunk.forEach((p) => (idMap[p.id] = p));
-            
-            // Yield control for large datasets
-            if (people.length > CHUNK_SIZE && i + CHUNK_SIZE < people.length) {
-              await nextTick();
-            }
+        }
+
+        async function syncGraphFromVisiblePeople(options = {}) {
+          const { preservePositions = true, applySavedLayout: applySaved = false } = options;
+          const people = Array.from(visiblePeople.values());
+          if (!people.length) {
+            nodes.value = [];
+            edges.value = [];
+            unions = {};
+            rebuildNodeMap();
+            markSpatialIndexDirty();
+            childrenCache.clear();
+            selectedEdge.value = null;
+            return;
           }
 
-          // determine generation levels via helper
+          const existingPos = {};
+          if (preservePositions) {
+            nodes.value.forEach((n) => {
+              existingPos[n.id] = { ...(n.position || {}) };
+            });
+          }
+
           const genMap = GenerationLayout.assignGenerations(people);
           const layers = {};
-          
-          // Process layers in chunks
-          for (let i = 0; i < people.length; i += CHUNK_SIZE) {
-            const chunk = people.slice(i, i + CHUNK_SIZE);
-            chunk.forEach((p) => {
-              const g = genMap.get(p.id) ?? 0;
-              layers[g] = layers[g] || [];
-              layers[g].push(p);
-            });
-            
-            // Yield control for large datasets
-            if (people.length > CHUNK_SIZE && i + CHUNK_SIZE < people.length) {
-              await nextTick();
-            }
-          }
+          people.forEach((p) => {
+            const g = genMap.get(p.id) ?? 0;
+            if (!layers[g]) layers[g] = [];
+            layers[g].push(p);
+          });
 
           const positions = {};
           const xSpacing = 180;
@@ -361,97 +1197,99 @@
             });
           });
 
-          // Create nodes in chunks for large datasets
-          const newNodes = [];
-          for (let i = 0; i < people.length; i += CHUNK_SIZE) {
-            const chunk = people.slice(i, i + CHUNK_SIZE);
-            const chunkNodes = chunk.map((p) => ({
+          const personNodes = [];
+          const nodeById = new Map();
+          people.forEach((p) => {
+            const hints = getSegmentInfo(p.id);
+            const node = {
               id: String(p.id),
               type: 'person',
-              position: existingPos[p.id] || positions[p.id],
-              data: { ...p, me: window.meNodeId && p.id === window.meNodeId },
-            }));
-            newNodes.push(...chunkNodes);
-            
-            // Yield control for large datasets
-            if (people.length > CHUNK_SIZE && i + CHUNK_SIZE < people.length) {
-              await nextTick();
-            }
-          }
-          
-          nodes.value = newNodes;
-          rebuildNodeMap();
-          buildChildrenCache();
-
-          unions = {};
-          edges.value = [];
-          selectedEdge.value = null;
-
-          const unionKey = (f, m) => `${f}-${m}`;
-          people.forEach((child) => {
-            if (!child.fatherId || !child.motherId) return;
-            const key = unionKey(child.fatherId, child.motherId);
-            const union =
-              unions[key] || (unions[key] = {
-                id: `u-${key}`,
-                fatherId: child.fatherId,
-                motherId: child.motherId,
-                children: [],
-              });
-            if (!positions[union.id]) {
-              const midX =
-                (positions[child.fatherId].x + positions[child.motherId].x) / 2;
-              const midY =
-                (positions[child.fatherId].y + positions[child.motherId].y) / 2 +
-                UNION_Y_OFFSET;
-              const pos = { x: midX, y: midY };
-              const uNode = {
-                id: union.id,
-                type: 'helper',
-                position: existingPos[union.id] || pos,
-                data: { _gen: idMap[child.fatherId]._gen, helper: true },
-                draggable: false,
-                selectable: false,
-              };
-              nodes.value.push(uNode);
-              nodeMap.set(uNode.id, uNode);
-              positions[union.id] = pos;
-            }
-            union.children.push(child.id);
+              position: existingPos[p.id] || positions[p.id] || { x: 0, y: 0 },
+              data: {
+                ...p,
+                me: !!getCurrentMeId() && p.id === String(getCurrentMeId()),
+                hasMoreAncestors: hints.hasMoreAncestors,
+                hasMoreDescendants: hints.hasMoreDescendants,
+                loadingAncestors: isSegmentLoading(p.id, 'ancestors'),
+                loadingDescendants: isSegmentLoading(p.id, 'descendants'),
+              },
+            };
+            personNodes.push(node);
+            nodeById.set(p.id, node);
+            positions[p.id] = node.position;
           });
 
-          Object.values(unions).forEach((m) => {
-            const handles = spouseHandles(
-              getNodeById(m.fatherId),
-              getNodeById(m.motherId),
-            );
-            edges.value.push({
-              id: `spouse-line-${m.id}`,
-              source: String(m.fatherId),
-              target: String(m.motherId),
+          const unionMap = {};
+          personNodes.forEach((node) => {
+            const data = node.data;
+            if (!data) return;
+            if (data.fatherId && data.motherId && positions[data.fatherId] && positions[data.motherId]) {
+              const key = `${data.fatherId}-${data.motherId}`;
+              if (!unionMap[key]) {
+                unionMap[key] = {
+                  id: `u-${key}`,
+                  fatherId: data.fatherId,
+                  motherId: data.motherId,
+                  children: [],
+                };
+              }
+              if (!unionMap[key].children.includes(data.id)) {
+                unionMap[key].children.push(data.id);
+              }
+            }
+          });
+
+          const helperNodes = [];
+          const newEdges = [];
+          Object.values(unionMap).forEach((u) => {
+            const fatherNode = nodeById.get(u.fatherId);
+            const motherNode = nodeById.get(u.motherId);
+            if (!fatherNode || !motherNode) return;
+            const fatherPos = positions[u.fatherId];
+            const motherPos = positions[u.motherId];
+            const midX = (fatherPos.x + motherPos.x) / 2;
+            const midY = (fatherPos.y + motherPos.y) / 2 + UNION_Y_OFFSET;
+            const helperNode = {
+              id: u.id,
+              type: 'helper',
+              position: existingPos[u.id] || { x: midX, y: midY },
+              data: { helper: true },
+              draggable: false,
+              selectable: false,
+            };
+            helperNodes.push(helperNode);
+            positions[u.id] = helperNode.position;
+            const handles = spouseHandles(fatherNode, motherNode);
+            newEdges.push({
+              id: `spouse-line-${u.id}`,
+              source: String(u.fatherId),
+              target: String(u.motherId),
               type: 'straight',
               sourceHandle: handles.source,
               targetHandle: handles.target,
             });
-            m.children.forEach((cid) =>
-              edges.value.push({
-                id: `${m.id}-${cid}`,
-                source: m.id,
+            u.children.forEach((cid) => {
+              newEdges.push({
+                id: `${u.id}-${cid}`,
+                source: u.id,
                 target: String(cid),
                 type: 'default',
                 markerEnd: MarkerType.ArrowClosed,
                 sourceHandle: 's-bottom',
                 targetHandle: 't-top',
-              }));
+              });
+            });
           });
 
-          people.forEach((p) => {
-            if ((p.fatherId && !p.motherId) || (!p.fatherId && p.motherId)) {
-              const parent = p.fatherId || p.motherId;
-              edges.value.push({
-                id: `p-${p.id}`,
-                source: String(parent),
-                target: String(p.id),
+          personNodes.forEach((node) => {
+            const data = node.data;
+            if (!data) return;
+            if ((data.fatherId && !data.motherId) || (!data.fatherId && data.motherId)) {
+              const parentId = data.fatherId || data.motherId;
+              newEdges.push({
+                id: `p-${data.id}`,
+                source: String(parentId),
+                target: String(data.id),
                 markerEnd: MarkerType.ArrowClosed,
                 sourceHandle: 's-bottom',
                 targetHandle: 't-top',
@@ -459,28 +1297,160 @@
             }
           });
 
-          // remove Vue internal refs that cause warnings when passed as props
-          edges.value = edges.value.map((edge) => {
+          const cleanEdges = newEdges.map((edge) => {
             const { ref: _unused, ...rest } = edge;
-            void _unused; // avoid eslint no-unused-vars warning
+            void _unused;
             return rest;
           });
 
-          await applySavedLayout();
+          nodes.value = [...personNodes, ...helperNodes];
+          unions = unionMap;
+          edges.value = cleanEdges;
+          rebuildNodeMap();
+          markSpatialIndexDirty();
+          buildChildrenCache();
+          selectedEdge.value = null;
+
+          if (applySaved) {
+            await applySavedLayout();
+          }
+
           await nextTick();
+          rebuildSpatialIndex();
           refreshUnions();
-          saveTempLayout();
           applyFilters();
           applyFocusedView();
-        } catch (err) {
-          console.error('load failed', err);
-        } finally {
-          setLoading(false);
+
+          if (selected.value) {
+            const node = getNodeById(selected.value.id);
+            if (node) {
+              const spouseId = selected.value.spouseId;
+              selected.value = { ...node.data };
+              if (typeof spouseId !== 'undefined') {
+                selected.value.spouseId = spouseId;
+              }
+            }
+          }
+
+          scheduleSegmentAutoload();
         }
+
+        async function loadSegment(rootId, options = {}) {
+          if (!rootId) return false;
+          const {
+            type = 'both',
+            depth = DEFAULT_SEGMENT_DEPTH,
+            preservePositions = true,
+            applySavedLayout: applySaved = false,
+          } = options;
+          try {
+            const payload = await FrontendApp.fetchTreeSegment(rootId, {
+              type,
+              maxDepth: Math.max(1, depth),
+            });
+            if (!payload || !Array.isArray(payload.people)) {
+              return false;
+            }
+
+            payload.people.forEach((entry) => {
+              if (!entry || !entry.person || !entry.person.id) return;
+              const personId = entry.person.id;
+              const base = peopleById.has(personId)
+                ? { ...peopleById.get(personId) }
+                : { ...entry.person };
+              visiblePeople.set(personId, base);
+
+              const hintUpdates = {};
+              if (entry.hints && typeof entry.hints.hasMoreAncestors === 'boolean') {
+                hintUpdates.hasMoreAncestors = entry.hints.hasMoreAncestors;
+              }
+              if (entry.hints && typeof entry.hints.hasMoreDescendants === 'boolean') {
+                hintUpdates.hasMoreDescendants = entry.hints.hasMoreDescendants;
+              }
+              if (Object.keys(hintUpdates).length) {
+                updateSegmentInfo(personId, hintUpdates);
+              }
+            });
+
+            const info = getSegmentInfo(rootId);
+            const depthUpdates = {};
+            if (type === 'ancestors' || type === 'both') {
+              depthUpdates.ancestorsDepthLoaded = Math.max(info.ancestorsDepthLoaded, depth);
+            }
+            if (type === 'descendants' || type === 'both') {
+              depthUpdates.descendantsDepthLoaded = Math.max(info.descendantsDepthLoaded, depth);
+            }
+            if (Object.keys(depthUpdates).length) {
+              updateSegmentInfo(rootId, depthUpdates);
+            }
+
+            await syncGraphFromVisiblePeople({
+              preservePositions,
+              applySavedLayout: applySaved,
+            });
+            scheduleSegmentAutoload();
+            return true;
+          } catch (err) {
+            console.error('Failed to load tree segment', err);
+            flash(
+              (I18nGlobal.t && I18nGlobal.t('treeSegmentLoadFailed'))
+                || 'Failed to load tree segment',
+              'danger',
+            );
+            return false;
+          }
+        }
+
+        async function expandAncestors(id) {
+          if (!id) return false;
+          return segmentExpansionMutex.runExclusive(async () => {
+            const info = getSegmentInfo(id);
+            if (!info.hasMoreAncestors && info.ancestorsDepthLoaded >= DEFAULT_SEGMENT_DEPTH) {
+              return false;
+            }
+            if (isSegmentLoading(id, 'ancestors')) return false;
+            setSegmentLoading(id, 'ancestors', true);
+            const nextDepth = Math.max(info.ancestorsDepthLoaded + DEFAULT_SEGMENT_DEPTH, DEFAULT_SEGMENT_DEPTH);
+            try {
+              const success = await loadSegment(id, {
+                type: 'ancestors',
+                depth: nextDepth,
+                preservePositions: true,
+              });
+              if (success) recordAutoExpandDepth(id, 'ancestors', nextDepth);
+              return success;
+            } finally {
+              setSegmentLoading(id, 'ancestors', false);
+            }
+          });
+        }
+
+        async function expandDescendants(id) {
+          if (!id) return false;
+          return segmentExpansionMutex.runExclusive(async () => {
+            const info = getSegmentInfo(id);
+            if (!info.hasMoreDescendants && info.descendantsDepthLoaded >= DEFAULT_SEGMENT_DEPTH) {
+              return false;
+            }
+            if (isSegmentLoading(id, 'descendants')) return false;
+            setSegmentLoading(id, 'descendants', true);
+            const nextDepth = Math.max(info.descendantsDepthLoaded + DEFAULT_SEGMENT_DEPTH, DEFAULT_SEGMENT_DEPTH);
+            try {
+              const success = await loadSegment(id, {
+                type: 'descendants',
+                depth: nextDepth,
+                preservePositions: true,
+              });
+              if (success) recordAutoExpandDepth(id, 'descendants', nextDepth);
+              return success;
+            } finally {
+              setSegmentLoading(id, 'descendants', false);
+            }
+          });
         }
 
         const children = ref([]);
-        
+
         // Cache for children lookup - maps parentId to array of child data
         const childrenCache = new Map();
         
@@ -507,6 +1477,30 @@
 
         function computeChildren(pid) {
           children.value = childrenCache.get(pid) || [];
+        }
+
+        async function ensureNodeVisible(pid, options = {}) {
+          if (!pid) return null;
+          const { preservePositions = true } = options;
+          let node = getNodeById(pid);
+          if (node) return node;
+          const numericId = typeof pid === 'string' ? Number(pid) : pid;
+          const lookupIds = [pid];
+          if (!Number.isNaN(numericId)) lookupIds.push(numericId);
+          const personId = lookupIds.find((id) => peopleById.has(id));
+          if (typeof personId === 'undefined') {
+            console.warn('Person not found in store:', pid);
+            return null;
+          }
+          const loaded = await loadSegment(personId, {
+            type: 'both',
+            depth: DEFAULT_SEGMENT_DEPTH,
+            preservePositions,
+          });
+          if (!loaded) return null;
+          await nextTick();
+          node = getNodeById(pid) || getNodeById(personId);
+          return node || null;
         }
 
         function hasConnection(pid) {
@@ -569,8 +1563,11 @@
           showModal.value = false;
           editing.value = false;
           await nextTick();
-          const node = getNodeById(pid);
-          if (!node) return;
+          let node = getNodeById(pid);
+          if (!node) {
+            node = await ensureNodeVisible(pid, { preservePositions: true });
+            if (!node) return;
+          }
           highlightBloodline(pid);
           fitView({ nodes: [String(pid)], maxZoom: 1.5, padding: 0.1 });
           selected.value = { ...node.data, spouseId: '' };
@@ -585,10 +1582,13 @@
         async function focusOnNode(pid) {
           if (!pid) return;
           await nextTick();
-          const node = getNodeById(pid);
+          let node = getNodeById(pid);
           if (!node) {
-            console.warn('Node not found for focusing:', pid);
-            return;
+            node = await ensureNodeVisible(pid, { preservePositions: true });
+            if (!node) {
+              console.warn('Node not found for focusing:', pid);
+              return;
+            }
           }
           try {
             fitView({ nodes: [String(pid)], maxZoom: 1.5, padding: 0.1 });
@@ -663,13 +1663,32 @@
           if (edge.id.startsWith('spouse-line')) {
             const fatherId = parseInt(edge.source, 10);
             const motherId = parseInt(edge.target, 10);
-            const list = await FrontendApp.fetchSpouses(fatherId);
-            const rel = list.find((s) => s.spouse.id === motherId);
-            if (rel) {
-              await FrontendApp.deleteSpouse(fatherId, rel.marriageId);
+            try {
+              const list = await FrontendApp.fetchSpouses(fatherId);
+              const rel = list.find((s) => s.spouse.id === motherId);
+              if (rel) {
+                await FrontendApp.deleteSpouse(fatherId, rel.marriageId);
+                scheduleSearchRefresh();
+              }
+            } catch (err) {
+              console.error('Failed to delete spouse link', err);
             }
-              await refreshNodeData(true);
-              return;
+            rebuildRelationshipsFast();
+            return;
+          }
+
+          if (edge.source.startsWith('u-') || edge.target.startsWith('u-')) {
+            const cid = edge.source.startsWith('u-')
+              ? parseInt(edge.target, 10)
+              : parseInt(edge.source, 10);
+            const prev = peopleById.has(cid) ? { ...peopleById.get(cid) } : null;
+            const updated = await FrontendApp.updatePerson(cid, {
+              fatherId: null,
+              motherId: null,
+            });
+            applyPersonResult(updated, prev);
+            if (selected.value) computeChildren(selected.value.id);
+            return;
           }
 
           let parentId;
@@ -686,11 +1705,6 @@
           } else if (edge.targetHandle === 's-bottom' || edge.targetHandle === 't-bottom') {
             parentId = parseInt(edge.target, 10);
             childId = parseInt(edge.source, 10);
-          } else if (edge.source.startsWith('u-') || edge.target.startsWith('u-')) {
-            const cid = edge.source.startsWith('u-') ? parseInt(edge.target, 10) : parseInt(edge.source, 10);
-            await FrontendApp.updatePerson(cid, { fatherId: null, motherId: null });
-              await refreshNodeData(true);
-              return;
           } else {
             return;
           }
@@ -706,10 +1720,12 @@
             if (childNode.data.fatherId === parentId) updates.fatherId = null;
             if (childNode.data.motherId === parentId) updates.motherId = null;
           }
-            if (Object.keys(updates).length) {
-              await FrontendApp.updatePerson(childId, updates);
-              await refreshNodeData(true);
-            }
+          if (Object.keys(updates).length) {
+            const prev = peopleById.has(childId) ? { ...peopleById.get(childId) } : null;
+            const updated = await FrontendApp.updatePerson(childId, updates);
+            applyPersonResult(updated, prev);
+            if (selected.value) computeChildren(selected.value.id);
+          }
         }
 
         const shiftPressed = ref(false);
@@ -727,20 +1743,32 @@
           updatePrivileges();
           updateGridSize(viewport.value.zoom || 1);
           watch(
-            viewport,
-            (v) => {
-              updateGridSize(v.zoom);
+            () => (viewport.value && viewport.value.zoom) ?? 1,
+            (zoom) => {
+              updateGridSize(zoom ?? 1);
             },
-            { deep: true }
+            { immediate: true }
+          );
+
+          watch(
+            () => {
+              const vp = viewport.value || {};
+              return [vp.x ?? 0, vp.y ?? 0, vp.zoom ?? 1];
+            },
+            () => {
+              scheduleSegmentAutoload();
+            },
+            { immediate: false }
           );
           window.addEventListener('keydown', handleKeydown);
           window.addEventListener('keyup', handleKeyup);
           const flowEl = document.getElementById('flow-app');
           if (flowEl) {
             flowEl.addEventListener('contextmenu', handleContextMenu);
-            flowEl.addEventListener('touchstart', handleTouchStart);
-            flowEl.addEventListener('touchend', handleTouchEnd);
-            flowEl.addEventListener('touchcancel', handleTouchEnd);
+            flowEl.addEventListener('touchstart', handleTouchStart, { capture: true, passive: true });
+            flowEl.addEventListener('touchmove', handleTouchMove, { capture: true, passive: true });
+            flowEl.addEventListener('touchend', handleTouchEnd, { capture: true, passive: true });
+            flowEl.addEventListener('touchcancel', handleTouchEnd, { capture: true, passive: true });
           }
           fetchScore();
           scoreTimer = setInterval(fetchScore, 10000);
@@ -752,9 +1780,10 @@
           const flowEl = document.getElementById('flow-app');
           if (flowEl) {
             flowEl.removeEventListener('contextmenu', handleContextMenu);
-            flowEl.removeEventListener('touchstart', handleTouchStart);
-            flowEl.removeEventListener('touchend', handleTouchEnd);
-            flowEl.removeEventListener('touchcancel', handleTouchEnd);
+            flowEl.removeEventListener('touchstart', handleTouchStart, { capture: true });
+            flowEl.removeEventListener('touchmove', handleTouchMove, { capture: true });
+            flowEl.removeEventListener('touchend', handleTouchEnd, { capture: true });
+            flowEl.removeEventListener('touchcancel', handleTouchEnd, { capture: true });
           }
           if (scoreTimer) clearInterval(scoreTimer);
         });
@@ -765,206 +1794,92 @@
         // Cache for highlighting state to avoid unnecessary DOM updates
         const highlightedNodes = new Set();
         const highlightedEdges = new Set();
-        
-        function clearHighlights() {
-          // Only update nodes that were previously highlighted
-          for (const nodeId of highlightedNodes) {
-            const node = nodeMap.get(nodeId);
-            if (node && node.data) node.data.highlight = false;
-          }
-          highlightedNodes.clear();
-          
-          // Only update edges that were previously highlighted
-          for (const edgeId of highlightedEdges) {
-            const edge = edges.value.find(e => e.id === edgeId);
-            if (edge) {
-              // Remove highlight-specific classes but preserve other classes like 'selected-edge'
-              removeClass(edge, 'highlight-edge');
-              removeClass(edge, 'faded-edge');
-              // If no classes remain, remove the class property entirely
-              if (!edge.class || edge.class.trim() === '') {
-                delete edge.class;
-              }
+        let currentHighlightRoot = null;
+        let highlight = null;
+
+        let highlightLimitActive = false;
+
+        function isNodeRoughlyVisible(nodeOrId) {
+          const node = typeof nodeOrId === 'object' ? nodeOrId : getNodeById(nodeOrId);
+          if (!node) return false;
+          if (!node.position) return true;
+          const dims = dimensions.value;
+          const vp = viewport.value;
+          if (!dims || !vp) return true;
+          const zoom = vp.zoom || 1;
+          const offsetX = vp.x || 0;
+          const offsetY = vp.y || 0;
+          const width = (node.dimensions?.width || 180) * zoom;
+          const height = (node.dimensions?.height || 120) * zoom;
+          const x = node.position.x * zoom + offsetX;
+          const y = node.position.y * zoom + offsetY;
+          const padding = runtimePerformanceProfile.isLowPower ? 200 : 150;
+          return (
+            x + width >= -padding
+            && x <= (dims.width || 0) + padding
+            && y + height >= -padding
+            && y <= (dims.height || 0) + padding
+          );
+        }
+
+        const shouldLimitHighlight = () => {
+          const limit = runtimePerformanceProfile.isLowPower
+            && nodes.value.length > runtimePerformanceProfile.highlightLimitNodeCount;
+          if (metrics && typeof metrics.recordEvent === 'function') {
+            if (limit && !highlightLimitActive) {
+              metrics.recordEvent('highlight.limit.enabled', {
+                totalNodes: nodes.value.length,
+                threshold: runtimePerformanceProfile.highlightLimitNodeCount,
+              });
+            } else if (!limit && highlightLimitActive) {
+              metrics.recordEvent('highlight.limit.disabled', {
+                totalNodes: nodes.value.length,
+                threshold: runtimePerformanceProfile.highlightLimitNodeCount,
+              });
             }
           }
-          highlightedEdges.clear();
+          highlightLimitActive = limit;
+          return limit;
+        };
+
+        if (FlowHighlight && typeof FlowHighlight.createHighlightAPI === 'function') {
+          highlight = FlowHighlight.createHighlightAPI({
+            getNodes: () => nodes.value,
+            getEdges: () => edges.value,
+            getSelectedEdge: () => selectedEdge.value,
+            getNodeById,
+            childrenCache,
+            addClass,
+            removeClass,
+            highlightedNodes,
+            highlightedEdges,
+            isNodeVisible: isNodeRoughlyVisible,
+            shouldLimitHighlight,
+          });
+        }
+
+        function clearHighlights() {
+          currentHighlightRoot = null;
+          if (highlight) highlight.clearHighlights();
         }
 
         function highlightBloodline(id) {
-          clearHighlights();
-
-          const map = {};
-          nodes.value.forEach((n) => {
-            map[n.id] = n;
-          });
-
-          const visitedUp = new Set();
-          const visitedDown = new Set();
-
-          function unionId(f, m) {
-            return `u-${f}-${m}`;
-          }
-
-          function markNode(nId) {
-            const node = map[String(nId)];
-            if (node && node.data) {
-              node.data.highlight = true;
-              highlightedNodes.add(String(nId));
-            }
-          }
-
-          function highlightAncestors(pid) {
-            if (!pid || visitedUp.has(pid)) return;
-            visitedUp.add(pid);
-            const node = map[String(pid)];
-            if (!node) return;
-            markNode(pid);
-            if (node.data.fatherId && node.data.motherId) {
-              const uId = unionId(node.data.fatherId, node.data.motherId);
-              markNode(uId);
-            }
-            highlightAncestors(node.data.fatherId);
-            highlightAncestors(node.data.motherId);
-          }
-
-          function highlightDescendants(pid) {
-            if (!pid || visitedDown.has(pid)) return;
-            visitedDown.add(pid);
-            const node = map[String(pid)];
-            if (!node) return;
-            markNode(pid);
-            
-            // Use cached children instead of iterating all nodes
-            const children = childrenCache.get(pid) || [];
-            for (const childData of children) {
-              if (childData.fatherId && childData.motherId) {
-                const uId = unionId(childData.fatherId, childData.motherId);
-                markNode(uId);
-              }
-              highlightDescendants(parseInt(childData.id));
-            }
-          }
-
-          highlightAncestors(id);
-          highlightDescendants(id);
-
-          edges.value.forEach((edge) => {
-            const sel = edge === selectedEdge.value;
-            if (edge.id.startsWith('spouse-line')) {
-              edge.class = sel ? 'selected-edge' : 'faded-edge';
-              if (!sel) highlightedEdges.add(edge.id);
-              return;
-            }
-            const src = map[edge.source];
-            const tgt = map[edge.target];
-            if (src?.data.highlight && tgt?.data.highlight) {
-              edge.class = sel ? 'selected-edge' : 'highlight-edge';
-              if (!sel) highlightedEdges.add(edge.id);
-            } else {
-              edge.class = sel ? 'selected-edge' : 'faded-edge';
-              if (!sel) highlightedEdges.add(edge.id);
-            }
-          });
+          if (!highlight) return;
+          const key = String(id);
+          if (currentHighlightRoot === key && highlightedNodes.size) return;
+          currentHighlightRoot = key;
+          highlight.highlightBloodline(id, { limitToVisible: shouldLimitHighlight() });
         }
 
         // Optimized async version that breaks up work across frames
         async function highlightBloodlineAsync(id) {
-          clearHighlights();
-
-          // Pre-build map for faster lookups
-          const map = new Map();
-          nodes.value.forEach((n) => {
-            map.set(n.id, n);
+          if (!highlight) return;
+          const key = String(id);
+          if (currentHighlightRoot === key && highlightedNodes.size) return;
+          currentHighlightRoot = key;
+          await highlight.highlightBloodlineAsync(id, {
+            limitToVisible: shouldLimitHighlight(),
           });
-
-          const visitedUp = new Set();
-          const visitedDown = new Set();
-          const toHighlight = new Set();
-          const unionIds = new Set();
-
-          function unionId(f, m) {
-            return `u-${f}-${m}`;
-          }
-
-          // Collect all nodes to highlight first (non-blocking)
-          function collectAncestors(pid) {
-            if (!pid || visitedUp.has(pid)) return;
-            visitedUp.add(pid);
-            const node = map.get(String(pid));
-            if (!node) return;
-            toHighlight.add(pid);
-            if (node.data.fatherId && node.data.motherId) {
-              unionIds.add(unionId(node.data.fatherId, node.data.motherId));
-            }
-            collectAncestors(node.data.fatherId);
-            collectAncestors(node.data.motherId);
-          }
-
-          function collectDescendants(pid) {
-            if (!pid || visitedDown.has(pid)) return;
-            visitedDown.add(pid);
-            const node = map.get(String(pid));
-            if (!node) return;
-            toHighlight.add(pid);
-            
-            // Use cached children instead of iterating all nodes
-            const children = childrenCache.get(pid) || [];
-            for (const childData of children) {
-              if (childData.fatherId && childData.motherId) {
-                unionIds.add(unionId(childData.fatherId, childData.motherId));
-              }
-              collectDescendants(parseInt(childData.id));
-            }
-          }
-
-          // Collect all nodes to highlight
-          collectAncestors(id);
-          collectDescendants(id);
-
-          // Apply highlights in batches to avoid blocking
-          const nodesToUpdate = [...toHighlight, ...unionIds];
-          const batchSize = 50;
-          
-          for (let i = 0; i < nodesToUpdate.length; i += batchSize) {
-            const batch = nodesToUpdate.slice(i, i + batchSize);
-            batch.forEach(nId => {
-              const node = map.get(String(nId));
-              if (node && node.data) node.data.highlight = true;
-            });
-            
-            // Yield control back to browser
-            if (i + batchSize < nodesToUpdate.length) {
-              await new Promise(resolve => setTimeout(resolve, 0));
-            }
-          }
-
-          // Update edges in batches
-          const edgeBatchSize = 100;
-          for (let i = 0; i < edges.value.length; i += edgeBatchSize) {
-            const batch = edges.value.slice(i, i + edgeBatchSize);
-            batch.forEach((edge) => {
-              const sel = edge === selectedEdge.value;
-              if (edge.id.startsWith('spouse-line')) {
-                edge.class = sel ? 'selected-edge' : 'faded-edge';
-                if (!sel) highlightedEdges.add(edge.id);
-                return;
-              }
-              const src = map.get(edge.source);
-              const tgt = map.get(edge.target);
-              if (src?.data.highlight && tgt?.data.highlight) {
-                edge.class = sel ? 'selected-edge' : 'highlight-edge';
-                if (!sel) highlightedEdges.add(edge.id);
-              } else {
-                edge.class = sel ? 'selected-edge' : 'faded-edge';
-                if (!sel) highlightedEdges.add(edge.id);
-              }
-            });
-            
-            // Yield control back to browser
-            if (i + edgeBatchSize < edges.value.length) {
-              await new Promise(resolve => setTimeout(resolve, 0));
-            }
-          }
         }
 
         function getBloodlineSet(rootId) {
@@ -1018,7 +1933,7 @@
         }
 
         function applyFocusedView() {
-          if (!focusedView.value || !window.meNodeId) {
+          if (!focusedView.value || !getCurrentMeId()) {
             for (const n of nodes.value) { 
               if (n.data) n.data.hidden = false; 
             }
@@ -1028,7 +1943,7 @@
             hiddenCount.value = 0;
             return;
           }
-          const allowed = getBloodlineSet(window.meNodeId);
+          const allowed = getBloodlineSet(getCurrentMeId());
           let hiddenNodeCount = 0;
           
           for (const n of nodes.value) {
@@ -1164,10 +2079,12 @@
           people.forEach((p) => {
             posMap[p.id] = { x: p.x, y: p.y };
           });
+          const updatedIds = new Set();
           list.forEach((n) => {
             if (n.type === 'person' && posMap[n.data.id]) {
               n.position.x = posMap[n.data.id].x;
               n.position.y = posMap[n.data.id].y;
+              updatedIds.add(String(n.id));
             }
           });
           list.forEach((n) => {
@@ -1193,9 +2110,13 @@
                       2 +
                     UNION_Y_OFFSET,
                 };
+                updatedIds.add(String(n.id));
               }
             }
           });
+          if (typeof updateNodeInternals === 'function' && updatedIds.size) {
+            updateNodeInternals(Array.from(updatedIds));
+          }
         }
 
         function tidyRelatives() {
@@ -1204,6 +2125,8 @@
         }
 
         async function onNodeClick(evt) {
+          // ensure spouse/helper positions are up to date before focusing
+          refreshUnions();
           const e = evt.event || evt;
           if (e.shiftKey || shiftPressed.value) {
             if (evt.node.selected) removeSelectedNodes([evt.node]);
@@ -1296,22 +2219,60 @@
           }
         }
 
-       async function onPaneClick() {
-         // Clear VueFlow selection first
-         if (selectedNodes.value.length > 0) {
-           removeSelectedNodes(selectedNodes.value);
-         }
-         
-         // Immediate UI updates for responsiveness
-         selected.value = null;
-         showModal.value = false;
-         editing.value = false;
-         contextMenuVisible.value = false;
-         
-         // Clear highlights immediately (this is fast and needs to be visible right away)
-         clearHighlights();
-       }
+              async function onPaneClick() {
+          // Clear VueFlow selection first
+          if (selectedNodes.value.length > 0) {
+            removeSelectedNodes(selectedNodes.value);
+          }
+          
+          // Immediate UI updates for responsiveness
+          selected.value = null;
+          showModal.value = false;
+          editing.value = false;
+          contextMenuVisible.value = false;
+          
+          // Clear highlights immediately (this is fast and needs to be visible right away)
+          clearHighlights();
+        }
 
+        function openEditFor(pid) {
+          const node = getNodeById(pid);
+          if (!node) return;
+          // Keep VueFlow selection in sync
+          if (selectedNodes.value.length > 0 && !selectedNodes.value.includes(node)) {
+            removeSelectedNodes(selectedNodes.value);
+          }
+          if (!node.selected) addSelectedNodes([node]);
+          selected.value = { ...node.data, spouseId: '' };
+          useBirthApprox.value = !!selected.value.birthApprox;
+          useDeathApprox.value = !!selected.value.deathApprox;
+          birthExactBackup.value = selected.value.dateOfBirth || '';
+          deathExactBackup.value = selected.value.dateOfDeath || '';
+          isNew.value = false;
+          editing.value = true;
+          computeChildren(pid);
+          showModal.value = true;
+        }
+
+        function openInfoFor(pid) {
+          const node = getNodeById(pid);
+          if (!node) return;
+          // Keep VueFlow selection in sync
+          if (selectedNodes.value.length > 0 && !selectedNodes.value.includes(node)) {
+            removeSelectedNodes(selectedNodes.value);
+          }
+          if (!node.selected) addSelectedNodes([node]);
+          selected.value = { ...node.data, spouseId: '' };
+          useBirthApprox.value = !!selected.value.birthApprox;
+          useDeathApprox.value = !!selected.value.deathApprox;
+          birthExactBackup.value = selected.value.dateOfBirth || '';
+          deathExactBackup.value = selected.value.dateOfDeath || '';
+          isNew.value = false;
+          editing.value = false;
+          computeChildren(pid);
+          showModal.value = true;
+        }
+ 
         function gotoMe() {
           if (window.gotoMe) window.gotoMe();
         }
@@ -1339,7 +2300,7 @@
         }
 
         function toggleFocused() {
-          if (!window.meNodeId) {
+          if (!getCurrentMeId()) {
             flash(I18nGlobal.t('defineMeFirst'), 'danger');
             return;
           }
@@ -1362,14 +2323,17 @@
             ['maidenName', 'dateOfBirth', 'birthApprox', 'dateOfDeath', 'deathApprox', 'placeOfBirth', 'geonameId', 'notes', 'fatherId', 'motherId'].forEach((f) => {
               if (payload[f] === '') payload[f] = null;
             });
+            const prev = peopleById.has(selected.value.id)
+              ? { ...peopleById.get(selected.value.id) }
+              : null;
             const updated = await FrontendApp.updatePerson(selected.value.id, payload);
-            // Avoid overwriting fields the user may still be typing
             if (spouseId) {
-              await FrontendApp.linkSpouse(updated.id, parseInt(spouseId));
+              await FrontendApp.linkSpouse(updated.id, parseInt(spouseId, 10));
+              scheduleSearchRefresh();
             }
-              await refreshNodeData(true);
-              computeChildren(updated.id);
-              fetchScore();
+            applyPersonResult(updated, prev);
+            computeChildren(updated.id);
+            fetchScore();
           }, 200);
 
         watch(
@@ -1453,11 +2417,14 @@
           if (document.activeElement) document.activeElement.blur();
           showModal.value = false;
           await nextTick();
-          await FrontendApp.updatePerson(selected.value.id, {
+          const prev = peopleById.has(selected.value.id)
+            ? { ...peopleById.get(selected.value.id) }
+            : null;
+          const updated = await FrontendApp.updatePerson(selected.value.id, {
             placeOfBirth: full,
             geonameId: s.geonameId,
           });
-          await refreshNodeData(true);
+          applyPersonResult(updated, prev);
           const node = getNodeById(selected.value.id);
           if (node) {
             selected.value = { ...node.data, spouseId: '' };
@@ -1571,6 +2538,9 @@
         function onNodeDragStop() {
           refreshUnions();
           saveTempLayout();
+          markSpatialIndexDirty();
+          rebuildSpatialIndex();
+          scheduleSegmentAutoload();
         }
 
         async function saveLayout() {
@@ -1622,34 +2592,76 @@
 
         function buildBloodlineHierarchy(selectedNodeId) {
           if (!selectedNodeId) return null;
-          
-          // Get the bloodline set for the selected node
-          const bloodlineSet = getBloodlineSet(selectedNodeId);
-          
-          // Build a map of bloodline nodes
-          const map = {};
+
+          // Prepare quick lookups
+          const idToPerson = new Map();
+          const childrenOf = new Map();
           nodes.value.forEach((n) => {
             if (!n.data || n.data.helper) return;
-            if (bloodlineSet.has(n.id)) {
-              map[n.data.id] = { ...n.data, children: [] };
-            }
+            idToPerson.set(n.data.id, n.data);
           });
-          
-          // Build parent-child relationships within bloodline, including both parents when present
-          Object.values(map).forEach((p) => {
-            if (map[p.fatherId]) {
-              map[p.fatherId].children.push(p);
-            }
-            if (map[p.motherId]) {
-              map[p.motherId].children.push(p);
-            }
+          // Build children map
+          idToPerson.forEach((p) => {
+            if (!childrenOf.has(p.id)) childrenOf.set(p.id, []);
           });
-          
-          return {
-            children: Object.values(map).filter(
-              (p) => !map[p.fatherId] && !map[p.motherId]
-            ),
-          };
+          idToPerson.forEach((p) => {
+            if (p.fatherId && childrenOf.has(p.fatherId)) childrenOf.get(p.fatherId).push(p);
+            if (p.motherId && childrenOf.has(p.motherId)) childrenOf.get(p.motherId).push(p);
+          });
+
+          function cloneNodeData(person) {
+            return { ...person, children: [] };
+          }
+
+          const visitedAnc = new Set();
+          const visitedDesc = new Set();
+
+          function buildAncestors(pid) {
+            if (!pid || visitedAnc.has(pid)) return null;
+            const person = idToPerson.get(pid);
+            if (!person) return null;
+            visitedAnc.add(pid);
+            const node = cloneNodeData(person);
+            const f = person.fatherId ? buildAncestors(person.fatherId) : null;
+            const m = person.motherId ? buildAncestors(person.motherId) : null;
+            if (f) node.children.push(f);
+            if (m) node.children.push(m);
+            return node;
+          }
+
+          function buildDescendants(pid) {
+            if (!pid || visitedDesc.has(pid)) return null;
+            const person = idToPerson.get(pid);
+            if (!person) return null;
+            visitedDesc.add(pid);
+            const node = cloneNodeData(person);
+            const kids = childrenOf.get(pid) || [];
+            for (const child of kids) {
+              // Attach child only once (under the selected ancestor in this path)
+              const childSub = buildDescendants(child.id);
+              if (childSub) node.children.push(childSub);
+            }
+            return node;
+          }
+
+          const me = idToPerson.get(selectedNodeId);
+          if (!me) return null;
+
+          // Root is selected person, with both ancestors and descendants as children branches
+          const root = cloneNodeData(me);
+          const fatherTree = buildAncestors(me.fatherId);
+          const motherTree = buildAncestors(me.motherId);
+          if (fatherTree) root.children.push(fatherTree);
+          if (motherTree) root.children.push(motherTree);
+
+          // descendants
+          const kids = childrenOf.get(me.id) || [];
+          for (const child of kids) {
+            const childTree = buildDescendants(child.id);
+            if (childTree) root.children.push(childTree);
+          }
+
+          return { children: [root] };
         }
 
         function downloadSvg() {
@@ -1793,7 +2805,10 @@
         }
 
         async function handleNodesChange(changes) {
-          const removed = (changes || []).filter((c) => c.type === 'remove');
+          const list = Array.isArray(changes) ? changes : [];
+          if (!list.length) return;
+
+          const removed = list.filter((c) => c.type === 'remove');
           for (const r of removed) {
             if (!/^\d+$/.test(r.id)) continue;
             try {
@@ -1801,6 +2816,18 @@
             } catch (e) {
               console.error('Failed to delete person', r.id, e);
             }
+          }
+
+          const hasNonRemoveChanges = list.some((c) => c.type !== 'remove');
+          if (hasNonRemoveChanges) {
+            rebuildNodeMap();
+            nextTick(() => {
+              refreshUnions();
+            });
+          }
+
+          if (removed.length || hasNonRemoveChanges) {
+            markSpatialIndexDirty();
           }
         }
 
@@ -1810,13 +2837,14 @@
           await FrontendApp.clearDatabase();
           nodes.value = [];
           rebuildNodeMap();
+          markSpatialIndexDirty();
           buildChildrenCache();
           edges.value = [];
           try { localStorage.removeItem(TEMP_KEY); } catch (e) { /* ignore */ }
           
           // Refresh search data so all deleted people are removed from search
           if (window.SearchApp && typeof window.SearchApp.refresh === 'function') {
-            await window.SearchApp.refresh();
+            await window.SearchApp.refresh(peopleState.value);
           }
         }
 
@@ -1901,7 +2929,7 @@
           pendingPeople = [];
           pendingFamilies = families;
           pendingIdMap = {};
-          const THRESHOLD = 4;
+          const THRESHOLD = 5;
           
           importProgress.value.phase = 'Checking for duplicates...';
           
@@ -1941,7 +2969,7 @@
         async function runDedup() {
           const people = await FrontendApp.fetchPeople();
           const conflictList = [];
-          const THRESHOLD = 4;
+          const THRESHOLD = 5;
           for (let i = 0; i < people.length; i += 1) {
             for (let j = i + 1; j < people.length; j += 1) {
               const score = matchScore(people[i], people[j]);
@@ -2014,12 +3042,13 @@
             (sH.includes('left') || sH.includes('right')) &&
             (tH.includes('left') || tH.includes('right'))
           ) {
-              await FrontendApp.linkSpouse(
-                parseInt(params.source),
-                parseInt(params.target)
-              );
-              await refreshNodeData(true);
-              return;
+            await FrontendApp.linkSpouse(
+              parseInt(params.source, 10),
+              parseInt(params.target, 10)
+            );
+            scheduleSearchRefresh();
+            rebuildRelationshipsFast();
+            return;
           }
 
           let parentNode;
@@ -2048,8 +3077,17 @@
           else if (!childNode.data.motherId) updates.motherId = parentNode.data.id;
           else return;
 
-          await FrontendApp.updatePerson(childNode.data.id, updates);
-          await refreshNodeData(true);
+          const prev = peopleById.has(childNode.data.id)
+            ? { ...peopleById.get(childNode.data.id) }
+            : null;
+          const updated = await FrontendApp.updatePerson(childNode.data.id, updates);
+          applyPersonResult(updated, prev);
+          if (selected.value) {
+            const selId = selected.value.id;
+            if (selId === parentNode.data.id || selId === childNode.data.id) {
+              computeChildren(selId);
+            }
+          }
         }
 
         const isNew = ref(false);
@@ -2169,9 +3207,12 @@
         async function deleteSelected() {
           if (!selected.value) return;
           showModal.value = false;
-          await FrontendApp.deletePerson(selected.value.id);
+          const id = selected.value.id;
+          const prev = peopleById.has(id) ? { ...peopleById.get(id) } : null;
+          await FrontendApp.deletePerson(id);
+          await removePersonLocal(id, prev);
+          scheduleSearchRefresh();
           selected.value = null;
-          await refreshNodeData(true);
         }
 
         async function cancelEdit() {
@@ -2185,11 +3226,15 @@
           ['maidenName', 'dateOfBirth', 'birthApprox', 'dateOfDeath', 'deathApprox', 'placeOfBirth', 'geonameId', 'notes', 'fatherId', 'motherId'].forEach((f) => {
             if (payload[f] === '') payload[f] = null;
           });
-          await FrontendApp.updatePerson(originalSelected.id, payload);
+          const prev = peopleById.has(originalSelected.id)
+            ? { ...peopleById.get(originalSelected.id) }
+            : null;
+          const updated = await FrontendApp.updatePerson(originalSelected.id, payload);
           if (spouseId) {
-            await FrontendApp.linkSpouse(originalSelected.id, parseInt(spouseId));
+            await FrontendApp.linkSpouse(originalSelected.id, parseInt(spouseId, 10));
+            scheduleSearchRefresh();
           }
-          await refreshNodeData(true);
+          applyPersonResult(updated, prev);
           selected.value = { ...originalSelected };
           computeChildren(originalSelected.id);
           useBirthApprox.value = !!selected.value.birthApprox;
@@ -2201,531 +3246,308 @@
           const updates = {};
           if (child.fatherId === selected.value.id) updates.fatherId = null;
           if (child.motherId === selected.value.id) updates.motherId = null;
-          await FrontendApp.updatePerson(child.id, updates);
-          await refreshNodeData(true);
+          if (Object.keys(updates).length === 0) return;
+          const prev = peopleById.has(child.id) ? { ...peopleById.get(child.id) } : null;
+          const updated = await FrontendApp.updatePerson(child.id, updates);
+          applyPersonResult(updated, prev);
           computeChildren(selected.value.id);
         }
 
         async function removeFather() {
           if (!selected.value || !selected.value.fatherId) return;
-          await FrontendApp.updatePerson(selected.value.id, { fatherId: null });
-          await refreshNodeData(true);
-          // Update the selected person's data
+          const prev = peopleById.has(selected.value.id)
+            ? { ...peopleById.get(selected.value.id) }
+            : null;
+          const updated = await FrontendApp.updatePerson(selected.value.id, { fatherId: null });
+          applyPersonResult(updated, prev);
           const node = nodes.value.find((n) => n.id === String(selected.value.id));
-          if (node) {
-            selected.value = { ...node.data };
-          }
+          if (node) selected.value = { ...node.data };
         }
 
         async function removeMother() {
           if (!selected.value || !selected.value.motherId) return;
-          await FrontendApp.updatePerson(selected.value.id, { motherId: null });
-          await refreshNodeData(true);
-          // Update the selected person's data
+          const prev = peopleById.has(selected.value.id)
+            ? { ...peopleById.get(selected.value.id) }
+            : null;
+          const updated = await FrontendApp.updatePerson(selected.value.id, { motherId: null });
+          applyPersonResult(updated, prev);
           const node = nodes.value.find((n) => n.id === String(selected.value.id));
-          if (node) {
-            selected.value = { ...node.data };
-          }
+          if (node) selected.value = { ...node.data };
         }
 
-        function refreshUnions() {
-          const helperUpdates = [];
-          Object.values(unions).forEach((u) => {
-            const father = getNodeById(u.fatherId);
-            const mother = getNodeById(u.motherId);
-            const helper = getNodeById(u.id);
-            if (father && mother && helper) {
-              const fatherWidth = father.dimensions?.width || 0;
-              const motherWidth = mother.dimensions?.width || 0;
-              const fatherHeight = father.dimensions?.height || 0;
-              const motherHeight = mother.dimensions?.height || 0;
-              helper.position = {
-                x:
-                  (father.position.x + fatherWidth / 2 +
-                    mother.position.x +
-                    motherWidth / 2) /
-                  2,
-                y:
-                  (father.position.y + fatherHeight / 2 +
-                    mother.position.y +
-                    motherHeight / 2) /
-                    2 +
-                  UNION_Y_OFFSET,
-              };
-              helperUpdates.push({ id: helper.id, position: { ...helper.position } });
+                 function refreshUnions() {
+           const updatedNodeIds = new Set();
+           Object.values(unions).forEach((u) => {
+             const father = getNodeById(u.fatherId);
+             const mother = getNodeById(u.motherId);
+             const helper = getNodeById(u.id);
+             if (father && mother && helper) {
+               const fatherWidth = father.dimensions?.width || 0;
+               const motherWidth = mother.dimensions?.width || 0;
+               const fatherHeight = father.dimensions?.height || 0;
+               const motherHeight = mother.dimensions?.height || 0;
+               helper.position = {
+                 x:
+                   (father.position.x + fatherWidth / 2 +
+                     mother.position.x +
+                     motherWidth / 2) /
+                   2,
+                 y:
+                   (father.position.y + fatherHeight / 2 +
+                     mother.position.y +
+                     motherHeight / 2) /
+                     2 +
+                   UNION_Y_OFFSET,
+               };
+               updatedNodeIds.add(helper.id);
+               updatedNodeIds.add(String(father.id || father.data?.id || u.fatherId));
+               updatedNodeIds.add(String(mother.id || mother.data?.id || u.motherId));
 
-              const spEdge = edges.value.find(
-                (e) => e.id === `spouse-line-${u.id}`
-              );
-              if (spEdge) {
-                const handles = spouseHandles(father, mother);
-                spEdge.sourceHandle = handles.source;
-                spEdge.targetHandle = handles.target;
-              }
+               const spEdge = edges.value.find(
+                 (e) => e.id === `spouse-line-${u.id}`
+               );
+               if (spEdge) {
+                 const handles = spouseHandles(father, mother);
+                 spEdge.sourceHandle = handles.source;
+                 spEdge.targetHandle = handles.target;
+               }
 
-              u.children.forEach((cid) => {
-                const edge = edges.value.find((e) => e.id === `${u.id}-${cid}`);
-                const childNode = getNodeById(cid);
-                if (edge && childNode) {
-                  edge.sourceHandle = 's-bottom';
-                  edge.targetHandle = 't-top';
-                }
-              });
-            }
-          });
-          if (helperUpdates.length) {
-            updateNodePositions(helperUpdates, true, false);
-          }
-        }
+               u.children.forEach((cid) => {
+                 const edge = edges.value.find((e) => e.id === `${u.id}-${cid}`);
+                 const childNode = getNodeById(cid);
+                 if (edge && childNode) {
+                   edge.sourceHandle = 's-bottom';
+                   edge.targetHandle = 't-top';
+                   updatedNodeIds.add(String(childNode.id || childNode.data?.id || cid));
+                 }
+               });
+             }
+           });
+           if (typeof updateNodeInternals === 'function' && updatedNodeIds.size) {
+             updateNodeInternals(Array.from(updatedNodeIds));
+           }
+         }
 
         // Chunked version of tidyUp for large datasets
         async function tidyUpChunked(list) {
-          if (list.length === 0) {
-            return;
+          const size = Array.isArray(list) ? list.length : 0;
+          if (metrics && typeof metrics.incrementCounter === 'function') {
+            metrics.incrementCounter('layout.tidyUpChunked.externalCalls', 1);
           }
-          
-          const CHUNK_SIZE = Math.min(500, Math.max(50, Math.floor(list.length / 10)));
-          
-          const map = new Map(
-            list.map((n) => [n.id, { ...n, children: [], width: n.width || 0 }])
-          );
-          
-          // Process parent-child relationships in chunks
-          let processed = 0;
-          for (const [, node] of map) {
-            if (node.fatherId && map.has(node.fatherId)) {
-              map.get(node.fatherId).children.push(node);
-            } else if (node.motherId && map.has(node.motherId)) {
-              map.get(node.motherId).children.push(node);
-            }
-            
-            processed++;
-            if (processed % CHUNK_SIZE === 0) {
-              await nextTick(); // Yield control to prevent UI freezing
+          const timer = metrics && typeof metrics.startTimer === 'function'
+            ? metrics.startTimer('layout.tidyUpChunked.external', { nodes: size })
+            : null;
+          try {
+            return await tidyUpChunkedExternal(list);
+          } finally {
+            if (metrics && timer && typeof metrics.endTimer === 'function') {
+              metrics.endTimer(timer, { nodes: size });
             }
           }
-
-          const gen = GenerationLayout.assignGenerations(list);
-          const ROW_HEIGHT = 230;
-
-          const roots = [];
-          map.forEach((n) => {
-            const hasParent = list.some((p) => p.id === n.motherId || p.id === n.fatherId);
-            if (!hasParent) roots.push(n);
-          });
-          
-          const fakeRoot = { id: 'root', children: roots };
-          const baseSpacing = horizontalGridSize * 4;
-          const H_SPACING = baseSpacing - (baseSpacing - horizontalGridSize) * relativeAttraction;
-          const layout = d3.tree().nodeSize([H_SPACING, 1]);
-          const rootNode = d3.hierarchy(fakeRoot);
-          layout(rootNode);
-
-          if (rootNode.children) {
-            rootNode.children.forEach(walk);
-          }
-          function walk(h) {
-            const d = map.get(h.data.id);
-            if (d) {
-              d.x = h.x;
-            }
-            h.children && h.children.forEach(walk);
-          }
-
-          const couples = new Set();
-          // Process couples in chunks
-          for (let i = 0; i < list.length; i += CHUNK_SIZE) {
-            const chunk = list.slice(i, i + CHUNK_SIZE);
-            chunk.forEach((child) => {
-              if (child.fatherId && child.motherId) {
-                const key = `${child.fatherId}-${child.motherId}`;
-                if (!couples.has(key)) {
-                  couples.add(key);
-                  const father = map.get(child.fatherId);
-                  const mother = map.get(child.motherId);
-                  if (father && mother) {
-                    const mid =
-                      (father.x + father.width / 2 + mother.x + mother.width / 2) /
-                      2;
-                    father.x = mid - father.width / 2 - H_SPACING / 2;
-                    mother.x = mid + H_SPACING / 2 - mother.width / 2;
-                  }
-                }
-              }
-            });
-            
-            if (i + CHUNK_SIZE < list.length) {
-              await nextTick(); // Yield control
-            }
-          }
-
-          const links = [];
-          // Process links in chunks
-          for (let i = 0; i < list.length; i += CHUNK_SIZE) {
-            const chunk = list.slice(i, i + CHUNK_SIZE);
-            chunk.forEach((p) => {
-              if (p.fatherId && map.has(p.fatherId)) {
-                links.push({ source: map.get(p.id), target: map.get(p.fatherId), type: 'parent' });
-              }
-              if (p.motherId && map.has(p.motherId)) {
-                links.push({ source: map.get(p.id), target: map.get(p.motherId), type: 'parent' });
-              }
-              (p.spouseIds || []).forEach((sid) => {
-                if (map.has(sid)) {
-                  links.push({ source: map.get(p.id), target: map.get(sid), type: 'spouse' });
-                }
-              });
-            });
-            
-            if (i + CHUNK_SIZE < list.length) {
-              await nextTick(); // Yield control
-            }
-          }
-
-          const nodesForSim = Array.from(map.values());
-          nodesForSim.forEach((n) => {
-            const g = gen.get(n.id) ?? 0;
-            n.y = g * ROW_HEIGHT;
-            n.fy = n.y;
-          });
-
-          const linkForce = d3
-            .forceLink(links)
-            .id((d) => d.id)
-            .distance((d) => (d.type === 'spouse' ? H_SPACING / 2 : 0))
-            .strength(1);
-          const collideForce = d3
-            .forceCollide()
-            .radius((d) => (d.width || 0) / 2 + H_SPACING / 2)
-            .strength(1);
-          const sim = d3
-            .forceSimulation(nodesForSim)
-            .force('link', linkForce)
-            .force('collide', collideForce)
-            .alphaDecay(0.05)
-            .velocityDecay(0.4)
-            .stop();
-          
-          // Run simulation with periodic yielding for large datasets
-          const SIMULATION_CHUNK = 10;
-          for (let i = 0; i < 120; i += SIMULATION_CHUNK) {
-            const iterations = Math.min(SIMULATION_CHUNK, 120 - i);
-            for (let j = 0; j < iterations; j++) {
-              sim.tick();
-            }
-            if (i + SIMULATION_CHUNK < 120) {
-              await nextTick(); // Yield control periodically during simulation
-            }
-          }
-          
-          nodesForSim.forEach((n) => {
-            delete n.fy;
-          });
-
-          // Continue with the rest of the original tidyUp logic...
-          const rows = new Map();
-          nodesForSim.forEach((n) => {
-            const row = Math.round(n.y / ROW_HEIGHT);
-            if (!rows.has(row)) rows.set(row, []);
-            rows.get(row).push(n);
-          });
-
-          rows.forEach((rowNodes) => {
-            rowNodes.sort((a, b) => a.x - b.x);
-            let lastX = Number.NEGATIVE_INFINITY;
-            rowNodes.forEach((n) => {
-              if (n.x < lastX + (n.width || 0) / 2 + H_SPACING / 2) {
-                n.x = lastX + (n.width || 0) / 2 + H_SPACING / 2;
-              }
-              lastX = n.x + (n.width || 0) / 2;
-            });
-          });
-
-          list.forEach((original) => {
-            const updated = map.get(original.id);
-            if (updated) {
-              original.x = updated.x;
-              original.y = updated.y;
-            }
-          });
         }
 
         function tidyUp(list) {
-          if (list.length === 0) {
-            return;
+          const size = Array.isArray(list) ? list.length : 0;
+          if (metrics && typeof metrics.incrementCounter === 'function') {
+            metrics.incrementCounter('layout.tidyUp.externalCalls', 1);
           }
-          
-          const map = new Map(
-            list.map((n) => [n.id, { ...n, children: [], width: n.width || 0 }])
-          );
-          map.forEach((n) => {
-            if (n.fatherId && map.has(n.fatherId)) {
-              map.get(n.fatherId).children.push(n);
-            } else if (n.motherId && map.has(n.motherId)) {
-              map.get(n.motherId).children.push(n);
+          const timer = metrics && typeof metrics.startTimer === 'function'
+            ? metrics.startTimer('layout.tidyUp.external', { nodes: size })
+            : null;
+          try {
+            return tidyUpExternal(list);
+          } finally {
+            if (metrics && timer && typeof metrics.endTimer === 'function') {
+              metrics.endTimer(timer, { nodes: size });
             }
-          });
-
-          const gen = GenerationLayout.assignGenerations(list);
-          const ROW_HEIGHT = 230;
-
-          const roots = [];
-          map.forEach((n) => {
-            const hasParent = list.some((p) => p.id === n.motherId || p.id === n.fatherId);
-            if (!hasParent) roots.push(n);
-          });
-          const fakeRoot = { id: 'root', children: roots };
-          const baseSpacing = horizontalGridSize * 4;
-          const H_SPACING = baseSpacing - (baseSpacing - horizontalGridSize) * relativeAttraction;
-          const layout = d3.tree().nodeSize([H_SPACING, 1]);
-          const rootNode = d3.hierarchy(fakeRoot);
-          layout(rootNode);
-
-          if (rootNode.children) {
-            rootNode.children.forEach(walk);
           }
-          function walk(h) {
-            const d = map.get(h.data.id);
-            if (d) {
-              d.x = h.x;
-            }
-            h.children && h.children.forEach(walk);
-          }
-
-
-          const couples = new Set();
-          list.forEach((child) => {
-            if (child.fatherId && child.motherId) {
-              const key = `${child.fatherId}-${child.motherId}`;
-              if (!couples.has(key)) {
-                couples.add(key);
-                const father = map.get(child.fatherId);
-                const mother = map.get(child.motherId);
-                if (father && mother) {
-                  const mid =
-                    (father.x + father.width / 2 + mother.x + mother.width / 2) /
-                    2;
-                  father.x = mid - father.width / 2 - H_SPACING / 2;
-                  mother.x = mid + H_SPACING / 2 - mother.width / 2;
-                }
-              }
-            }
-          });
-
-          const links = [];
-          list.forEach((p) => {
-            if (p.fatherId && map.has(p.fatherId)) {
-              links.push({ source: map.get(p.id), target: map.get(p.fatherId), type: 'parent' });
-            }
-            if (p.motherId && map.has(p.motherId)) {
-              links.push({ source: map.get(p.id), target: map.get(p.motherId), type: 'parent' });
-            }
-            (p.spouseIds || []).forEach((sid) => {
-              if (map.has(sid)) {
-                links.push({ source: map.get(p.id), target: map.get(sid), type: 'spouse' });
-              }
-            });
-          });
-
-          const nodesForSim = Array.from(map.values());
-          nodesForSim.forEach((n) => {
-            const g = gen.get(n.id) ?? 0;
-            n.y = g * ROW_HEIGHT;
-            n.fy = n.y;
-          });
-
-          const linkForce = d3
-            .forceLink(links)
-            .id((d) => d.id)
-            .distance((d) => (d.type === 'spouse' ? H_SPACING / 2 : 0))
-            .strength(1);
-          const collideForce = d3
-            .forceCollide()
-            .radius((d) => (d.width || 0) / 2 + H_SPACING / 2)
-            .strength(1);
-          const sim = d3
-            .forceSimulation(nodesForSim)
-            .force('link', linkForce)
-            .force('collide', collideForce)
-            .alphaDecay(0.05)
-            .velocityDecay(0.4)
-            .stop();
-          for (let i = 0; i < 120; i++) sim.tick();
-          nodesForSim.forEach((n) => {
-            delete n.fy;
-          });
-
-          const rows = new Map();
-          list.forEach((n) => {
-            const g = gen.get(n.id) ?? 0;
-            if (!rows.has(g)) rows.set(g, []);
-            rows.get(g).push(map.get(n.id));
-          });
-
-          rows.forEach((row) => {
-            row.forEach((p) => {
-              if (typeof p.x !== 'number') p.x = 0;
-            });
-            row.sort((a, b) => a.x - b.x);
-            for (let i = 1; i < row.length; i++) {
-              const prev = row[i - 1];
-              const curr = row[i];
-              const prevRight = prev.x + (prev.width || 0);
-              const minX = prevRight + H_SPACING;
-              if (curr.x < minX) {
-                curr.x = minX;
-              }
-            }
-
-            const idMap = new Map(row.map((n) => [n.id, n]));
-            const parentUF = {};
-            const find = (id) => {
-              if (!(id in parentUF)) parentUF[id] = id;
-              if (parentUF[id] !== id) parentUF[id] = find(parentUF[id]);
-              return parentUF[id];
-            };
-            const unite = (a, b) => {
-              const pa = find(a);
-              const pb = find(b);
-              if (pa !== pb) parentUF[pb] = pa;
-            };
-            row.forEach((n) => {
-              (n.spouseIds || []).forEach((sid) => {
-                if (idMap.has(sid)) unite(n.id, sid);
-              });
-            });
-            const groupsMap = {};
-            row.forEach((n) => {
-              const root = find(n.id);
-              groupsMap[root] = groupsMap[root] || [];
-              groupsMap[root].push(n);
-            });
-            const groups = Object.values(groupsMap);
-            groups.forEach((g) => {
-              g.sort((a, b) => a.x - b.x);
-              for (let i = 1; i < g.length; i++) {
-                const prev = g[i - 1];
-                const curr = g[i];
-                const minX = prev.x + (prev.width || 0) + H_SPACING;
-                if (curr.x < minX) {
-                  const shift = minX - curr.x;
-                  for (let j = i; j < g.length; j++) {
-                    g[j].x += shift;
-                  }
-                }
-              }
-            });
-            groups.sort((a, b) => a[0].x - b[0].x);
-            for (let i = 1; i < groups.length; i++) {
-              const prevG = groups[i - 1];
-              const currG = groups[i];
-              const prevRight =
-                prevG[prevG.length - 1].x +
-                (prevG[prevG.length - 1].width || 0);
-              const minX = prevRight + H_SPACING;
-              if (currG[0].x < minX) {
-                const shift = minX - currG[0].x;
-                currG.forEach((n) => {
-                  n.x += shift;
-                });
-              }
-            }
-          });
-
-          list.forEach((n) => {
-            const p = map.get(n.id);
-            n.x = p.x;
-            const g = gen.get(n.id) ?? 0;
-            n.y = g * ROW_HEIGHT;
-          });
         }
 
 
 
-      async function tidyUpLayout() {
+      async function performTidyUpLayout() {
         notifyTap();
         setLoading(true);
-        await nextTick();
-        
-        const totalNodes = nodes.value.filter((n) => n.type === 'person').length;
-        const CHUNK_SIZE = Math.min(500, Math.max(50, Math.floor(totalNodes / 10))); // Adaptive chunk size
-        
-        // Show progress for large datasets
-        if (totalNodes > 1000) {
-          flash(I18nGlobal.t('processingLargeDataset', { count: totalNodes }));
-        }
-        
-        const people = nodes.value
-          .filter((n) => n.type === 'person')
-          .map((n) => ({
+        let totalNodes = 0;
+        let useChunkedLayout = false;
+        let updatedNodesCount = 0;
+        const layoutTimer = metrics && typeof metrics.startTimer === 'function'
+          ? metrics.startTimer('layout.performTidyUp', { lowPower: runtimePerformanceProfile.isLowPower })
+          : null;
+        try {
+          await nextTick();
+
+          const personNodes = nodes.value.filter((n) => n.type === 'person');
+          totalNodes = personNodes.length;
+          if (metrics && typeof metrics.recordSample === 'function') {
+            metrics.recordSample('layout.performTidyUp.totalNodes', totalNodes);
+          }
+          const chunkDivisor = runtimePerformanceProfile.isLowPower ? 14 : 9;
+          const chunkBase = Math.floor(totalNodes / chunkDivisor);
+          const CHUNK_SIZE = Math.min(
+            runtimePerformanceProfile.isLowPower ? 240 : 480,
+            Math.max(runtimePerformanceProfile.isLowPower ? 48 : 80, chunkBase || (runtimePerformanceProfile.isLowPower ? 60 : 100))
+          );
+          if (metrics && typeof metrics.recordSample === 'function') {
+            metrics.recordSample('layout.performTidyUp.chunkSize', CHUNK_SIZE);
+          }
+
+          if (totalNodes > 1000 || (runtimePerformanceProfile.isLowPower && totalNodes > 350)) {
+            flash(I18nGlobal.t('processingLargeDataset', { count: totalNodes }));
+          }
+
+          const people = personNodes.map((n) => ({
             id: n.data.id,
             fatherId: n.data.fatherId,
             motherId: n.data.motherId,
             spouseIds: [],
             width: n.dimensions?.width || 0,
-            x: 0,
-            y: 0,
+            x: n.position?.x || 0,
+            y: n.position?.y || 0,
           }));
 
-        const pMap = new Map(people.map((p) => [p.id, p]));
-        
-        // Process unions in chunks for large datasets
-        const unionEntries = Object.values(unions);
-        for (let i = 0; i < unionEntries.length; i += CHUNK_SIZE) {
-          const chunk = unionEntries.slice(i, i + CHUNK_SIZE);
-          chunk.forEach((u) => {
-            const a = pMap.get(u.fatherId);
-            const b = pMap.get(u.motherId);
-            if (a && b) {
-              if (!a.spouseIds.includes(b.id)) a.spouseIds.push(b.id);
-              if (!b.spouseIds.includes(a.id)) b.spouseIds.push(a.id);
+          const pMap = new Map(people.map((p) => [p.id, p]));
+          const unionEntries = Object.values(unions);
+          for (let i = 0; i < unionEntries.length; i += CHUNK_SIZE) {
+            const chunk = unionEntries.slice(i, i + CHUNK_SIZE);
+            chunk.forEach((u) => {
+              const a = pMap.get(u.fatherId);
+              const b = pMap.get(u.motherId);
+              if (a && b) {
+                if (!a.spouseIds.includes(b.id)) a.spouseIds.push(b.id);
+                if (!b.spouseIds.includes(a.id)) b.spouseIds.push(a.id);
+              }
+            });
+            if (unionEntries.length > CHUNK_SIZE && i + CHUNK_SIZE < unionEntries.length) {
+              await yieldForLayout();
             }
-          });
-          
-          // Yield control to prevent UI freezing
-          if (unionEntries.length > CHUNK_SIZE && i + CHUNK_SIZE < unionEntries.length) {
-            await nextTick();
           }
-        }
 
-        // Use chunked tidyUp for large datasets
-        if (totalNodes > 1000) {
-          await tidyUpChunked(people);
-        } else {
-          tidyUp(people);
-        }
+          useChunkedLayout = totalNodes > 900 || runtimePerformanceProfile.isLowPower;
+          if (metrics && typeof metrics.recordEvent === 'function') {
+            metrics.recordEvent('layout.performTidyUp.mode', {
+              mode: useChunkedLayout ? 'chunked' : 'standard',
+              totalNodes,
+              lowPower: runtimePerformanceProfile.isLowPower,
+            });
+          }
+          if (metrics && typeof metrics.incrementCounter === 'function') {
+            metrics.incrementCounter(
+              useChunkedLayout ? 'layout.performTidyUp.chunkedRuns' : 'layout.performTidyUp.standardRuns',
+              1
+            );
+          }
+          if (useChunkedLayout) {
+            await tidyUpChunked(people);
+          } else {
+            tidyUp(people);
+          }
 
-        const posMap = {};
-        people.forEach((p) => {
-          posMap[p.id] = { x: p.x, y: p.y };
-        });
-
-        // Update node positions in chunks for large datasets
-        const personNodes = nodes.value.filter((n) => n.type === 'person');
-        for (let i = 0; i < personNodes.length; i += CHUNK_SIZE) {
-          const chunk = personNodes.slice(i, i + CHUNK_SIZE);
-          chunk.forEach((n) => {
-            if (posMap[n.data.id]) {
-              n.position.x = posMap[n.data.id].x;
-              n.position.y = posMap[n.data.id].y;
-            }
+          const posMap = new Map();
+          people.forEach((p) => {
+            posMap.set(p.id, { x: p.x, y: p.y });
           });
 
-          // Yield control to prevent UI freezing
-          if (personNodes.length > CHUNK_SIZE && i + CHUNK_SIZE < personNodes.length) {
-            await nextTick();
+          const updatedIds = new Set();
+          const EPSILON = 0.5;
+          for (let i = 0; i < personNodes.length; i += CHUNK_SIZE) {
+            const chunk = personNodes.slice(i, i + CHUNK_SIZE);
+            chunk.forEach((n) => {
+              const coords = posMap.get(n.data.id);
+              if (!coords) return;
+              const px = n.position?.x || 0;
+              const py = n.position?.y || 0;
+              const dx = Math.abs(px - coords.x);
+              const dy = Math.abs(py - coords.y);
+              if (dx > EPSILON || dy > EPSILON) {
+                n.position.x = coords.x;
+                n.position.y = coords.y;
+                updatedIds.add(String(n.id));
+              }
+            });
+            if (personNodes.length > CHUNK_SIZE && i + CHUNK_SIZE < personNodes.length) {
+              await yieldForLayout();
+            }
+          }
+
+          if (typeof updateNodeInternals === 'function' && updatedIds.size) {
+            updateNodeInternals(Array.from(updatedIds));
+          }
+
+          updatedNodesCount = updatedIds.size;
+
+          refreshUnions();
+          saveTempLayout();
+          flash(I18nGlobal.t('layoutTidied'));
+        } finally {
+          setLoading(false);
+          if (metrics && layoutTimer && typeof metrics.endTimer === 'function') {
+            metrics.endTimer(layoutTimer, {
+              totalNodes,
+              updatedNodes: updatedNodesCount,
+              mode: useChunkedLayout ? 'chunked' : 'standard',
+              lowPower: runtimePerformanceProfile.isLowPower,
+            });
           }
         }
+      }
 
-        if (personNodes.length) {
-          const nodeUpdates = personNodes.map((n) => ({ id: n.id, position: { ...n.position } }));
-          updateNodePositions(nodeUpdates, true, false);
+      async function tidyUpLayout() {
+        if (tidyInFlight) {
+          tidyQueued = true;
+          if (metrics && typeof metrics.incrementCounter === 'function') {
+            metrics.incrementCounter('layout.tidyUpLayout.queuedWhileRunning', 1);
+          }
+          return;
         }
-
-        refreshUnions();
-        saveTempLayout();
-        setLoading(false);
-        flash(I18nGlobal.t('layoutTidied'));
+        tidyInFlight = true;
+        const layoutLoopTimer = metrics && typeof metrics.startTimer === 'function'
+          ? metrics.startTimer('layout.tidyUpLayout', { lowPower: runtimePerformanceProfile.isLowPower, totalNodes: nodes.value.length })
+          : null;
+        let iterations = 0;
+        let throttledDelays = 0;
+        if (metrics && typeof metrics.recordSample === 'function') {
+          metrics.recordSample('layout.tidyUpLayout.totalNodes', nodes.value.length);
+        }
+        try {
+          const now = Date.now();
+          const sinceLast = now - lastTidyAt;
+          if (lastTidyAt > 0 && sinceLast < MIN_TIDY_INTERVAL) {
+            const delay = MIN_TIDY_INTERVAL - sinceLast;
+            if (metrics && typeof metrics.recordSample === 'function') {
+              metrics.recordSample('layout.tidyUpLayout.delayMs', delay);
+            }
+            throttledDelays += 1;
+            await sleep(delay);
+          }
+          do {
+            tidyQueued = false;
+            iterations += 1;
+            await performTidyUpLayout();
+            lastTidyAt = Date.now();
+            if (tidyQueued) {
+              const elapsed = Date.now() - lastTidyAt;
+              if (elapsed < MIN_TIDY_INTERVAL) {
+                const delay = MIN_TIDY_INTERVAL - elapsed;
+                if (metrics && typeof metrics.recordSample === 'function') {
+                  metrics.recordSample('layout.tidyUpLayout.delayMs', delay);
+                }
+                throttledDelays += 1;
+                await sleep(delay);
+              }
+            }
+          } while (tidyQueued);
+        } finally {
+          tidyInFlight = false;
+          if (metrics && layoutLoopTimer && typeof metrics.endTimer === 'function') {
+            metrics.endTimer(layoutLoopTimer, {
+              iterations,
+              throttledDelays,
+              totalNodes: nodes.value.length,
+              lowPower: runtimePerformanceProfile.isLowPower,
+            });
+          }
+        }
       }
 
         async function saveNewPerson() {
@@ -2746,32 +3568,52 @@
             motherId: selected.value.motherId || null,
           };
           const p = await FrontendApp.createPerson(payload);
+          upsertPersonLocal(p);
+          visiblePeople.set(p.id, { ...peopleById.get(p.id) });
+          let node = getNodeById(p.id);
+          if (!node) {
+            node = {
+              id: String(p.id),
+              type: 'person',
+              position: newNodePos
+                ? { ...newNodePos }
+                : project({
+                    x: dimensions.value.width / 2,
+                    y: dimensions.value.height / 2,
+                  }),
+              data: { ...p, me: !!getCurrentMeId() && p.id === String(getCurrentMeId()) },
+            };
+            nodes.value.push(node);
+            rebuildNodeMap();
+          }
           if (selected.value.spouseId) {
-            await FrontendApp.linkSpouse(p.id, parseInt(selected.value.spouseId));
+            await FrontendApp.linkSpouse(p.id, parseInt(selected.value.spouseId, 10));
+            scheduleSearchRefresh();
           }
           if (selected.value.relation) {
             const rel = selected.value.relation;
             if (rel.type === 'father' || rel.type === 'mother') {
               const update = {};
               update[rel.type === 'father' ? 'fatherId' : 'motherId'] = p.id;
-              await FrontendApp.updatePerson(rel.childId, update);
+              const prevChild = peopleById.has(rel.childId)
+                ? { ...peopleById.get(rel.childId) }
+                : null;
+              const updatedChild = await FrontendApp.updatePerson(rel.childId, update);
+              applyPersonResult(updatedChild, prevChild);
             }
           }
-          await refreshNodeData(true);
-          if (newNodePos) {
-            const node = getNodeById(p.id);
-            if (node) {
-              node.position = { ...newNodePos };
-            }
+          await syncGraphFromVisiblePeople({ preservePositions: true });
+          if (newNodePos && node) {
+            node.position = { ...newNodePos };
+          }
           await saveLayout();
-          refreshUnions();
           newNodePos = null;
+          scheduleSearchRefresh();
+          showModal.value = false;
+          fetchScore();
+          isNew.value = false;
+          selected.value = null;
         }
-        showModal.value = false;
-        fetchScore();
-        isNew.value = false;
-        selected.value = null;
-      }
 
        function cancelModal() {
          showModal.value = false;
@@ -2917,17 +3759,33 @@
          openContextMenu(ev);
        }
 
-      function handleTouchStart(ev) {
-        const point = ev.touches ? ev.touches[0] : ev;
-        const x = point.clientX;
-        const y = point.clientY;
-        longPressTimer = setTimeout(() => {
-          openContextMenuAt(x, y);
-        }, 500);
-      }
+             function handleTouchStart(ev) {
+         clearTimeout(longPressTimer);
+         const main = document.getElementById('main-flow');
+         if (main && ev && ev.target && !main.contains(ev.target)) return;
+         if (ev.touches && ev.touches.length > 1) return;
+         const point = ev.touches ? ev.touches[0] : ev;
+         touchStartX = point.clientX;
+         touchStartY = point.clientY;
+         longPressTimer = setTimeout(() => {
+           openContextMenuAt(touchStartX, touchStartY);
+         }, 500);
+       }
+
+       function handleTouchMove(ev) {
+         if (!longPressTimer) return;
+         const point = ev.touches ? ev.touches[0] : ev;
+         const dx = Math.abs(point.clientX - touchStartX);
+         const dy = Math.abs(point.clientY - touchStartY);
+         if (dx > LONG_PRESS_MOVE_TOLERANCE || dy > LONG_PRESS_MOVE_TOLERANCE) {
+           clearTimeout(longPressTimer);
+           longPressTimer = null;
+         }
+       }
 
        function handleTouchEnd() {
          clearTimeout(longPressTimer);
+         longPressTimer = null;
        }
 
        function menuAdd() {
@@ -2972,6 +3830,8 @@
           addSpouse,
         addParent,
         startAddParent,
+        expandAncestors,
+        expandDescendants,
         selected,
         showModal,
         children,
@@ -2996,6 +3856,7 @@
         onNodeDragStop,
         handleContextMenu,
         handleTouchStart,
+        handleTouchMove,
         handleTouchEnd,
         contextMenuVisible,
         contextX,
@@ -3070,6 +3931,19 @@
         flash,
         notifyTap,
         I18n: I18nGlobal,
+        isTouchDevice,
+        openEditFor,
+        openInfoFor,
+        // Link picker bindings
+        linkPickerVisible,
+        linkType,
+        linkInput,
+        linkOptions,
+        openLinkPicker,
+        closeLinkPicker,
+        linkWith,
+        loadedPersonCount,
+        totalPersonCount,
       };
       },
       template: `
@@ -3080,6 +3954,12 @@
           <div id="flashBanner" v-show="flashVisible" :class="['alert', flashType==='success'?'alert-success':'alert-danger','text-center']">{{ flashMessage }}</div>
           <div id="multiIndicator" data-i18n="multiSelect" v-show="shiftPressed">Multi-select</div>
           <div id="hiddenIndicator" v-show="hiddenCount > 0">{{ hiddenCount }} {{ I18n.t('personsHidden') }}</div>
+          <div
+            id="nodeCountIndicator"
+            v-if="totalPersonCount > 0"
+          >
+            {{ I18n.t('nodeCountIndicator', { loaded: loadedPersonCount, total: totalPersonCount }) }}
+          </div>
           <div id="toolbar">
           <button v-if="loggedIn" class="icon-button" @click="addPerson" v-tooltip="I18n.t('addPerson')">
             <svg viewBox="0 0 24 24"><path d="M5.25 6.375a4.125 4.125 0 1 1 8.25 0 4.125 4.125 0 0 1-8.25 0ZM2.25 19.125a7.125 7.125 0 0 1 14.25 0v.003l-.001.119a.75.75 0 0 1-.363.63 13.067 13.067 0 0 1-6.761 1.873c-2.472 0-4.786-.684-6.76-1.873a.75.75 0 0 1-.364-.63l-.001-.122ZM18.75 7.5a.75.75 0 0 0-1.5 0v2.25H15a.75.75 0 0 0 0 1.5h2.25v2.25a.75.75 0 0 0 1.5 0v-2.25H21a.75.75 0 0 0 0-1.5h-2.25V7.5Z"/></svg>
@@ -3092,7 +3972,7 @@
                 <path d="M19.36,2.72L20.78,4.14L15.06,9.85C16.13,11.39 16.28,13.24 15.38,14.44L9.06,8.12C10.26,7.22 12.11,7.37 13.65,8.44L19.36,2.72M5.93,17.57C3.92,15.56 2.69,13.16 2.35,10.92L7.23,8.83L14.67,16.27L12.58,21.15C10.34,20.81 7.94,19.58 5.93,17.57Z" />
               </svg>
             </button>
-            <button class="icon-button" @click="loadLayout" v-tooltip="I18n.t('loadLayout')">
+            <button v-if="false" class="icon-button" @click="loadLayout" v-tooltip="I18n.t('loadLayout')">
               <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M4.755 10.059a7.5 7.5 0 0 1 12.548-3.364l1.903 1.903h-3.183a.75.75 0 1 0 0 1.5h4.992a.75.75 0 0 0 .75-.75V4.356a.75.75 0 0 0-1.5 0v3.18l-1.9-1.9A9 9 0 0 0 3.306 9.67a.75.75 0 1 0 1.45.388Zm15.408 3.352a.75.75 0 0 0-.919.53 7.5 7.5 0 0 1-12.548 3.364l-1.902-1.903h3.183a.75.75 0 0 0 0-1.5H2.984a.75.75 0 0 0-.75.75v4.992a.75.75 0 0 0 1.5 0v-3.18l1.9 1.9a9 9 0 0 0 15.059-4.035.75.75 0 0 0-.53-.918Z" clip-rule="evenodd"/></svg>
             </button>
             <button class="icon-button" @click="fitView()" v-tooltip="I18n.t('fitToScreen')">
@@ -3104,7 +3984,7 @@
             <button class="icon-button" @click="zoomOutStep" v-tooltip="I18n.t('zoomOut')">
               <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM9 11.5h5v1.5H9z"/></svg>
             </button>
-            <button class="icon-button" @click="toggleFocused" :class="{ active: focusedView }" :disabled="!hasMe" v-tooltip="I18n.t('focusedView')">
+            <button v-if="false" class="icon-button" @click="toggleFocused" :class="{ active: focusedView }" :disabled="!hasMe" v-tooltip="I18n.t('focusedView')">
               <svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/><path d="M12 15.4 8.24 17.67l.99-4.28L6 9.5l4.38-.38L12 5l1.62 4.12 4.38.38-3.23 2.89.99 4.28z"/></svg>
             </button>
             <button class="icon-button" @click="gotoMe" v-tooltip="I18n.t('gotoMe')">
@@ -3118,7 +3998,7 @@
             </button>
           </div>
           <div id="sidebar">
-            <button v-if="loggedIn" class="icon-button" @click="saveLayout" v-tooltip="I18n.t('saveLayout')">
+            <button v-if="false && loggedIn" class="icon-button" @click="saveLayout" v-tooltip="I18n.t('saveLayout')">
               <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2.25a.75.75 0 0 1 .75.75v11.69l3.22-3.22a.75.75 0 1 1 1.06 1.06l-4.5 4.5a.75.75 0 0 1-1.06 0l-4.5-4.5a.75.75 0 1 1 1.06-1.06l3.22 3.22V3a.75.75 0 0 1 .75-.75Zm-9 13.5a.75.75 0 0 1 .75.75v2.25a1.5 1.5 0 0 0 1.5 1.5h13.5a1.5 1.5 0 0 0 1.5-1.5V16.5a.75.75 0 0 1 1.5 0v2.25a3 3 0 0 1-3 3H5.25a3 3 0 0 1-3-3V16.5a.75.75 0 0 1 .75-.75Z" clip-rule="evenodd"/></svg>
             </button>
             <button class="icon-button" @click="downloadSvg" v-tooltip="I18n.t('downloadSvg')">
@@ -3127,7 +4007,7 @@
             <button class="icon-button" @click="downloadBloodlineSvg" v-tooltip="I18n.t('downloadBloodlineSvg')" :disabled="selectedNodes.length !== 1">
               <svg viewBox="0 0 24 24"><path d="M12 2L2 7v10c0 5.55 3.84 9.74 9 11 5.16-1.26 9-5.45 9-11V7l-10-5zM12 20c-4.41 0-8-3.59-8-8V9l8-4 8 4v3c0 4.41-3.59 8-8 8z"/></svg>
             </button>
-            <button class="icon-button" @click="toggleSnap" :class="{ active: snapToGrid }" v-tooltip="snapToGrid ? I18n.t('disableSnap') : I18n.t('enableSnap')">
+            <button v-if="false" class="icon-button" @click="toggleSnap" :class="{ active: snapToGrid }" v-tooltip="snapToGrid ? I18n.t('disableSnap') : I18n.t('enableSnap')">
               <svg viewBox="0 0 24 24"><path d="M3 3h18v18H3V3m2 2v14h14V5H5Z" /></svg>
             </button>
             <button v-if="showDeleteAllButton" class="icon-button" @click="deleteAll" style="border-color:#dc3545;color:#dc3545;" v-tooltip="I18n.t('deleteAll')">
@@ -3157,6 +4037,7 @@
             @edge-click="onEdgeClick"
             @contextmenu.prevent="handleContextMenu"
             @touchstart="handleTouchStart"
+            @touchmove="handleTouchMove"
             @touchend="handleTouchEnd"
             @touchcancel="handleTouchEnd"
             @nodes-change="handleNodesChange"
@@ -3175,6 +4056,44 @@
             <template #node-person="{ data }">
               <div class="person-node" :class="{ 'highlight-node': data.highlight, 'faded-node': (selected || filterActive) && !data.highlight, 'connected-node': hasConnection(data.id), 'hidden-node': data.hidden }" :style="{ borderColor: data.gender === 'female' ? '#f8c' : (data.gender === 'male' ? '#88f' : '#ccc') }">
                 <span v-if="data.me" style="position:absolute;top:-8px;right:-8px;color:#f39c12;">&#9733;</span>
+                <div class="expansion-controls">
+                  <button
+                    v-if="data.hasMoreAncestors"
+                    class="icon-button expand-btn"
+                    :disabled="data.loadingAncestors"
+                    @click.stop="expandAncestors(data.id)"
+                    :title="I18n.t('loadAncestors')"
+                  >
+                    <span v-if="data.loadingAncestors">…</span>
+                    <span v-else>↑</span>
+                  </button>
+                  <button
+                    v-if="data.hasMoreDescendants"
+                    class="icon-button expand-btn"
+                    :disabled="data.loadingDescendants"
+                    @click.stop="expandDescendants(data.id)"
+                    :title="I18n.t('loadDescendants')"
+                  >
+                    <span v-if="data.loadingDescendants">…</span>
+                    <span v-else>↓</span>
+                  </button>
+                </div>
+                <button
+                  class="icon-button node-edit-btn"
+                  v-if="isTouchDevice && selectedNodes && selectedNodes.length === 1 && selectedNodes[0].data && selectedNodes[0].data.id === data.id && !showModal"
+                  @click.stop="openEditFor(data.id)"
+                  aria-label="Edit"
+                >
+                  <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm2.92 1.83l-.01-.01h-.01v-.01l.01.01zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                </button>
+                <button
+                  class="icon-button node-info-btn"
+                  v-if="isTouchDevice && selectedNodes && selectedNodes.length === 1 && selectedNodes[0].data && selectedNodes[0].data.id === data.id && !showModal"
+                  @click.stop="openInfoFor(data.id)"
+                  aria-label="Info"
+                >
+                  <svg viewBox="0 0 24 24"><path d="M11 17h2v-6h-2v6zm0-8h2V7h-2v2zm1-7C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></svg>
+                </button>
                 <div class="header">
                   <div class="avatar" :style="avatarStyle(data.gender, 40)">{{ initials(data) }}</div>
                   <div class="name-container">
@@ -3334,6 +4253,15 @@
                 </tr>
               </tbody>
             </table>
+            <div class="mt-3 p-3 bg-light rounded">
+              <h6 data-i18n="pointsLegend">How to earn points:</h6>
+              <div class="small">
+                <div data-i18n="newPersonPoints">• Add new person: 5 points</div>
+                <div data-i18n="editPersonPoints">• Edit existing person: 1-2 points per field</div>
+                <div data-i18n="newInfoPoints">  - Adding new information: 2 points</div>
+                <div data-i18n="updateInfoPoints">  - Updating existing information: 1 point</div>
+              </div>
+            </div>
             <div class="text-right mt-2">
               <button v-if="admin" class="btn btn-danger btn-sm mr-2" @click="resetScores" data-i18n="resetScores">Reset</button>
               <button class="btn btn-primary btn-sm" @click="showScores = false" data-i18n="close">Close</button>
@@ -3443,11 +4371,9 @@
                       </span>
                     </template>
                     <template v-else>
-                      <span class="ml-1" style="cursor: pointer;" @click="startAddParent('father')">
-                        <svg viewBox="0 0 24 24" class="text-success" style="width: 16px; height: 16px; vertical-align: middle;">
-                          <path d="M12 4v16M4 12h16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
-                        </svg>
-                      </span>
+                      <button class="icon-button ml-1" style="padding:4px;" @click="openLinkPicker('father')" v-tooltip="I18n.t('link')">
+                        <svg viewBox="0 0 24 24" style="width:16px;height:16px;"><path d="M10.59 13.41a1.98 1.98 0 0 0 2.82 0l3.59-3.59a2 2 0 0 0-2.82-2.82l-1.29 1.29" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.41 10.59a1.98 1.98 0 0 0-2.82 0L7 14.18a2 2 0 1 0 2.82 2.82l1.29-1.29" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                      </button>
                     </template>
                   </p>
                   <p>
@@ -3461,26 +4387,45 @@
                       </span>
                     </template>
                     <template v-else>
-                      <span class="ml-1" style="cursor: pointer;" @click="startAddParent('mother')">
-                        <svg viewBox="0 0 24 24" class="text-success" style="width: 16px; height: 16px; vertical-align: middle;">
-                          <path d="M12 4v16M4 12h16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
-                        </svg>
-                      </span>
+                      <button class="icon-button ml-1" style="padding:4px;" @click="openLinkPicker('mother')" v-tooltip="I18n.t('link')">
+                        <svg viewBox="0 0 24 24" style="width:16px;height:16px;"><path d="M10.59 13.41a1.98 1.98 0 0 0 2.82 0l3.59-3.59a2 2 0 0 0-2.82-2.82l-1.29 1.29" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.41 10.59a1.98 1.98 0 0 0-2.82 0L7 14.18a2 2 0 1 0 2.82 2.82l1.29-1.29" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                      </button>
                     </template>
                   </p>
                   <p v-if="selected.notes"><strong data-i18n="notesLabel">Notes:</strong> {{ selected.notes }}</p>
-                  <div v-if="children.length" class="mb-2">
-                    <strong data-i18n="childrenLabel">Children:</strong>
-                    <ul>
-                      <li v-for="c in children" :key="c.id">
+                  <div class="mb-2">
+                    <div class="d-flex align-items-center">
+                      <strong class="mr-1" data-i18n="childrenLabel">Children:</strong>
+                      <button class="icon-button ml-1" style="padding:4px;" @click="openLinkPicker('child')" v-tooltip="I18n.t('link')">
+                        <svg viewBox="0 0 24 24" style="width:16px;height:16px;"><path d="M10.59 13.41a1.98 1.98 0 0 0 2.82 0l3.59-3.59a2 2 0 0 0-2.82-2.82l-1.29 1.29" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.41 10.59a1.98 1.98 0 0 0-2.82 0L7 14.18a2 2 0 1 0 2.82 2.82l1.29-1.29" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                      </button>
+                    </div>
+                    <ul v-if="children.length">
+                      <li v-for="c in children" :key="c.id" class="d-flex align-items-center justify-content-between" style="min-height: 36px;">
                         <a href="#" @click.prevent="gotoPerson(c.id)">{{ personName(c.id) }}</a>
-                        <span class="ml-1" style="cursor: pointer;" @click="unlinkChild(c)" title="Remove child relationship">
-                          <svg viewBox="0 0 24 24" class="text-danger" style="width: 14px; height: 14px; vertical-align: middle;">
+                        <button class="icon-button ml-2" style="padding:4px;" @click="unlinkChild(c)" v-tooltip="I18n.t('unlink')">
+                          <svg viewBox="0 0 24 24" class="text-danger" style="width: 16px; height: 16px;">
                             <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
                           </svg>
-                        </span>
+                        </button>
                       </li>
                     </ul>
+                    <div v-else class="text-muted small" data-i18n="noChildren">No children yet</div>
+                  </div>
+                  <div v-if="linkPickerVisible" class="mt-2">
+                    <div class="card p-2" style="background: var(--bg-secondary);">
+                      <div class="d-flex align-items-center">
+                        <input id="link-picker-input" type="text" class="form-control" v-model="linkInput" :placeholder="I18n.t('search')" />
+                        <button class="btn btn-sm btn-secondary ml-2" @click="closeLinkPicker" data-i18n="cancel">Cancel</button>
+                      </div>
+                      <ul class="list-group mt-2" style="max-height: 200px; overflow-y: auto;">
+                        <li v-for="p in linkOptions" :key="p.id" class="list-group-item list-group-item-action" @click="linkWith(p)" style="min-height:44px;">
+                          <div>{{ p.display }}</div>
+                          <div v-if="p.life" class="small text-muted">{{ p.life }}</div>
+                        </li>
+                        <li v-if="!linkOptions.length" class="list-group-item text-muted" data-i18n="noResults">No results</li>
+                      </ul>
+                    </div>
                   </div>
                   <div class="text-right mt-3">
                     <button class="btn btn-primary btn-sm mr-2" @click="setMe" data-i18n="setAsMe">Set as Me</button>
@@ -3511,8 +4456,8 @@
                     </div>
                   </div>
                   <div class="form-row">
-                    <div class="col mb-2">
-                      <label class="small" data-i18n="gender">Gender</label>
+                    <div class="col mb-2 d-flex align-items-center">
+                      <label class="small mb-0 mr-2" data-i18n="gender">Gender</label>
                       <div class="custom-control custom-switch">
                         <input
                           type="checkbox"
@@ -3531,12 +4476,14 @@
                   </div>
                   <div class="form-row">
                     <div class="col mb-2">
-                      <label class="small" data-i18n="dateOfBirth">Date of Birth</label>
-                      <input v-if="!useBirthApprox" class="form-control" v-model="selected.dateOfBirth" type="date" title="Birth date" />
-                      <input v-else class="form-control" v-model="selected.birthApprox" placeholder="e.g., ABT 1900" title="Approximate birth" data-i18n-placeholder="approxExample" />
-                      <div class="custom-control custom-switch ml-2 align-self-center">
-                        <input type="checkbox" class="custom-control-input" id="birthApproxSwitch" v-model="useBirthApprox" />
-                        <label class="custom-control-label" for="birthApproxSwitch" data-i18n="approx">Approx</label>
+                      <label class="small d-block" data-i18n="dateOfBirth">Date of Birth</label>
+                      <div class="d-flex align-items-center">
+                        <input v-if="!useBirthApprox" class="form-control" v-model="selected.dateOfBirth" type="date" title="Birth date" />
+                        <input v-else class="form-control" v-model="selected.birthApprox" placeholder="e.g., ABT 1900" title="Approximate birth" data-i18n-placeholder="approxExample" />
+                        <div class="custom-control custom-switch ml-2">
+                          <input type="checkbox" class="custom-control-input" id="birthApproxSwitch" v-model="useBirthApprox" />
+                          <label class="custom-control-label" for="birthApproxSwitch" data-i18n="approx">Approx</label>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -3554,12 +4501,14 @@
                   </div>
                   <div class="form-row">
                     <div class="col mb-2">
-                      <label class="small" data-i18n="dateOfDeath">Date of Death</label>
-                      <input v-if="!useDeathApprox" class="form-control" v-model="selected.dateOfDeath" type="date" title="Death date" />
-                      <input v-else class="form-control" v-model="selected.deathApprox" placeholder="e.g., BEF 1950" title="Approximate death" data-i18n-placeholder="approxExample" />
-                      <div class="custom-control custom-switch ml-2 align-self-center">
-                        <input type="checkbox" class="custom-control-input" id="deathApproxSwitch" v-model="useDeathApprox" />
-                        <label class="custom-control-label" for="deathApproxSwitch" data-i18n="approx">Approx</label>
+                      <label class="small d-block" data-i18n="dateOfDeath">Date of Death</label>
+                      <div class="d-flex align-items-center">
+                        <input v-if="!useDeathApprox" class="form-control" v-model="selected.dateOfDeath" type="date" title="Death date" />
+                        <input v-else class="form-control" v-model="selected.deathApprox" placeholder="e.g., BEF 1950" title="Approximate death" data-i18n-placeholder="approxExample" />
+                        <div class="custom-control custom-switch ml-2">
+                          <input type="checkbox" class="custom-control-input" id="deathApproxSwitch" v-model="useDeathApprox" />
+                          <label class="custom-control-label" for="deathApproxSwitch" data-i18n="approx">Approx</label>
+                        </div>
                       </div>
                     </div>
                   </div>
