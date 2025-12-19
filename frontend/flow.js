@@ -175,6 +175,7 @@
           snapGrid,
           viewport,
           updateNodeInternals,
+          updateNodePositions,
         } = useVueFlow({ id: 'main-flow' });
         const { fitView, zoomTo } = useZoomPanHelper('main-flow');
         const { fitView: fitRelativesView } = useZoomPanHelper('relatives-flow');
@@ -1882,6 +1883,14 @@
           });
         }
 
+        async function runBloodlineHighlight(id) {
+          if (!id) return;
+          if (nodes.value.length > 500) {
+            await nextTick();
+          }
+          await highlightBloodlineAsync(id);
+        }
+
         function getBloodlineSet(rootId) {
           const map = {};
           nodes.value.forEach((n) => { map[n.id] = n; });
@@ -2163,6 +2172,7 @@
               
               // Use nextTick only for heavy operations
               await nextTick();
+              await runBloodlineHighlight(evt.node.data.id);
               computeChildren(evt.node.data.id);
               showModal.value = true;
             } finally {
@@ -2202,14 +2212,13 @@
                 
                 // Show new bloodline highlighting
                 setTimeout(async () => {
-                  if (nodes.value.length > 500) {
-                    await nextTick();
-                    await highlightBloodlineAsync(evt.node.data.id);
-                  } else {
-                    // Use async version even for smaller graphs to prevent blocking
-                    await highlightBloodlineAsync(evt.node.data.id);
+                  try {
+                    await runBloodlineHighlight(evt.node.data.id);
+                  } catch (error) {
+                    console.error('Error in single-click highlighting:', error);
+                  } finally {
+                    isLoading.value = false;
                   }
-                  isLoading.value = false;
                 }, 0);
               } catch (error) {
                 console.error('Error in single-click processing:', error);
