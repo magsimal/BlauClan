@@ -56,6 +56,8 @@
   "moreDetails": "Mehr Details",
   "saveLayout": "Layout speichern",
   "loadLayout": "Layout laden",
+  "loadAncestors": "Vorfahren laden",
+  "loadDescendants": "Nachkommen laden",
   "fitToScreen": "An Bildschirm anpassen",
   "zoomIn": "Vergr\u00f6\u00dfern",
   "zoomOut": "Verkleinern",
@@ -103,7 +105,14 @@
   ,"layoutSaved": "Layout gespeichert"
   ,"layoutTidied": "Layout aufger\u00e4umt"
   ,"loading": "Wird geladen..."
+  ,"treeSegmentLoadFailed": "Abschnitt des Stammbaums konnte nicht geladen werden"
   ,"processingLargeDataset": "Verarbeite {count} Knoten, bitte warten..."
   ,"defineMeFirst": "Bitte zuerst einen Me-Knoten festlegen"
   ,"personsHidden": "Personen ausgeblendet"
+  ,"nodeCountIndicator": "Geladen {loaded} / {total}"
+  ,"pointsLegend": "Wie man Punkte sammelt:"
+  ,"newPersonPoints": "• Neue Person hinzufügen: 5 Punkte"
+  ,"editPersonPoints": "• Vorhandene Person bearbeiten: 1-2 Punkte pro Feld"
+  ,"newInfoPoints": "  - Neue Informationen hinzufügen: 2 Punkte"
+  ,"updateInfoPoints": "  - Vorhandene Informationen aktualisieren: 1 Punkt"
 }
